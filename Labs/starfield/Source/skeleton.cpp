@@ -22,6 +22,8 @@ int t;
 
 void Update();
 void Draw(screen *screen);
+void Interpolate(float a, float b, vector<float> &result);
+void Interpolate(vec3 a, vec3 b, vector<vec3> &result);
 
 int main(int argc, char *argv[]) {
 
@@ -45,11 +47,20 @@ void Draw(screen *screen) {
   /* Clear buffer */
   memset(screen->buffer, 0, screen->height * screen->width * sizeof(uint32_t));
 
-  vec3 colour(1.0, 0.0, 0.0);
-  for (int i = 0; i < 1000; i++) {
-    uint32_t x = rand() % screen->width;
-    uint32_t y = rand() % screen->height;
-    PutPixelSDL(screen, x, y, colour);
+  vec3 topLeft(1, 0, 0);     // red
+  vec3 topRight(0, 0, 1);    // blue
+  vec3 bottomRight(0, 1, 0); // green
+  vec3 bottomLeft(1, 1, 0);  // yellow
+  vector<vec3> leftSide(SCREEN_HEIGHT);
+  vector<vec3> rightSide(SCREEN_HEIGHT);
+  vector<vec3> line(SCREEN_WIDTH);
+  Interpolate(topLeft, bottomLeft, leftSide);
+  Interpolate(topRight, bottomRight, rightSide);
+  for (int y = 0; y < SCREEN_HEIGHT; ++y) {
+    Interpolate(leftSide[y], rightSide[y], line);
+    for (int x = 0; x < SCREEN_WIDTH; ++x) {
+      PutPixelSDL(screen, x, y, line[x]);
+    }
   }
 }
 
@@ -62,4 +73,36 @@ void Update() {
   /*Good idea to remove this*/
   std::cout << "Render time: " << dt << " ms." << std::endl;
   /* Update variables*/
+}
+
+void Interpolate(float a, float b, vector<float> &result) {
+  int size = result.size();
+  if (size == 0)
+    return;
+  if (size == 1) {
+    result[0] = (a + b) / 2;
+    return;
+  }
+  float step = (b - a) / (size - 1);
+  float current = a;
+  for (int i = 0; i < size; ++i) {
+    result[i] = current;
+    current += step;
+  }
+}
+
+void Interpolate(vec3 a, vec3 b, vector<vec3> &result) {
+  int size = result.size();
+  if (size == 0)
+    return;
+  if (size == 1) {
+    result[0] = (a + b) / 2.0f;
+    return;
+  }
+  vec3 step = (b - a) / (float)(size - 1);
+  vec3 current = a;
+  for (int i = 0; i < size; ++i) {
+    result[i] = current;
+    current += step;
+  }
 }
