@@ -1,6 +1,6 @@
 #include <iostream>
 #include <glm/glm.hpp>
-#include <SDL.h>
+#include <SDL2/SDL.h>
 #include "SDLauxiliary.h"
 #include "TestModel.h"
 #include <stdint.h>
