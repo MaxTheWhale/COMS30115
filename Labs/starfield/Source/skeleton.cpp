@@ -11,11 +11,14 @@ using glm::vec3;
 
 #define SCREEN_WIDTH 320
 #define SCREEN_HEIGHT 256
+#define CAM_VELOCITY 0.4f
+#define STAR_VELOCITY 0.5f
 #define FULLSCREEN_MODE false
 
 /* ----------------------------------------------------------------------------*/
 /* GLOBAL VARIABLES                                                            */
 int t;
+vec3 camera_pos;
 vector<vec3> stars(1000);
 
 /* ----------------------------------------------------------------------------*/
@@ -34,6 +37,7 @@ int main(int argc, char *argv[]) {
     stars[s].y = float(rand()) * 2.0f / float(RAND_MAX) - 1.0f;
     stars[s].z = float(rand()) / float(RAND_MAX);
   }
+  camera_pos = vec3(0,0,0);
 
   while (NoQuitMessageSDL()) {
     Draw(screen);
@@ -53,11 +57,15 @@ void Draw(screen *screen) {
   memset(screen->buffer, 0, screen->height * screen->width * sizeof(uint32_t));
   for (size_t s = 0; s < stars.size(); ++s) {
     float f = SCREEN_HEIGHT / 2.0f;
-    int x = f * stars[s].x / stars[s].z + SCREEN_WIDTH / 2;
-    int y = f * stars[s].y / stars[s].z + SCREEN_HEIGHT / 2;
-    if (x > 0 && x < SCREEN_WIDTH && y > 0 && y < SCREEN_HEIGHT) {
-      vec3 colour = 0.2f * vec3(1, 1, 1) / (stars[s].z * stars[s].z);
-      PutPixelSDL(screen, x, y, colour);
+    float z = stars[s].z - camera_pos.z;
+    if (z <= 0) continue;
+    float x = stars[s].x - camera_pos.x;
+    float y = stars[s].y - camera_pos.y;
+    int px = f * x / z + SCREEN_WIDTH / 2;
+    int py = f * y / z + SCREEN_HEIGHT / 2;
+    if (px > 0 && px < SCREEN_WIDTH && py > 0 && py < SCREEN_HEIGHT) {
+      vec3 colour = 0.2f * vec3(1, 1, 1) / (z * z);
+      PutPixelSDL(screen, px, py, colour);
     }
   }
 }
@@ -71,9 +79,28 @@ void Update() {
   /*Good idea to remove this*/
   std::cout << "Render time: " << dt << " ms." << std::endl;
   /* Update variables*/
-  float velocity = 0.5f;
+  const Uint8 *state = SDL_GetKeyboardState(NULL);
+  float ds = dt / 1000.0f * CAM_VELOCITY;
+  if (state[SDL_SCANCODE_A]) {
+    camera_pos.x -= ds;
+  }
+  if (state[SDL_SCANCODE_D]) {
+    camera_pos.x += ds;
+  }
+  if (state[SDL_SCANCODE_W]) {
+    camera_pos.z += ds;
+  }
+  if (state[SDL_SCANCODE_S]) {
+    camera_pos.z -= ds;
+  }
+  if (state[SDL_SCANCODE_LSHIFT]) {
+    camera_pos.y += ds;
+  }
+  if (state[SDL_SCANCODE_SPACE]) {
+    camera_pos.y -= ds;
+  }
   for (size_t s = 0; s < stars.size(); ++s) {
-    stars[s].z += dt / 1000.0f * velocity;
+    stars[s].z += dt / 1000.0f * STAR_VELOCITY;
     if (stars[s].z <= 0)
       stars[s].z += 1;
     if (stars[s].z > 1)
