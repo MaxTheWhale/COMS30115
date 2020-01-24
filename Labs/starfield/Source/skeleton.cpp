@@ -13,12 +13,12 @@ using glm::vec3;
 #define M_PI 3.14159265358979323846
 #endif
 
-#define SCREEN_WIDTH 1024
-#define SCREEN_HEIGHT 768
+#define SCREEN_WIDTH 320
+#define SCREEN_HEIGHT 256
 #define CAM_VELOCITY 0.4f
 #define STAR_VELOCITY 0.5f
 #define MOUSE_SENSITIVITY 0.0015f;
-#define FULLSCREEN_MODE false
+#define FULLSCREEN_MODE true
 
 /* ----------------------------------------------------------------------------*/
 /* GLOBAL VARIABLES                                                            */
@@ -28,7 +28,7 @@ vec3 camera_rot;
 vec3 cam_forward;
 vec3 cam_right;
 mat3 R;
-vector<vec3> stars(3000000);
+vector<vec3> stars(10000);
 
 /* ----------------------------------------------------------------------------*/
 /* FUNCTIONS                                                                   */
@@ -47,10 +47,11 @@ int main(int argc, char *argv[]) {
   screen *screen = InitializeSDL(SCREEN_WIDTH, SCREEN_HEIGHT, FULLSCREEN_MODE);
   SDL_SetRelativeMouseMode(SDL_TRUE);
   t = SDL_GetTicks(); /*Set start value for timer.*/
+  #pragma omp parallel for
   for (size_t s = 0; s < stars.size(); ++s) {
     stars[s].x = float(rand()) * 2.0f / float(RAND_MAX) - 1.0f;
     stars[s].y = float(rand()) * 2.0f / float(RAND_MAX) - 1.0f;
-    stars[s].z = float(rand()) / float(RAND_MAX);
+    stars[s].z = float(rand()) * 2.0f / float(RAND_MAX) - 1.0f;
   }
   camera_pos = vec3(0, 0, 0);
   camera_rot = vec3(0, 0, 0);
@@ -73,7 +74,16 @@ int main(int argc, char *argv[]) {
 /*Place your drawing here*/
 void Draw(screen *screen) {
   /* Clear buffer */
-  memset(screen->buffer, 0, screen->height * screen->width * sizeof(uint32_t));
+  //memset(screen->buffer, 0, screen->height * screen->width * sizeof(uint32_t));
+  #pragma omp parallel for
+  for (int i = 0; i < screen->height * screen->width; ++i) {
+    uint8_t fade = (screen->buffer[i] >> 8) & 0xff;
+    screen->buffer[i] = 0;
+    if (fade > 10) {
+      fade -= 10;
+      screen->buffer[i] |= fade | (fade << 8) | (fade << 16) | (fade << 24);
+    }
+  }
   #pragma omp parallel for
   for (size_t s = 0; s < stars.size(); ++s) {
     float f = SCREEN_HEIGHT / 2.0f;
@@ -82,7 +92,7 @@ void Draw(screen *screen) {
     int px = f * pos.x / pos.z + SCREEN_WIDTH / 2;
     int py = f * pos.y / pos.z + SCREEN_HEIGHT / 2;
     if (px > 0 && px < SCREEN_WIDTH && py > 0 && py < SCREEN_HEIGHT) {
-      vec3 colour = 0.2f * vec3(1, 1, 1) / (pos.z * pos.z);
+      vec3 colour = 0.2f * vec3(1, 1, 1) / (pos.z * pos.z + pos.x * pos.x + pos.y * pos.y);
       PutPixelSDL(screen, px, py, colour);
     }
   }
@@ -165,15 +175,16 @@ void HandleMouse() {
 }
 
 void UpdateStars(float dt) {
+  #pragma omp parallel for
   for (size_t s = 0; s < stars.size(); ++s) {
     stars[s].z += dt * STAR_VELOCITY;
-    if (stars[s].z <= 0) {
-      stars[s].z += 1;
+    if (stars[s].z <= -1) {
+      stars[s].z += 2;
       stars[s].x = float(rand()) * 2.0f / float(RAND_MAX) - 1.0f;
       stars[s].y = float(rand()) * 2.0f / float(RAND_MAX) - 1.0f;
     }
     if (stars[s].z > 1) {
-      stars[s].z -= 1;
+      stars[s].z -= 2;
       stars[s].x = float(rand()) * 2.0f / float(RAND_MAX) - 1.0f;
       stars[s].y = float(rand()) * 2.0f / float(RAND_MAX) - 1.0f;
     }
