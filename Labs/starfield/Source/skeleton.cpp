@@ -15,10 +15,16 @@ using glm::vec3;
 
 #define SCREEN_WIDTH 320
 #define SCREEN_HEIGHT 256
+#define DEPTH 8.0f
+#define WIDTH 8.0f
+#define HEIGHT 8.0f
+#define STAR_DENSITY 500
+#define STAR_BRIGHTNESS 0.2f
 #define CAM_VELOCITY 0.4f
 #define STAR_VELOCITY 0.5f
-#define MOUSE_SENSITIVITY 0.0015f;
+#define MOUSE_SENSITIVITY 0.0015f
 #define FULLSCREEN_MODE true
+#define MOTION_BLUR true
 
 /* ----------------------------------------------------------------------------*/
 /* GLOBAL VARIABLES                                                            */
@@ -28,7 +34,7 @@ vec3 camera_rot;
 vec3 cam_forward;
 vec3 cam_right;
 mat3 R;
-vector<vec3> stars(10000);
+vector<vec3> stars(STAR_DENSITY * DEPTH * WIDTH * HEIGHT);
 
 /* ----------------------------------------------------------------------------*/
 /* FUNCTIONS                                                                   */
@@ -49,9 +55,9 @@ int main(int argc, char *argv[]) {
   t = SDL_GetTicks(); /*Set start value for timer.*/
   #pragma omp parallel for
   for (size_t s = 0; s < stars.size(); ++s) {
-    stars[s].x = float(rand()) * 2.0f / float(RAND_MAX) - 1.0f;
-    stars[s].y = float(rand()) * 2.0f / float(RAND_MAX) - 1.0f;
-    stars[s].z = float(rand()) * 2.0f / float(RAND_MAX) - 1.0f;
+    stars[s].x = float(rand()) * WIDTH / float(RAND_MAX) - (WIDTH / 2);
+    stars[s].y = float(rand()) * HEIGHT / float(RAND_MAX) - (HEIGHT / 2);
+    stars[s].z = float(rand()) * DEPTH / float(RAND_MAX) - (DEPTH / 2);
   }
   camera_pos = vec3(0, 0, 0);
   camera_rot = vec3(0, 0, 0);
@@ -73,16 +79,19 @@ int main(int argc, char *argv[]) {
 
 /*Place your drawing here*/
 void Draw(screen *screen) {
-  /* Clear buffer */
-  //memset(screen->buffer, 0, screen->height * screen->width * sizeof(uint32_t));
-  #pragma omp parallel for
-  for (int i = 0; i < screen->height * screen->width; ++i) {
-    uint8_t fade = (screen->buffer[i] >> 8) & 0xff;
-    screen->buffer[i] = 0;
-    if (fade > 10) {
-      fade -= 10;
-      screen->buffer[i] |= fade | (fade << 8) | (fade << 16) | (fade << 24);
+  if (MOTION_BLUR) {
+    #pragma omp parallel for
+    for (int i = 0; i < screen->height * screen->width; ++i) {
+      uint8_t fade = (screen->buffer[i] >> 8) & 0xff;
+      screen->buffer[i] = 0;
+      if (fade > 10) {
+        fade *= 0.9;
+        screen->buffer[i] |= fade | (fade << 8) | (fade << 16) | (fade << 24);
+      }
     }
+  }
+  else {
+    memset(screen->buffer, 0, screen->height * screen->width * sizeof(uint32_t));
   }
   #pragma omp parallel for
   for (size_t s = 0; s < stars.size(); ++s) {
@@ -92,7 +101,7 @@ void Draw(screen *screen) {
     int px = f * pos.x / pos.z + SCREEN_WIDTH / 2;
     int py = f * pos.y / pos.z + SCREEN_HEIGHT / 2;
     if (px > 0 && px < SCREEN_WIDTH && py > 0 && py < SCREEN_HEIGHT) {
-      vec3 colour = 0.2f * vec3(1, 1, 1) / (pos.z * pos.z + pos.x * pos.x + pos.y * pos.y);
+      vec3 colour = STAR_BRIGHTNESS * vec3(1, 1, 1) / (pos.z * pos.z + pos.x * pos.x + pos.y * pos.y);
       PutPixelSDL(screen, px, py, colour);
     }
   }
@@ -178,16 +187,13 @@ void UpdateStars(float dt) {
   #pragma omp parallel for
   for (size_t s = 0; s < stars.size(); ++s) {
     stars[s].z += dt * STAR_VELOCITY;
-    if (stars[s].z <= -1) {
-      stars[s].z += 2;
-      stars[s].x = float(rand()) * 2.0f / float(RAND_MAX) - 1.0f;
-      stars[s].y = float(rand()) * 2.0f / float(RAND_MAX) - 1.0f;
-    }
-    if (stars[s].z > 1) {
-      stars[s].z -= 2;
-      stars[s].x = float(rand()) * 2.0f / float(RAND_MAX) - 1.0f;
-      stars[s].y = float(rand()) * 2.0f / float(RAND_MAX) - 1.0f;
-    }
+    vec3 diff = stars[s] - camera_pos;
+    if (abs(diff.x) > WIDTH / 2)
+      stars[s].x -= diff.x * 2;
+    if (abs(diff.y) > HEIGHT / 2)
+      stars[s].y -= diff.y * 2;
+    if (abs(diff.z) > DEPTH / 2)
+      stars[s].z -= diff.z * 2;
   }
 }
 
