@@ -13,8 +13,8 @@ using glm::vec3;
 #define M_PI 3.14159265358979323846
 #endif
 
-#define SCREEN_WIDTH 320
-#define SCREEN_HEIGHT 256
+#define SCREEN_WIDTH 1024
+#define SCREEN_HEIGHT 768
 #define CAM_VELOCITY 0.4f
 #define STAR_VELOCITY 0.5f
 #define MOUSE_SENSITIVITY 0.0015f;
@@ -28,7 +28,7 @@ vec3 camera_rot;
 vec3 cam_forward;
 vec3 cam_right;
 mat3 R;
-vector<vec3> stars(100000);
+vector<vec3> stars(3000000);
 
 /* ----------------------------------------------------------------------------*/
 /* FUNCTIONS                                                                   */
@@ -74,6 +74,7 @@ int main(int argc, char *argv[]) {
 void Draw(screen *screen) {
   /* Clear buffer */
   memset(screen->buffer, 0, screen->height * screen->width * sizeof(uint32_t));
+  #pragma omp parallel for
   for (size_t s = 0; s < stars.size(); ++s) {
     float f = SCREEN_HEIGHT / 2.0f;
     vec3 pos = R * (stars[s] - camera_pos);

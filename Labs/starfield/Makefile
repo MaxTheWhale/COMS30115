@@ -10,8 +10,8 @@ B_DIR=Build
 EXEC=$(B_DIR)/$(FILE)
 
 # default build settings
-CC_OPTS=-c -pipe -Wall -Wno-switch -Ofast -march=native
-LN_OPTS=
+CC_OPTS=-c -pipe -Wall -Wno-switch -Ofast -fopenmp -march=native
+LN_OPTS=-fopenmp
 CC=g++
 
 ########
