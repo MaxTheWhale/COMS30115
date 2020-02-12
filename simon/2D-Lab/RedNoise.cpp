@@ -47,13 +47,12 @@ class Texture
 void texturedTriangle(CanvasTriangle screenTri, CanvasTriangle texTri, Texture tex);
 
 DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
+Texture img = Texture("texture.ppm");
 
 int main(int argc, char *argv[]) {
   SDL_Event event;
-  Texture img = Texture("texture.ppm");
   CanvasTriangle tTri = CanvasTriangle(CanvasPoint(195, 5), CanvasPoint(395, 380), CanvasPoint(65, 330));
   CanvasTriangle sTri = CanvasTriangle(CanvasPoint(160, 10), CanvasPoint(300, 230), CanvasPoint(10, 150));
-  texturedTriangle(sTri, tTri, img);
   while (true) {
     // We MUST poll for events - otherwise the window will freeze !
     if (window.pollForInputEvents(&event))
@@ -90,6 +89,10 @@ void handleEvent(SDL_Event event) {
     else if (event.key.keysym.sym == SDLK_f) {
       cout << "F" << endl;
       triangle(CanvasTriangle(CanvasPoint(rand() % WIDTH, rand() % HEIGHT), CanvasPoint(rand() % WIDTH, rand() % HEIGHT), CanvasPoint(rand() % WIDTH, rand() % HEIGHT)), rand(), true);
+    }
+    else if (event.key.keysym.sym == SDLK_t) {
+      cout << "T" << endl;
+      texturedTriangle(CanvasTriangle(CanvasPoint(rand() % WIDTH, rand() % HEIGHT), CanvasPoint(rand() % WIDTH, rand() % HEIGHT), CanvasPoint(rand() % WIDTH, rand() % HEIGHT)), CanvasTriangle(CanvasPoint(rand() % img.width, rand() % img.height), CanvasPoint(rand() % img.width, rand() % img.height), CanvasPoint(rand() % img.width, rand() % img.height)), img);
     }
   } else if (event.type == SDL_MOUSEBUTTONDOWN)
     cout << "MOUSE CLICKED" << endl;
@@ -192,6 +195,10 @@ void texturedTriangle(CanvasTriangle screenTri, CanvasTriangle texTri, Texture t
     float ty1 = tyline1[y - screenTri.vertices[0].y];
     float tx2 = txline2[y - screenTri.vertices[0].y];
     float ty2 = tyline2[y - screenTri.vertices[0].y];
+    if (sline1[y - screenTri.vertices[0].y] > sline2[y - screenTri.vertices[0].y]) {
+      swap(tx1, tx2);
+      swap(ty1, ty2);
+    }
     int xStart = std::min(sline1[y - screenTri.vertices[0].y], sline2[y - screenTri.vertices[0].y]);
     int xEnd = std::max(sline1[y - screenTri.vertices[0].y], sline2[y - screenTri.vertices[0].y]);
     vector<float> txs = Interpolate(tx1, tx2, xEnd - xStart);
@@ -205,7 +212,7 @@ void texturedTriangle(CanvasTriangle screenTri, CanvasTriangle texTri, Texture t
     float ty1 = tyline2[y - screenTri.vertices[0].y];
     float tx2 = txline3[y - screenTri.vertices[1].y];
     float ty2 = tyline3[y - screenTri.vertices[1].y];
-    if (tx1 > tx2) {
+    if (sline2[y - screenTri.vertices[0].y] > sline3[y - screenTri.vertices[1].y]) {
       swap(tx1, tx2);
       swap(ty1, ty2);
     }
