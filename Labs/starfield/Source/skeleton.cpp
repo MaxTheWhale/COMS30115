@@ -15,15 +15,15 @@ using glm::vec3;
 
 #define SCREEN_WIDTH 320
 #define SCREEN_HEIGHT 256
-#define DEPTH 8.0f
-#define WIDTH 8.0f
-#define HEIGHT 8.0f
+#define DEPTH 6.0f
+#define WIDTH 6.0f
+#define HEIGHT 6.0f
 #define STAR_DENSITY 500
 #define STAR_BRIGHTNESS 0.2f
 #define CAM_VELOCITY 0.4f
 #define STAR_VELOCITY 0.5f
 #define MOUSE_SENSITIVITY 0.0015f
-#define FULLSCREEN_MODE true
+#define FULLSCREEN_MODE false
 #define MOTION_BLUR true
 
 /* ----------------------------------------------------------------------------*/
@@ -114,7 +114,7 @@ void Update() {
   float dt = float(t2 - t) / 1000.0f;
   t = t2;
   /*Good idea to remove this*/
-  std::cout << "Render time: " << dt * 1000 << " ms." << std::endl;
+  //std::cout << "Render time: " << dt * 1000 << " ms." << std::endl;
   /* Update variables*/
   HandleKeyboard(SDL_GetKeyboardState(NULL), dt);
   HandleMouse();

@@ -15,11 +15,15 @@ using namespace glm;
 
 void draw();
 void line(CanvasPoint p, CanvasPoint q, int colour);
+
+void draw();
+void line(CanvasPoint p, CanvasPoint q, int colour);
 void triangle(CanvasTriangle t, int colour, bool filled = false);
 int *loadPPM(string fileName, int &width, int &height);
 void skipHashWS(ifstream &f);
 void update();
 void handleEvent(SDL_Event event);
+float depthBuffer[WIDTH * HEIGHT];
 vector<float> Interpolate(float a, float b, int n);
 vector<vec3> Interpolate(vec3 a, vec3 b, int n);
 unordered_map<string, Colour> loadMTL(string fileName);
@@ -53,7 +57,6 @@ vector<ModelTriangle> loadOBJ(string fileName,
       if (s == "f") {
         string a, b, c;
         f >> a >> b >> c;
-        cout << a << b << c << "\n";
         faces.push_back(ModelTriangle(vertices[stoi(split(a, '/')[0]) - 1],
                                       vertices[stoi(split(b, '/')[0]) - 1],
                                       vertices[stoi(split(c, '/')[0]) - 1],
@@ -87,13 +90,35 @@ unordered_map<string, Colour> loadMTL(string fileName) {
 
 vec3 cam = vec3(0, 0, 0);
 
+// x = Xf/Z
+// y = Yf/Z
+// x, y = 2d screen coords
+// X, Y, Z = 3d world coords
+// f = focal length
+
 void drawTriangles(vector<ModelTriangle> tris, vec3 cam) {
   float focal_length = HEIGHT / 2;
   for (auto tri : tris) {
-    CanvasPoint v1 = CanvasPoint((tri.vertices[0] - cam).x * focal_length / (tri.vertices[0] - cam).z, (tri.vertices[0] - cam).y * focal_length / (tri.vertices[0] - cam).z);
-    CanvasPoint v2 = CanvasPoint((tri.vertices[1] - cam).x * focal_length / (tri.vertices[0] - cam).z, (tri.vertices[1] - cam).y * focal_length / (tri.vertices[0] - cam).z);
-    CanvasPoint v3 = CanvasPoint((tri.vertices[2] - cam).x * focal_length / (tri.vertices[0] - cam).z, (tri.vertices[2] - cam).y * focal_length / (tri.vertices[0] - cam).z);
-    triangle(CanvasTriangle(v1, v2, v3), 0xffffffff);
+    CanvasPoint v1 = CanvasPoint(
+        (tri.vertices[0] - cam).x * focal_length / (tri.vertices[0] - cam).z +
+            WIDTH / 2,
+        (tri.vertices[0] - cam).y * focal_length / (tri.vertices[0] - cam).z +
+            HEIGHT / 2,
+        (tri.vertices[0] - cam).z);
+    CanvasPoint v2 = CanvasPoint(
+        (tri.vertices[1] - cam).x * focal_length / (tri.vertices[1] - cam).z +
+            WIDTH / 2,
+        (tri.vertices[1] - cam).y * focal_length / (tri.vertices[1] - cam).z +
+            HEIGHT / 2,
+        (tri.vertices[1] - cam).z);
+    CanvasPoint v3 = CanvasPoint(
+        (tri.vertices[2] - cam).x * focal_length / (tri.vertices[2] - cam).z +
+            WIDTH / 2,
+        (tri.vertices[2] - cam).y * focal_length / (tri.vertices[2] - cam).z +
+            HEIGHT / 2,
+        (tri.vertices[2] - cam).z);
+    if (v1.depth < 0 || v2.depth < 0 || v3.depth < 0)
+      triangle(CanvasTriangle(v1, v2, v3), tri.colour.toPackedInt(), true);
   }
 }
 
@@ -119,9 +144,13 @@ DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
 
 int main(int argc, char *argv[]) {
   SDL_Event event;
-  //Texture img = Texture("texture.ppm");
+  // Texture img = Texture("texture.ppm");
   unordered_map<string, Colour> palette = loadMTL("cornell-box.mtl");
   vector<ModelTriangle> tris = loadOBJ("cornell-box.obj", palette);
+
+  for (int i = 0; i < WIDTH * HEIGHT; i++) {
+    depthBuffer[i] = numeric_limits<float>::infinity();
+  }
 
   while (true) {
     // We MUST poll for events - otherwise the window will freeze !
@@ -138,6 +167,9 @@ int main(int argc, char *argv[]) {
 
 void draw() {
   window.clearPixels();
+  for (int i = 0; i < WIDTH * HEIGHT; i++) {
+    depthBuffer[i] = numeric_limits<float>::infinity();
+  }
 }
 
 void update() {
@@ -149,28 +181,22 @@ void handleEvent(SDL_Event event) {
     if (event.key.keysym.sym == SDLK_LEFT) {
       cout << "LEFT" << endl;
       cam.x -= 0.5f;
-    }
-    else if (event.key.keysym.sym == SDLK_RIGHT) {
+    } else if (event.key.keysym.sym == SDLK_RIGHT) {
       cout << "RIGHT" << endl;
       cam.x += 0.5f;
-    }
-    else if (event.key.keysym.sym == SDLK_UP) {
+    } else if (event.key.keysym.sym == SDLK_UP) {
       cout << "UP" << endl;
       cam.z += 0.5f;
-    }
-    else if (event.key.keysym.sym == SDLK_DOWN) {
+    } else if (event.key.keysym.sym == SDLK_DOWN) {
       cout << "DOWN" << endl;
       cam.z -= 0.5f;
-    }
-    else if (event.key.keysym.sym == SDLK_LSHIFT) {
+    } else if (event.key.keysym.sym == SDLK_LSHIFT) {
       cout << "LSHIFT" << endl;
       cam.y -= 0.5f;
-    }
-    else if (event.key.keysym.sym == SDLK_SPACE) {
+    } else if (event.key.keysym.sym == SDLK_SPACE) {
       cout << "SPACE" << endl;
       cam.y += 0.5f;
-    }
-    else if (event.key.keysym.sym == SDLK_u) {
+    } else if (event.key.keysym.sym == SDLK_u) {
       cout << "U" << endl;
       triangle(CanvasTriangle(CanvasPoint(rand() % WIDTH, rand() % HEIGHT),
                               CanvasPoint(rand() % WIDTH, rand() % HEIGHT),
@@ -248,27 +274,59 @@ void triangle(CanvasTriangle t, int colour, bool filled) {
         Interpolate(t.vertices[1].x, t.vertices[2].x,
                     abs(t.vertices[1].y - t.vertices[2].y) + 1);
 
+    vector<float> depth1 =
+        Interpolate(t.vertices[0].depth, t.vertices[1].depth,
+                    abs(t.vertices[0].y - t.vertices[1].y) + 1);
+    vector<float> depth2 =
+        Interpolate(t.vertices[0].depth, t.vertices[2].depth,
+                    abs(t.vertices[0].y - t.vertices[2].y) + 1);
+    vector<float> depth3 =
+        Interpolate(t.vertices[1].depth, t.vertices[2].depth,
+                    abs(t.vertices[1].y - t.vertices[2].y) + 1);
+
     for (int y = t.vertices[0].y; y < t.vertices[1].y; y++) {
-      for (int x =
-               std::min(line1[y - t.vertices[0].y], line2[y - t.vertices[0].y]);
-           x < std::max(line1[y - t.vertices[0].y], line2[y - t.vertices[0].y]);
-           x++) {
-        window.setPixelColour(x, y, colour);
+      int xStart =
+          std::min(line1[y - t.vertices[0].y], line2[y - t.vertices[0].y]);
+      int xEnd =
+          std::max(line1[y - t.vertices[0].y], line2[y - t.vertices[0].y]);
+      vector<float> depthLine =
+          Interpolate(depth1[y - t.vertices[0].y], depth2[y - t.vertices[0].y],
+                      xEnd - xStart);
+      for (int x = xStart; x < xEnd; x++) {
+        if (x >= 0 && y >= 0 && x < WIDTH && y < HEIGHT) {
+          if (1.0f / depthLine[x - xStart] < depthBuffer[x + y * WIDTH]) {
+            window.setPixelColour(x, y, colour);
+            //cout << depthLine[x - xStart] << " ";
+            depthBuffer[x + y * WIDTH] = 1.0f / depthLine[x - xStart];
+          }
+        }
       }
     }
     for (int y = t.vertices[1].y; y < t.vertices[2].y; y++) {
-      for (int x =
-               std::min(line3[y - t.vertices[1].y], line2[y - t.vertices[0].y]);
-           x < std::max(line3[y - t.vertices[1].y], line2[y - t.vertices[0].y]);
-           x++) {
-        window.setPixelColour(x, y, colour);
+      int xStart =
+          std::min(line3[y - t.vertices[1].y], line2[y - t.vertices[0].y]);
+      int xEnd =
+          std::max(line3[y - t.vertices[1].y], line2[y - t.vertices[0].y]);
+      vector<float> depthLine =
+          Interpolate(depth3[y - t.vertices[1].y], depth2[y - t.vertices[0].y],
+                      xEnd - xStart);
+      for (int x = xStart; x < xEnd; x++) {
+        if (x >= 0 && y >= 0 && x < WIDTH && y < HEIGHT) {
+          if (1.0 / depthLine[x - xStart] < depthBuffer[x + y * WIDTH]) {
+            window.setPixelColour(x, y, colour);
+            //cout << depthLine[x - xStart] << " ";
+            depthBuffer[x + y * WIDTH] = 1.0 / depthLine[x - xStart];
+          }
+        }
       }
     }
   }
-
-  line(t.vertices[0], t.vertices[1], colour);
-  line(t.vertices[1], t.vertices[2], colour);
-  line(t.vertices[2], t.vertices[0], colour);
+  else {
+    line(t.vertices[0], t.vertices[1], colour);
+    line(t.vertices[1], t.vertices[2], colour);
+    line(t.vertices[2], t.vertices[0], colour);
+  }
+  //cout << "\n";
 }
 
 void texturedTriangle(CanvasTriangle screenTri, CanvasTriangle texTri,
