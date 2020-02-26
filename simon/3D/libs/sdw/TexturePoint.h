@@ -16,8 +16,56 @@ class TexturePoint
       y = yPos;
     }
 
-    void print()
+    TexturePoint operator+=(const TexturePoint& rhs)
     {
+      x += rhs.x;
+      y += rhs.y;
+      return *this;
+    }
+
+    friend TexturePoint operator+(TexturePoint lhs, const TexturePoint& rhs)
+    {
+      lhs += rhs;
+      return lhs;
+    }
+
+    TexturePoint operator-=(const TexturePoint& rhs)
+    {
+      x -= rhs.x;
+      y -= rhs.y;
+      return *this;
+    }
+
+    friend TexturePoint operator-(TexturePoint lhs, const TexturePoint& rhs)
+    {
+      lhs -= rhs;
+      return lhs;
+    }
+
+    TexturePoint operator*=(float rhs)
+    {
+      x *= rhs;
+      y *= rhs;
+      return *this;
+    }
+
+    friend TexturePoint operator*(TexturePoint lhs, float rhs)
+    {
+      lhs *= rhs;
+      return lhs;
+    }
+
+    TexturePoint operator/=(float rhs)
+    {
+      x /= rhs;
+      y /= rhs;
+      return *this;
+    }
+
+    friend TexturePoint operator/(TexturePoint lhs, float rhs)
+    {
+      lhs /= rhs;
+      return lhs;
     }
 };
 
