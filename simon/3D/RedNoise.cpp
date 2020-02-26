@@ -88,7 +88,7 @@ unordered_map<string, Colour> loadMTL(string fileName) {
   return palette;
 }
 
-vec3 cam = vec3(0, 0, 0);
+vec3 cam = vec3(4.5f, 2.5f, 2.5f);
 
 // x = Xf/Z
 // y = Yf/Z
@@ -100,24 +100,24 @@ void drawTriangles(vector<ModelTriangle> tris, vec3 cam) {
   float focal_length = HEIGHT / 2;
   for (auto tri : tris) {
     CanvasPoint v1 = CanvasPoint(
-        (tri.vertices[0] - cam).x * focal_length / (tri.vertices[0] - cam).z +
+        (tri.vertices[0] - cam).x * focal_length / (cam - tri.vertices[0]).z +
             WIDTH / 2,
-        (tri.vertices[0] - cam).y * focal_length / (tri.vertices[0] - cam).z +
+        -(tri.vertices[0] - cam).y * focal_length / (cam - tri.vertices[0]).z +
             HEIGHT / 2,
-        (tri.vertices[0] - cam).z);
+        -1.0 / (tri.vertices[0] - cam).z);
     CanvasPoint v2 = CanvasPoint(
-        (tri.vertices[1] - cam).x * focal_length / (tri.vertices[1] - cam).z +
+        (tri.vertices[1] - cam).x * focal_length / (cam - tri.vertices[1]).z +
             WIDTH / 2,
-        (tri.vertices[1] - cam).y * focal_length / (tri.vertices[1] - cam).z +
+        -(tri.vertices[1] - cam).y * focal_length / (cam - tri.vertices[1]).z +
             HEIGHT / 2,
-        (tri.vertices[1] - cam).z);
+        -1.0 / (tri.vertices[1] - cam).z);
     CanvasPoint v3 = CanvasPoint(
-        (tri.vertices[2] - cam).x * focal_length / (tri.vertices[2] - cam).z +
+        (tri.vertices[2] - cam).x * focal_length / (cam - tri.vertices[2]).z +
             WIDTH / 2,
-        (tri.vertices[2] - cam).y * focal_length / (tri.vertices[2] - cam).z +
+        -(tri.vertices[2] - cam).y * focal_length / (cam - tri.vertices[2]).z +
             HEIGHT / 2,
-        (tri.vertices[2] - cam).z);
-    if (v1.depth < 0 || v2.depth < 0 || v3.depth < 0)
+        -1.0 / (tri.vertices[2] - cam).z);
+    if (v1.depth > 0 || v2.depth > 0 || v3.depth > 0)
       triangle(CanvasTriangle(v1, v2, v3), tri.colour.toPackedInt(), true);
   }
 }
@@ -149,7 +149,7 @@ int main(int argc, char *argv[]) {
   vector<ModelTriangle> tris = loadOBJ("cornell-box.obj", palette);
 
   for (int i = 0; i < WIDTH * HEIGHT; i++) {
-    depthBuffer[i] = numeric_limits<float>::infinity();
+    depthBuffer[i] = 0;
   }
 
   while (true) {
@@ -168,7 +168,7 @@ int main(int argc, char *argv[]) {
 void draw() {
   window.clearPixels();
   for (int i = 0; i < WIDTH * HEIGHT; i++) {
-    depthBuffer[i] = numeric_limits<float>::infinity();
+    depthBuffer[i] = 0;
   }
 }
 
@@ -186,10 +186,10 @@ void handleEvent(SDL_Event event) {
       cam.x += 0.5f;
     } else if (event.key.keysym.sym == SDLK_UP) {
       cout << "UP" << endl;
-      cam.z += 0.5f;
+      cam.z -= 0.5f;
     } else if (event.key.keysym.sym == SDLK_DOWN) {
       cout << "DOWN" << endl;
-      cam.z -= 0.5f;
+      cam.z += 0.5f;
     } else if (event.key.keysym.sym == SDLK_LSHIFT) {
       cout << "LSHIFT" << endl;
       cam.y -= 0.5f;
@@ -243,6 +243,21 @@ vector<vec3> Interpolate(vec3 a, vec3 b, int n) {
   return result;
 }
 
+vector<CanvasPoint> Interpolate(CanvasPoint a, CanvasPoint b, int n) {
+  vector<CanvasPoint> result;
+  if (n == 1) {
+    result.push_back((a + b) / 2.0f);
+    return result;
+  } else if (n > 1) {
+    CanvasPoint step = (b - a) / (n - 1.0f);
+    for (int i = 0; i < n; ++i) {
+      result.push_back(a);
+      a += step;
+    }
+  }
+  return result;
+}
+
 void line(CanvasPoint p, CanvasPoint q, int colour) {
   float x_diff = p.x - q.x;
   float y_diff = p.y - q.y;
@@ -257,65 +272,58 @@ void line(CanvasPoint p, CanvasPoint q, int colour) {
 
 void triangle(CanvasTriangle t, int colour, bool filled) {
   if (filled) {
-    if (t.vertices[0].y > t.vertices[1].y)
-      swap(t.vertices[0], t.vertices[1]);
-    if (t.vertices[1].y > t.vertices[2].y)
-      swap(t.vertices[1], t.vertices[2]);
-    if (t.vertices[0].y > t.vertices[1].y)
-      swap(t.vertices[0], t.vertices[1]);
+    sort(begin(t.vertices), end(t.vertices));
 
-    vector<float> line1 =
-        Interpolate(t.vertices[0].x, t.vertices[1].x,
-                    abs(t.vertices[0].y - t.vertices[1].y) + 1);
-    vector<float> line2 =
-        Interpolate(t.vertices[0].x, t.vertices[2].x,
-                    abs(t.vertices[0].y - t.vertices[2].y) + 1);
-    vector<float> line3 =
-        Interpolate(t.vertices[1].x, t.vertices[2].x,
-                    abs(t.vertices[1].y - t.vertices[2].y) + 1);
-
-    vector<float> depth1 =
-        Interpolate(t.vertices[0].depth, t.vertices[1].depth,
-                    abs(t.vertices[0].y - t.vertices[1].y) + 1);
-    vector<float> depth2 =
-        Interpolate(t.vertices[0].depth, t.vertices[2].depth,
-                    abs(t.vertices[0].y - t.vertices[2].y) + 1);
-    vector<float> depth3 =
-        Interpolate(t.vertices[1].depth, t.vertices[2].depth,
-                    abs(t.vertices[1].y - t.vertices[2].y) + 1);
+    vector<CanvasPoint> line1 =
+        Interpolate(t.vertices[0], t.vertices[1],
+                    t.vertices[1].y - t.vertices[0].y + 1);
+    vector<CanvasPoint> line2 =
+        Interpolate(t.vertices[0], t.vertices[2],
+                    t.vertices[2].y - t.vertices[0].y + 1);
+    vector<CanvasPoint> line3 =
+        Interpolate(t.vertices[1], t.vertices[2],
+                    t.vertices[2].y - t.vertices[1].y + 1);
 
     for (int y = t.vertices[0].y; y < t.vertices[1].y; y++) {
-      int xStart =
-          std::min(line1[y - t.vertices[0].y], line2[y - t.vertices[0].y]);
-      int xEnd =
-          std::max(line1[y - t.vertices[0].y], line2[y - t.vertices[0].y]);
-      vector<float> depthLine =
-          Interpolate(depth1[y - t.vertices[0].y], depth2[y - t.vertices[0].y],
-                      xEnd - xStart);
+      int xStart, xEnd;
+      vector<CanvasPoint> currentLine;
+      if (line1[y - t.vertices[0].y].x < line2[y - t.vertices[0].y].x) {
+        xStart = line1[y - t.vertices[0].y].x;
+        xEnd = line2[y - t.vertices[0].y].x;
+        currentLine = Interpolate(line1[y - t.vertices[0].y], line2[y - t.vertices[0].y], xEnd - xStart);
+      }
+      else {
+        xStart = line2[y - t.vertices[0].y].x;
+        xEnd = line1[y - t.vertices[0].y].x;
+        currentLine = Interpolate(line2[y - t.vertices[0].y], line1[y - t.vertices[0].y], xEnd - xStart);
+      }
       for (int x = xStart; x < xEnd; x++) {
         if (x >= 0 && y >= 0 && x < WIDTH && y < HEIGHT) {
-          if (1.0f / depthLine[x - xStart] < depthBuffer[x + y * WIDTH]) {
+          if (currentLine[x - xStart].depth > depthBuffer[x + y * WIDTH]) {
             window.setPixelColour(x, y, colour);
-            //cout << depthLine[x - xStart] << " ";
-            depthBuffer[x + y * WIDTH] = 1.0f / depthLine[x - xStart];
+            depthBuffer[x + y * WIDTH] = currentLine[x - xStart].depth;
           }
         }
       }
     }
     for (int y = t.vertices[1].y; y < t.vertices[2].y; y++) {
-      int xStart =
-          std::min(line3[y - t.vertices[1].y], line2[y - t.vertices[0].y]);
-      int xEnd =
-          std::max(line3[y - t.vertices[1].y], line2[y - t.vertices[0].y]);
-      vector<float> depthLine =
-          Interpolate(depth3[y - t.vertices[1].y], depth2[y - t.vertices[0].y],
-                      xEnd - xStart);
+      int xStart, xEnd;
+      vector<CanvasPoint> currentLine;
+      if (line3[y - t.vertices[1].y].x < line2[y - t.vertices[0].y].x) {
+        xStart = line3[y - t.vertices[1].y].x;
+        xEnd = line2[y - t.vertices[0].y].x;
+        currentLine = Interpolate(line3[y - t.vertices[1].y], line2[y - t.vertices[0].y], xEnd - xStart);
+      }
+      else {
+        xStart = line2[y - t.vertices[0].y].x;
+        xEnd = line3[y - t.vertices[1].y].x;
+        currentLine = Interpolate(line2[y - t.vertices[0].y], line3[y - t.vertices[1].y], xEnd - xStart);
+      }
       for (int x = xStart; x < xEnd; x++) {
         if (x >= 0 && y >= 0 && x < WIDTH && y < HEIGHT) {
-          if (1.0 / depthLine[x - xStart] < depthBuffer[x + y * WIDTH]) {
+          if (currentLine[x - xStart].depth > depthBuffer[x + y * WIDTH]) {
             window.setPixelColour(x, y, colour);
-            //cout << depthLine[x - xStart] << " ";
-            depthBuffer[x + y * WIDTH] = 1.0 / depthLine[x - xStart];
+            depthBuffer[x + y * WIDTH] = currentLine[x - xStart].depth;
           }
         }
       }
@@ -326,7 +334,6 @@ void triangle(CanvasTriangle t, int colour, bool filled) {
     line(t.vertices[1], t.vertices[2], colour);
     line(t.vertices[2], t.vertices[0], colour);
   }
-  //cout << "\n";
 }
 
 void texturedTriangle(CanvasTriangle screenTri, CanvasTriangle texTri,
