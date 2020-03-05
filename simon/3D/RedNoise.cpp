@@ -88,7 +88,7 @@ unordered_map<string, Colour> loadMTL(string fileName) {
   return palette;
 }
 
-vec3 cam = vec3(4.5f, 2.5f, 2.5f);
+vec4 cam = vec4(4.5f, 2.5f, 2.5f, 1.0f);
 
 // x = Xf/Z
 // y = Yf/Z
@@ -96,7 +96,7 @@ vec3 cam = vec3(4.5f, 2.5f, 2.5f);
 // X, Y, Z = 3d world coords
 // f = focal length
 
-void drawTriangles(vector<ModelTriangle> tris, vec3 cam) {
+void drawTriangles(vector<ModelTriangle> tris, vec4 cam) {
   float focal_length = HEIGHT / 2;
   for (auto tri : tris) {
     CanvasPoint v1 = CanvasPoint(
