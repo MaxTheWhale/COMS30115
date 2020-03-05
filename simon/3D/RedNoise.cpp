@@ -15,9 +15,6 @@ using namespace glm;
 
 void draw();
 void line(CanvasPoint p, CanvasPoint q, int colour);
-
-void draw();
-void line(CanvasPoint p, CanvasPoint q, int colour);
 void triangle(CanvasTriangle t, int colour, bool filled = false);
 int *loadPPM(string fileName, int &width, int &height);
 void skipHashWS(ifstream &f);
@@ -88,7 +85,10 @@ unordered_map<string, Colour> loadMTL(string fileName) {
   return palette;
 }
 
-vec4 cam = vec4(4.5f, 2.5f, 2.5f, 1.0f);
+mat4 camMat = mat4(1, 0, 0, 0,
+                   0, 1, 0, 0,
+                   0, 0, 1, 0,
+                   0, 0, 5.0f, 1);
 
 // x = Xf/Z
 // y = Yf/Z
@@ -96,30 +96,47 @@ vec4 cam = vec4(4.5f, 2.5f, 2.5f, 1.0f);
 // X, Y, Z = 3d world coords
 // f = focal length
 
-void drawTriangles(vector<ModelTriangle> tris, vec4 cam) {
+void drawTriangles(vector<ModelTriangle> tris, mat4 camMat) {
   float focal_length = HEIGHT / 2;
   for (auto tri : tris) {
+    vec4 camToV1 = camMat * tri.vertices[0];
+    vec4 camToV2 = camMat * tri.vertices[1];
+    vec4 camToV3 = camMat * tri.vertices[2];
     CanvasPoint v1 = CanvasPoint(
-        (tri.vertices[0] - cam).x * focal_length / (cam - tri.vertices[0]).z +
+        camToV1.x * focal_length / -camToV1.z +
             WIDTH / 2,
-        -(tri.vertices[0] - cam).y * focal_length / (cam - tri.vertices[0]).z +
+        -camToV1.y * focal_length / -camToV1.z +
             HEIGHT / 2,
-        -1.0 / (tri.vertices[0] - cam).z);
+        -1.0 / camToV1.z);
     CanvasPoint v2 = CanvasPoint(
-        (tri.vertices[1] - cam).x * focal_length / (cam - tri.vertices[1]).z +
+        camToV2.x * focal_length / -camToV2.z +
             WIDTH / 2,
-        -(tri.vertices[1] - cam).y * focal_length / (cam - tri.vertices[1]).z +
+        -camToV2.y * focal_length / -camToV2.z +
             HEIGHT / 2,
-        -1.0 / (tri.vertices[1] - cam).z);
+        -1.0 / camToV2.z);
     CanvasPoint v3 = CanvasPoint(
-        (tri.vertices[2] - cam).x * focal_length / (cam - tri.vertices[2]).z +
+        camToV3.x * focal_length / -camToV3.z +
             WIDTH / 2,
-        -(tri.vertices[2] - cam).y * focal_length / (cam - tri.vertices[2]).z +
+        -camToV3.y * focal_length / -camToV3.z +
             HEIGHT / 2,
-        -1.0 / (tri.vertices[2] - cam).z);
+        -1.0 / camToV3.z);
     if (v1.depth > 0 || v2.depth > 0 || v3.depth > 0)
       triangle(CanvasTriangle(v1, v2, v3), tri.colour.toPackedInt(), true);
   }
+}
+
+mat4 lookAt(mat4 camMat, vec3 target) {
+  vec3 forward = normalize(vec3(camMat[3].x, camMat[3].y, camMat[3].z) - target);
+  vec3 tmp = vec3(0, 1, 0); 
+  vec3 right = cross(normalize(tmp), forward);
+  vec3 up = cross(forward, right);
+  cout << forward.x << ' ' << forward.y << ' ' << forward.z << '\n';
+  cout << up.x << ' ' << up.y << ' ' << up.z << '\n';
+  cout << right.x << ' ' << right.y << ' ' << right.z << '\n';
+  camMat[0] = vec4(right.x, right.y, right.z, 0);
+  camMat[1] = vec4(up.x, up.y, up.z, 0);
+  camMat[2] = vec4(forward.x, forward.y, forward.z, 0);
+  return camMat;
 }
 
 class Texture {
@@ -152,13 +169,15 @@ int main(int argc, char *argv[]) {
     depthBuffer[i] = 0;
   }
 
+  camMat = lookAt(camMat, vec3(0, 0, 0));
+
   while (true) {
     // We MUST poll for events - otherwise the window will freeze !
     if (window.pollForInputEvents(&event))
       handleEvent(event);
     update();
     draw();
-    drawTriangles(tris, cam);
+    drawTriangles(tris, camMat);
     // Need to render the frame at the end, or nothing actually gets shown on
     // the screen !
     window.renderFrame();
@@ -180,22 +199,22 @@ void handleEvent(SDL_Event event) {
   if (event.type == SDL_KEYDOWN) {
     if (event.key.keysym.sym == SDLK_LEFT) {
       cout << "LEFT" << endl;
-      cam.x -= 0.5f;
+      camMat[3] -= 0.5f * camMat[0];
     } else if (event.key.keysym.sym == SDLK_RIGHT) {
       cout << "RIGHT" << endl;
-      cam.x += 0.5f;
+      camMat[3] += 0.5f * camMat[0];
     } else if (event.key.keysym.sym == SDLK_UP) {
       cout << "UP" << endl;
-      cam.z -= 0.5f;
+      camMat[3] -= 0.5f * camMat[2];
     } else if (event.key.keysym.sym == SDLK_DOWN) {
       cout << "DOWN" << endl;
-      cam.z += 0.5f;
+      camMat[3] += 0.5f * camMat[2];
     } else if (event.key.keysym.sym == SDLK_LSHIFT) {
       cout << "LSHIFT" << endl;
-      cam.y -= 0.5f;
+      camMat[3] -= 0.5f * camMat[1];
     } else if (event.key.keysym.sym == SDLK_SPACE) {
       cout << "SPACE" << endl;
-      cam.y += 0.5f;
+      camMat[3] += 0.5f * camMat[1];
     } else if (event.key.keysym.sym == SDLK_u) {
       cout << "U" << endl;
       triangle(CanvasTriangle(CanvasPoint(rand() % WIDTH, rand() % HEIGHT),
@@ -244,7 +263,7 @@ vector<vec3> Interpolate(vec3 a, vec3 b, int n) {
 }
 
 vector<CanvasPoint> Interpolate(CanvasPoint a, CanvasPoint b, int n) {
-  vector<CanvasPoint> result;
+  vector<CanvasPoint> result = vector<CanvasPoint>();
   if (n == 1) {
     result.push_back((a + b) / 2.0f);
     return result;
@@ -273,7 +292,12 @@ void line(CanvasPoint p, CanvasPoint q, int colour) {
 void triangle(CanvasTriangle t, int colour, bool filled) {
   if (filled) {
     sort(begin(t.vertices), end(t.vertices));
-
+    if (t.vertices[0].x < 0 || t.vertices[0].x >= WIDTH || 
+        t.vertices[0].y < 0 || t.vertices[0].y >= HEIGHT || 
+        t.vertices[1].x < 0 || t.vertices[1].x >= WIDTH || 
+        t.vertices[1].y < 0 || t.vertices[1].y >= HEIGHT || 
+        t.vertices[2].x < 0 || t.vertices[2].x >= WIDTH || 
+        t.vertices[2].y < 0 || t.vertices[2].y >= HEIGHT) return;
     vector<CanvasPoint> line1 =
         Interpolate(t.vertices[0], t.vertices[1],
                     t.vertices[1].y - t.vertices[0].y + 1);
