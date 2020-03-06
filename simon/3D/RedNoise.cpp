@@ -19,10 +19,11 @@ void triangle(CanvasTriangle t, int colour, bool filled = false);
 int *loadPPM(string fileName, int &width, int &height);
 void skipHashWS(ifstream &f);
 void update();
-void handleEvent(SDL_Event event);
+void handleEvent(SDL_Event event, mat4& camToWorld);
 float depthBuffer[WIDTH * HEIGHT];
 vector<float> Interpolate(float a, float b, int n);
 vector<vec3> Interpolate(vec3 a, vec3 b, int n);
+mat4 buildProjection(float fov, float near, float far);
 unordered_map<string, Colour> loadMTL(string fileName);
 vector<ModelTriangle> loadOBJ(string fileName,
                               unordered_map<string, Colour> palette);
@@ -85,58 +86,62 @@ unordered_map<string, Colour> loadMTL(string fileName) {
   return palette;
 }
 
-mat4 camMat = mat4(1, 0, 0, 0,
-                   0, 1, 0, 0,
-                   0, 0, 1, 0,
-                   0, 0, 5.0f, 1);
-
 // x = Xf/Z
 // y = Yf/Z
 // x, y = 2d screen coords
 // X, Y, Z = 3d world coords
 // f = focal length
 
-void drawTriangles(vector<ModelTriangle> tris, mat4 camMat) {
-  float focal_length = HEIGHT / 2;
+void drawTriangles(vector<ModelTriangle> tris, mat4 camToWorld, mat4 projection) {
+  mat4 posMat = mat4(vec4(1, 0, 0, 0), vec4(0, 1, 0, 0), vec4(0, 0, 1, 0), camToWorld[3]);
+  camToWorld[3] = vec4(0, 0, 0, 1);
   for (auto tri : tris) {
-    vec4 camToV1 = camMat * tri.vertices[0];
-    vec4 camToV2 = camMat * tri.vertices[1];
-    vec4 camToV3 = camMat * tri.vertices[2];
+    vec4 camToV1 = posMat * tri.vertices[0];
+    camToV1 = camToWorld * camToV1;
+    camToV1 = projection * camToV1;
+    camToV1.x /= camToV1.w;
+    camToV1.y /= camToV1.w;
+    camToV1.z /= camToV1.w;
+    vec4 camToV2 = posMat * tri.vertices[1];
+    camToV2 = camToWorld * camToV2;
+    camToV2 = projection * camToV2;
+    camToV2.x /= camToV2.w;
+    camToV2.y /= camToV2.w;
+    camToV2.z /= camToV2.w;
+    vec4 camToV3 = posMat * tri.vertices[2];
+    camToV3 = camToWorld * camToV3;
+    camToV3 = projection * camToV3;
+    camToV3.x /= camToV3.w;
+    camToV3.y /= camToV3.w;
+    camToV3.z /= camToV3.w;
     CanvasPoint v1 = CanvasPoint(
-        camToV1.x * focal_length / -camToV1.z +
-            WIDTH / 2,
-        -camToV1.y * focal_length / -camToV1.z +
-            HEIGHT / 2,
-        -1.0 / camToV1.z);
+        (camToV1.x + 1) * 0.5f * WIDTH,
+        (1 - (camToV1.y + 1) * 0.5f) * HEIGHT,
+        1.0 / camToV1.z);
     CanvasPoint v2 = CanvasPoint(
-        camToV2.x * focal_length / -camToV2.z +
-            WIDTH / 2,
-        -camToV2.y * focal_length / -camToV2.z +
-            HEIGHT / 2,
-        -1.0 / camToV2.z);
+        (camToV2.x + 1) * 0.5f * WIDTH,
+        (1 - (camToV2.y + 1) * 0.5f) * HEIGHT,
+        1.0 / camToV2.z);
     CanvasPoint v3 = CanvasPoint(
-        camToV3.x * focal_length / -camToV3.z +
-            WIDTH / 2,
-        -camToV3.y * focal_length / -camToV3.z +
-            HEIGHT / 2,
-        -1.0 / camToV3.z);
+        (camToV3.x + 1) * 0.5f * WIDTH,
+        (1 - (camToV3.y + 1) * 0.5f) * HEIGHT,
+        1.0 / camToV3.z);
     if (v1.depth > 0 || v2.depth > 0 || v3.depth > 0)
       triangle(CanvasTriangle(v1, v2, v3), tri.colour.toPackedInt(), true);
   }
 }
 
-mat4 lookAt(mat4 camMat, vec3 target) {
-  vec3 forward = normalize(vec3(camMat[3].x, camMat[3].y, camMat[3].z) - target);
-  vec3 tmp = vec3(0, 1, 0); 
-  vec3 right = cross(normalize(tmp), forward);
-  vec3 up = cross(forward, right);
+mat4 lookAt(const vec3& from, const vec3& to) {
+  vec3 forward = normalize(from - to);
+  vec3 right = normalize(cross(vec3(0, 1, 0), forward));
+  vec3 up = normalize(cross(forward, right));
   cout << forward.x << ' ' << forward.y << ' ' << forward.z << '\n';
   cout << up.x << ' ' << up.y << ' ' << up.z << '\n';
   cout << right.x << ' ' << right.y << ' ' << right.z << '\n';
-  camMat[0] = vec4(right.x, right.y, right.z, 0);
-  camMat[1] = vec4(up.x, up.y, up.z, 0);
-  camMat[2] = vec4(forward.x, forward.y, forward.z, 0);
-  return camMat;
+  return mat4(vec4(right.x, up.x, forward.x, 0),
+              vec4(right.y, up.y, forward.y, 0),
+              vec4(right.z, up.z, forward.z, 0),
+              vec4(-from.x, -from.y, -from.z, 1));
 }
 
 class Texture {
@@ -169,15 +174,17 @@ int main(int argc, char *argv[]) {
     depthBuffer[i] = 0;
   }
 
-  camMat = lookAt(camMat, vec3(0, 0, 0));
+  mat4 camToWorld = lookAt(vec3(5.0f, 2.5f, 3.0f), vec3(0.0f, 2.5f, -3.0f));
+  mat4 projection = buildProjection(90.0f, 0.1f, 100.0f);
+  cout << camToWorld[3].x << ' ' << camToWorld[3].y << ' ' << camToWorld[3].z << ' ' << camToWorld[3].w << '\n';
 
   while (true) {
     // We MUST poll for events - otherwise the window will freeze !
     if (window.pollForInputEvents(&event))
-      handleEvent(event);
+      handleEvent(event, camToWorld);
     update();
     draw();
-    drawTriangles(tris, camMat);
+    drawTriangles(tris, camToWorld, projection);
     // Need to render the frame at the end, or nothing actually gets shown on
     // the screen !
     window.renderFrame();
@@ -195,41 +202,41 @@ void update() {
   // Function for performing animation (shifting artifacts or moving the camera)
 }
 
-void handleEvent(SDL_Event event) {
+void handleEvent(SDL_Event event, mat4& camToWorld) {
   if (event.type == SDL_KEYDOWN) {
     if (event.key.keysym.sym == SDLK_LEFT) {
       cout << "LEFT" << endl;
-      camMat[3] -= 0.5f * camMat[0];
+      camToWorld[3] += (0.5f * transpose(camToWorld)[0]);
     } else if (event.key.keysym.sym == SDLK_RIGHT) {
       cout << "RIGHT" << endl;
-      camMat[3] += 0.5f * camMat[0];
+      camToWorld[3] -= (0.5f * transpose(camToWorld)[0]);
     } else if (event.key.keysym.sym == SDLK_UP) {
       cout << "UP" << endl;
-      camMat[3] -= 0.5f * camMat[2];
+      camToWorld[3] += (0.5f * transpose(camToWorld)[2]);
     } else if (event.key.keysym.sym == SDLK_DOWN) {
       cout << "DOWN" << endl;
-      camMat[3] += 0.5f * camMat[2];
+      camToWorld[3] -= (0.5f * transpose(camToWorld)[2]);
     } else if (event.key.keysym.sym == SDLK_LSHIFT) {
       cout << "LSHIFT" << endl;
-      camMat[3] -= 0.5f * camMat[1];
+      camToWorld[3] += (0.5f * transpose(camToWorld)[1]);
     } else if (event.key.keysym.sym == SDLK_SPACE) {
       cout << "SPACE" << endl;
-      camMat[3] += 0.5f * camMat[1];
-    } else if (event.key.keysym.sym == SDLK_u) {
-      cout << "U" << endl;
-      triangle(CanvasTriangle(CanvasPoint(rand() % WIDTH, rand() % HEIGHT),
-                              CanvasPoint(rand() % WIDTH, rand() % HEIGHT),
-                              CanvasPoint(rand() % WIDTH, rand() % HEIGHT)),
-               rand());
-    } else if (event.key.keysym.sym == SDLK_f) {
-      cout << "F" << endl;
-      triangle(CanvasTriangle(CanvasPoint(rand() % WIDTH, rand() % HEIGHT),
-                              CanvasPoint(rand() % WIDTH, rand() % HEIGHT),
-                              CanvasPoint(rand() % WIDTH, rand() % HEIGHT)),
-               rand(), true);
+      camToWorld[3] -= (0.5f * transpose(camToWorld)[1]);
     }
-  } else if (event.type == SDL_MOUSEBUTTONDOWN)
-    cout << "MOUSE CLICKED" << endl;
+    cout << -camToWorld[3].x << ' ' << -camToWorld[3].y << ' ' << -camToWorld[3].z << ' ' << camToWorld[3].w << '\n';
+  }
+}
+
+mat4 buildProjection(float fov, float near, float far) {
+  float aspect_ratio = WIDTH / (float)HEIGHT;
+  float top = tan(radians(fov / 2)) * near;
+  float bottom = -top;
+  float right = top * aspect_ratio;
+  float left = bottom;
+  return mat4(vec4(2 * near / (right - left), 0, 0, 0),
+              vec4(0, 2 * near / (top - bottom), 0, 0),
+              vec4((right + left) / (right - left), (top + bottom) / (top - bottom), -(far + near) / (far - near), -1),
+              vec4(0, 0, -(2 * far * near) / (far - near), 0));
 }
 
 vector<float> Interpolate(float a, float b, int n) {
@@ -292,12 +299,12 @@ void line(CanvasPoint p, CanvasPoint q, int colour) {
 void triangle(CanvasTriangle t, int colour, bool filled) {
   if (filled) {
     sort(begin(t.vertices), end(t.vertices));
-    if (t.vertices[0].x < 0 || t.vertices[0].x >= WIDTH || 
-        t.vertices[0].y < 0 || t.vertices[0].y >= HEIGHT || 
-        t.vertices[1].x < 0 || t.vertices[1].x >= WIDTH || 
-        t.vertices[1].y < 0 || t.vertices[1].y >= HEIGHT || 
-        t.vertices[2].x < 0 || t.vertices[2].x >= WIDTH || 
-        t.vertices[2].y < 0 || t.vertices[2].y >= HEIGHT) return;
+    // if (t.vertices[0].x < 0 || t.vertices[0].x >= WIDTH || 
+    //     t.vertices[0].y < 0 || t.vertices[0].y >= HEIGHT || 
+    //     t.vertices[1].x < 0 || t.vertices[1].x >= WIDTH || 
+    //     t.vertices[1].y < 0 || t.vertices[1].y >= HEIGHT || 
+    //     t.vertices[2].x < 0 || t.vertices[2].x >= WIDTH || 
+    //     t.vertices[2].y < 0 || t.vertices[2].y >= HEIGHT) return;
     vector<CanvasPoint> line1 =
         Interpolate(t.vertices[0], t.vertices[1],
                     t.vertices[1].y - t.vertices[0].y + 1);
