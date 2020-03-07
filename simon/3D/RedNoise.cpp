@@ -90,7 +90,7 @@ unordered_map<string, Colour> loadMTL(string fileName) {
 
 std::ostream& operator<<(std::ostream& os, const std::vector<float> vector)
 {
-  os << '{';
+  os << '[';
   for (int i = 0; i < (int)vector.size(); i++)
   {
     os << vector[i];
@@ -99,7 +99,7 @@ std::ostream& operator<<(std::ostream& os, const std::vector<float> vector)
       os << ',';
     }
   }
-  os << '}';
+  os << ']';
   return os;
 }
 std::ostream& operator<<(std::ostream& os, const vec3 vec3)
@@ -230,6 +230,8 @@ void texturedTriangle(CanvasTriangle screenTri, CanvasTriangle texTri,
 
 DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
 
+vector<vec3> cameraPositions{ vec3(5.0f, 2.5f, 3.0f), vec3(5.0f, 0.0f, 3.0f), vec3(5.0f, 0.0f, 6.0f) };
+
 int main(int argc, char *argv[]) {
   SDL_Event event;
   // Texture img = Texture("texture.ppm");
@@ -240,7 +242,7 @@ int main(int argc, char *argv[]) {
     depthBuffer[i] = 0;
   }
 
-  mat4 camToWorld = lookAt(vec3(5.0f, 2.5f, 3.0f), vec3(0.0f, 2.5f, -3.0f));
+  mat4 camToWorld = lookAt(cameraPositions[0], vec3(0.0f, 2.5f, -3.0f));
   mat4 projection = buildProjection(90.0f, 0.1f, 100.0f);
   cout << camToWorld[3].x << ' ' << camToWorld[3].y << ' ' << camToWorld[3].z << ' ' << camToWorld[3].w << '\n';
 
@@ -265,10 +267,44 @@ void draw() {
   }
 }
 
+int moveStage = 0;
+
 void update(mat4& cam) {
   // Function for performing animation (shifting artifacts or moving the camera)
-  //cout << deltaTime() << endl;
-  cam[3] += (deltaTime() * transpose(cam)[0]);
+  float dt = deltaTime();
+
+  if (moveStage != -1)
+  {
+    int prevStage = moveStage > 0 ? moveStage - 1 : 0;
+    vec3 camPos = -vec3(cam[3].x, cam[3].y, cam[3].z);
+    vec3 delta = dt * (cameraPositions[prevStage] - cameraPositions[moveStage]);
+    //cout << camPos << endl;
+    //would the move take us further from our goal
+    float currentDist = distance(camPos, cameraPositions[moveStage]);
+    float newDist = distance(camPos + delta, cameraPositions[moveStage]);
+    //cout << "currentDist = " << currentDist << " newDist = " << newDist << endl;
+    if (currentDist >= newDist)
+    {
+      //cam[3] = vec4(cameraPositions[moveStage].x, cameraPositions[moveStage].y, cameraPositions[moveStage].z, cam[3].w);
+      if (moveStage + 1 < (int)cameraPositions.size())
+      {
+        moveStage++;
+      }
+      else
+      {
+        moveStage = -1;
+      }
+      cout << "move stage is now " << moveStage << endl;
+    }
+    else
+    {  
+      cam[3] += vec4(delta.x, delta.y, delta.z, 0);
+    }
+  }
+
+  //cam[3] += dt * transpose(cam)[0] * 2.0f;
+  //cam[3] += dt * vec4(1, 0, 0, 0);
+  //cam = lookAt(, vec3(0.0f, 2.5f, -3.0f));
 }
 
 void handleEvent(SDL_Event event, mat4& camToWorld) {
