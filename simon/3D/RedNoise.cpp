@@ -6,6 +6,7 @@
 #include <glm/glm.hpp>
 #include <unordered_map>
 #include <vector>
+#include <sys/time.h>
 
 using namespace std;
 using namespace glm;
@@ -13,12 +14,13 @@ using namespace glm;
 #define WIDTH 320
 #define HEIGHT 240
 
+unsigned long long getTime();
 void draw();
 void line(CanvasPoint p, CanvasPoint q, int colour);
 void triangle(CanvasTriangle t, int colour, bool filled = false);
 int *loadPPM(string fileName, int &width, int &height);
 void skipHashWS(ifstream &f);
-void update();
+void update(mat4& cam);
 void handleEvent(SDL_Event event, mat4& camToWorld);
 float depthBuffer[WIDTH * HEIGHT];
 vector<float> Interpolate(float a, float b, int n);
@@ -84,6 +86,70 @@ unordered_map<string, Colour> loadMTL(string fileName) {
     }
   }
   return palette;
+}
+
+std::ostream& operator<<(std::ostream& os, const std::vector<float> vector)
+{
+  os << '{';
+  for (int i = 0; i < (int)vector.size(); i++)
+  {
+    os << vector[i];
+    if (i != (int)vector.size() - 1)
+    {
+      os << ',';
+    }
+  }
+  os << '}';
+  return os;
+}
+std::ostream& operator<<(std::ostream& os, const vec3 vec3)
+{
+  std::vector<float> vec{vec3.x, vec3.y, vec3.z};
+  os << vec;
+  return os;
+}
+std::ostream& operator<<(std::ostream& os, const vec4 vec4)
+{
+  std::vector<float> vec{vec4.x, vec4.y, vec4.z, vec4.w};
+  os << vec;
+  return os;
+}
+std::ostream& operator<<(std::ostream& os, const mat3 mat3)
+{
+  for (int i = 0; i < 3; i++)
+  {
+    os << mat3[i];
+  }
+  return os;
+}
+std::ostream& operator<<(std::ostream& os, const mat4 mat4)
+{
+  for (int i = 0; i < 4; i++)
+  {
+    os << mat4[i];
+  }
+  return os;
+}
+
+long long lastFrameTime = getTime();
+
+//returns milliseconds since epoch
+unsigned long long getTime()
+{
+  struct timeval tv;
+
+  gettimeofday(&tv, NULL);
+
+  unsigned long long millisecondsSinceEpoch =
+      (unsigned long long)(tv.tv_sec) * 1000 +
+      (unsigned long long)(tv.tv_usec) / 1000;
+  return millisecondsSinceEpoch;
+}
+
+float deltaTime()
+{
+  long long ms = getTime() - lastFrameTime;
+  return (float)ms / (float)1000;
 }
 
 // x = Xf/Z
@@ -182,7 +248,8 @@ int main(int argc, char *argv[]) {
     // We MUST poll for events - otherwise the window will freeze !
     if (window.pollForInputEvents(&event))
       handleEvent(event, camToWorld);
-    update();
+    update(camToWorld);
+    lastFrameTime = getTime();
     draw();
     drawTriangles(tris, camToWorld, projection);
     // Need to render the frame at the end, or nothing actually gets shown on
@@ -198,8 +265,10 @@ void draw() {
   }
 }
 
-void update() {
+void update(mat4& cam) {
   // Function for performing animation (shifting artifacts or moving the camera)
+  //cout << deltaTime() << endl;
+  cam[3] += (deltaTime() * transpose(cam)[0]);
 }
 
 void handleEvent(SDL_Event event, mat4& camToWorld) {
