@@ -19,6 +19,7 @@ void draw();
 void line(CanvasPoint p, CanvasPoint q, int colour);
 void triangle(CanvasTriangle t, int colour, bool filled = false);
 int *loadPPM(string fileName, int &width, int &height);
+void savePPM(string fileName, DrawingWindow* window);
 void skipHashWS(ifstream &f);
 void update(mat4& cam);
 void handleEvent(SDL_Event event, mat4& camToWorld);
@@ -293,6 +294,7 @@ void update(mat4& cam) {
       else
       {
         moveStage = -1;
+        savePPM("window.ppm", &window);
       }
       cout << "move stage is now " << moveStage << endl;
     }
@@ -576,6 +578,25 @@ int *loadPPM(string fileName, int &width, int &height) {
     f.read((char *)&buff[i], 3);
   }
   return buff;
+}
+
+void savePPM(string fileName, DrawingWindow* window) {
+  ofstream f;
+  f.open(fileName, ios::out | ios::binary);
+  f << "P6" << endl;
+  f << window->width << " " << window->height << endl;
+  f << 255 << endl;
+  for (int y = 0; y < window->height; y++) {
+    unsigned char* buffer = new unsigned char[window->width * 3];
+    for (int x = 0; x < window->width; x++) {
+      uint32_t value = window->getPixelColour(x, y);
+      buffer[x * 3] = value & 0xff;
+      buffer[x * 3 + 1] = (value & 0xff00) >> 8;
+      buffer[x * 3 + 2] = (value & 0xff0000) >> 16;
+    }
+    f.write((char *)buffer, window->width * 3);
+  }
+  f.close();
 }
 
 void skipHashWS(ifstream &f) {
