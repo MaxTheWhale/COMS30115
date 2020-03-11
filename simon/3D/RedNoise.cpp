@@ -27,6 +27,7 @@ float depthBuffer[WIDTH * HEIGHT];
 vector<float> Interpolate(float a, float b, int n);
 vector<vec3> Interpolate(vec3 a, vec3 b, int n);
 mat4 buildProjection(float fov, float near, float far);
+mat4 lookAt(const vec3& from, const vec3& to);
 unordered_map<string, Colour> loadMTL(string fileName);
 vector<ModelTriangle> loadOBJ(string fileName,
                               unordered_map<string, Colour> palette);
@@ -140,7 +141,21 @@ float mat4Dist(mat4& a, mat4& b) {
   return result;
 }
 
+class Model {
+    public:
+        vector<ModelTriangle> tris;
+        mat4 transform;
+        unordered_map<string, Colour> palette;
+        Model(string filename) {
+          palette = loadMTL(filename + ".mtl");
+          tris = loadOBJ(filename + ".obj", palette);
+          transform = lookAt(vec3(0,0,0), vec3(0,0,-1));
+        }
+};
+
 long long lastFrameTime = getTime();
+
+long long frameCount = 0;
 
 //returns milliseconds since epoch
 unsigned long long getTime()
@@ -167,23 +182,23 @@ float deltaTime()
 // X, Y, Z = 3d world coords
 // f = focal length
 
-void drawTriangles(vector<ModelTriangle> tris, mat4 camToWorld, mat4 projection) {
+void drawTriangles(Model model, mat4 camToWorld, mat4 projection) {
   mat4 posMat = mat4(vec4(1, 0, 0, 0), vec4(0, 1, 0, 0), vec4(0, 0, 1, 0), camToWorld[3]);
   camToWorld[3] = vec4(0, 0, 0, 1);
-  for (auto tri : tris) {
-    vec4 camToV1 = posMat * tri.vertices[0];
+  for (auto tri : model.tris) {
+    vec4 camToV1 = posMat * model.transform * tri.vertices[0];
     camToV1 = camToWorld * camToV1;
     camToV1 = projection * camToV1;
     camToV1.x /= camToV1.w;
     camToV1.y /= camToV1.w;
     camToV1.z /= camToV1.w;
-    vec4 camToV2 = posMat * tri.vertices[1];
+    vec4 camToV2 = posMat * model.transform * tri.vertices[1];
     camToV2 = camToWorld * camToV2;
     camToV2 = projection * camToV2;
     camToV2.x /= camToV2.w;
     camToV2.y /= camToV2.w;
     camToV2.z /= camToV2.w;
-    vec4 camToV3 = posMat * tri.vertices[2];
+    vec4 camToV3 = posMat * model.transform * tri.vertices[2];
     camToV3 = camToWorld * camToV3;
     camToV3 = projection * camToV3;
     camToV3.x /= camToV3.w;
@@ -244,8 +259,10 @@ vector<mat4> cameraTransforms = vector<mat4>();
 int main(int argc, char *argv[]) {
   SDL_Event event;
   // Texture img = Texture("texture.ppm");
-  unordered_map<string, Colour> palette = loadMTL("cornell-box.mtl");
-  vector<ModelTriangle> tris = loadOBJ("cornell-box.obj", palette);
+  // unordered_map<string, Colour> palette = loadMTL("cornell-box.mtl");
+  // vector<ModelTriangle> tris = loadOBJ("cornell-box.obj", palette);
+
+  Model cornell = Model("cornell-box");
 
   for (int i = 0; i < WIDTH * HEIGHT; i++) {
     depthBuffer[i] = 0;
@@ -265,13 +282,17 @@ int main(int argc, char *argv[]) {
     // We MUST poll for events - otherwise the window will freeze !
     if (window.pollForInputEvents(&event))
       handleEvent(event, camToWorld);
+    if (frameCount % 60 == 0) {
+      cornell.transform[3].y++;
+    }
     update(camToWorld);
     lastFrameTime = getTime();
     draw();
-    drawTriangles(tris, camToWorld, projection);
+    drawTriangles(cornell, camToWorld, projection);
     // Need to render the frame at the end, or nothing actually gets shown on
     // the screen !
     window.renderFrame();
+    frameCount++;
   }
 }
 
