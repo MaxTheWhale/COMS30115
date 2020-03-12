@@ -205,18 +205,21 @@ void drawTriangles(Model model, mat4 camToWorld, mat4 projection)
   {
     vec4 camToV1 = posMat * model.transform * tri.vertices[0];
     camToV1 = camToWorld * camToV1;
+    float depth1 = -1.0f / camToV1.z;
     camToV1 = projection * camToV1;
     camToV1.x /= camToV1.w;
     camToV1.y /= camToV1.w;
     camToV1.z /= camToV1.w;
     vec4 camToV2 = posMat * model.transform * tri.vertices[1];
     camToV2 = camToWorld * camToV2;
+    float depth2 = -1.0f / camToV2.z;
     camToV2 = projection * camToV2;
     camToV2.x /= camToV2.w;
     camToV2.y /= camToV2.w;
     camToV2.z /= camToV2.w;
     vec4 camToV3 = posMat * model.transform * tri.vertices[2];
     camToV3 = camToWorld * camToV3;
+    float depth3 = -1.0f / camToV3.z;
     camToV3 = projection * camToV3;
     camToV3.x /= camToV3.w;
     camToV3.y /= camToV3.w;
@@ -224,15 +227,15 @@ void drawTriangles(Model model, mat4 camToWorld, mat4 projection)
     CanvasPoint v1 = CanvasPoint(
         (camToV1.x + 1) * 0.5f * WIDTH,
         (1 - (camToV1.y + 1) * 0.5f) * HEIGHT,
-        1.0 / camToV1.z);
+        depth1);
     CanvasPoint v2 = CanvasPoint(
         (camToV2.x + 1) * 0.5f * WIDTH,
         (1 - (camToV2.y + 1) * 0.5f) * HEIGHT,
-        1.0 / camToV2.z);
+        depth2);
     CanvasPoint v3 = CanvasPoint(
         (camToV3.x + 1) * 0.5f * WIDTH,
         (1 - (camToV3.y + 1) * 0.5f) * HEIGHT,
-        1.0 / camToV3.z);
+        depth3);
     if (v1.depth > 0 || v2.depth > 0 || v3.depth > 0)
       triangle(CanvasTriangle(v1, v2, v3), tri.colour.toPackedInt(), true);
   }
