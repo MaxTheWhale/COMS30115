@@ -14,7 +14,7 @@ DEBUG_OPTIONS = -ggdb -g3
 FUSSY_OPTIONS = -Werror -pedantic
 SANITIZER_OPTIONS = -O1 -fsanitize=undefined -fsanitize=address -fno-omit-frame-pointer
 SPEEDY_OPTIONS = -Ofast -funsafe-math-optimizations -march=native
-LINKER_OPTIONS = -mconsole
+LINKER_OPTIONS =
 
 # Set up flags
 SDW_COMPILER_FLAGS := -I./libs/sdw

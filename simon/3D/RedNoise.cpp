@@ -279,6 +279,40 @@ void texturedTriangle(CanvasTriangle screenTri, CanvasTriangle texTri,
 
 DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
 
+void raytrace(vec3<float> camera, Model model) {
+  for(int j = 0; j < HEIGHT; j++) {
+    for(int i = 0; i < WIDTH; i++) {
+      vec3 rayDirection = vec3(i, j, HEIGHT / 2) - camera;
+      float minDistance = std::numeric_limits<float>::infinity();
+      ModelTriangle intersection = new ModelTriangle();
+
+      for(ModelTriangle triangle : model.tris) {
+        vec3 e0 = triangle.vertices[1] - triangle.vertices[0];
+        vec3 e1 = triangle.vertices[2] - triangle.vertices[0];
+        vec3 SPVector = camera - triangle.vertices[0];
+        mat3 DEMatrix(-rayDirection, e0, e1);
+        vec3 possibleSolution = glm::inverse(DEMatrix) * SPVector;
+
+        //check if ray intersects triangle and not just triangle plane
+        if(possibleSolution.y >= 0 && possibleSolution.y <= 1 && possibleSolution.z >= 0 && possibleSolution.z <= 1 && possibleSolution.y + possibleSolution.z <= 1) {
+          if(possibleSolution.x > minDistance) {
+            intersection = triangle;
+            minDistance = possibleSolution.x;
+          }
+        }
+      }
+
+      if(intersection.vertices != NULL) {
+        window.setPixelColour(i, j, intersection.colour.toPackedInt());
+      } else {
+        window.setPixelColour(i, j, 0);
+      }
+    }
+  }
+}
+
+
+
 //vector<vec3> cameraPositions{ vec3(5.0f, 2.5f, 3.0f), vec3(5.0f, 0.0f, 3.0f), vec3(5.0f, 0.0f, 6.0f) };
 vector<mat4> cameraTransforms = vector<mat4>();
 int main(int argc, char *argv[])
@@ -310,14 +344,16 @@ int main(int argc, char *argv[])
     // We MUST poll for events - otherwise the window will freeze !
     if (window.pollForInputEvents(&event))
       handleEvent(event, camToWorld);
-    if (frameCount % 60 == 0)
-    {
-      cornell.transform[3].y++;
-    }
+    // if (frameCount % 60 == 0)
+    // {
+    //   cornell.transform[3].y++;
+    // }
     update(camToWorld);
     lastFrameTime = getTime();
     draw();
     drawTriangles(cornell, camToWorld, projection);
+    //raytrace(new vec3(camToWorld[3].x, camToWorld[3].y, camToWorld[3].z), model);
+    
     // Need to render the frame at the end, or nothing actually gets shown on
     // the screen !
     window.renderFrame();
