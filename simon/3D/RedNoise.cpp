@@ -7,6 +7,7 @@
 #include <unordered_map>
 #include <vector>
 #include <sys/time.h>
+#include "Camera.hpp"
 
 using namespace std;
 using namespace glm;
@@ -21,13 +22,11 @@ void triangle(CanvasTriangle t, int colour, bool filled = false);
 int *loadPPM(string fileName, int &width, int &height);
 void savePPM(string fileName, DrawingWindow *window);
 void skipHashWS(ifstream &f);
-void update(mat4 &cam);
-void handleEvent(SDL_Event event, mat4 &camToWorld);
+void update(Camera& cam);
+void handleEvent(SDL_Event event, Camera& cam);
 float depthBuffer[WIDTH * HEIGHT];
 vector<float> Interpolate(float a, float b, int n);
 vector<vec3> Interpolate(vec3 a, vec3 b, int n);
-mat4 buildProjection(float fov, float near, float far);
-mat4 lookAt(const vec3 &from, const vec3 &to);
 unordered_map<string, Colour> loadMTL(string fileName);
 vector<ModelTriangle> loadOBJ(string fileName,
                               unordered_map<string, Colour> palette);
@@ -164,7 +163,6 @@ public:
   {
     palette = loadMTL(filename + ".mtl");
     tris = loadOBJ(filename + ".obj", palette);
-    transform = lookAt(vec3(0, 0, 0), vec3(0, 0, -1));
   }
 };
 
@@ -197,62 +195,32 @@ float deltaTime()
 // X, Y, Z = 3d world coords
 // f = focal length
 
-void drawTriangles(Model model, mat4 camToWorld, mat4 projection)
+void drawTriangles(Model& model, Camera& cam)
 {
-  mat4 posMat = mat4(vec4(1, 0, 0, 0), vec4(0, 1, 0, 0), vec4(0, 0, 1, 0), camToWorld[3]);
-  camToWorld[3] = vec4(0, 0, 0, 1);
+  mat4 MVP = cam.projection * cam.worldToCamera * model.transform;
   for (auto tri : model.tris)
   {
-    vec4 camToV1 = posMat * model.transform * tri.vertices[0];
-    camToV1 = camToWorld * camToV1;
-    float depth1 = -1.0f / camToV1.z;
-    camToV1 = projection * camToV1;
-    camToV1.x /= camToV1.w;
-    camToV1.y /= camToV1.w;
-    camToV1.z /= camToV1.w;
-    vec4 camToV2 = posMat * model.transform * tri.vertices[1];
-    camToV2 = camToWorld * camToV2;
-    float depth2 = -1.0f / camToV2.z;
-    camToV2 = projection * camToV2;
-    camToV2.x /= camToV2.w;
-    camToV2.y /= camToV2.w;
-    camToV2.z /= camToV2.w;
-    vec4 camToV3 = posMat * model.transform * tri.vertices[2];
-    camToV3 = camToWorld * camToV3;
-    float depth3 = -1.0f / camToV3.z;
-    camToV3 = projection * camToV3;
-    camToV3.x /= camToV3.w;
-    camToV3.y /= camToV3.w;
-    camToV3.z /= camToV3.w;
+    vec4 camToV1 = MVP * tri.vertices[0];
+    camToV1 /= camToV1.w;
+    vec4 camToV2 = MVP * tri.vertices[1];
+    camToV2 /= camToV2.w;
+    vec4 camToV3 = MVP * tri.vertices[2];
+    camToV3 /= camToV3.w;
     CanvasPoint v1 = CanvasPoint(
         (camToV1.x + 1) * 0.5f * WIDTH,
         (1 - (camToV1.y + 1) * 0.5f) * HEIGHT,
-        depth1);
+        (99.9f / 2) * camToV1.z + (100.1f / 2));
     CanvasPoint v2 = CanvasPoint(
         (camToV2.x + 1) * 0.5f * WIDTH,
         (1 - (camToV2.y + 1) * 0.5f) * HEIGHT,
-        depth2);
+        (99.9f / 2) * camToV2.z + (100.1f / 2));
     CanvasPoint v3 = CanvasPoint(
         (camToV3.x + 1) * 0.5f * WIDTH,
         (1 - (camToV3.y + 1) * 0.5f) * HEIGHT,
-        depth3);
+        (99.9f / 2) * camToV3.z + (100.1f / 2));
     if (v1.depth > 0 || v2.depth > 0 || v3.depth > 0)
       triangle(CanvasTriangle(v1, v2, v3), tri.colour.toPackedInt(), true);
   }
-}
-
-mat4 lookAt(const vec3 &from, const vec3 &to)
-{
-  vec3 forward = normalize(from - to);
-  vec3 right = normalize(cross(vec3(0, 1, 0), forward));
-  vec3 up = normalize(cross(forward, right));
-  cout << forward.x << ' ' << forward.y << ' ' << forward.z << '\n';
-  cout << up.x << ' ' << up.y << ' ' << up.z << '\n';
-  cout << right.x << ' ' << right.y << ' ' << right.z << '\n';
-  return mat4(vec4(right.x, up.x, forward.x, 0),
-              vec4(right.y, up.y, forward.y, 0),
-              vec4(right.z, up.z, forward.z, 0),
-              vec4(-from.x, -from.y, -from.z, 1));
 }
 
 class Texture
@@ -290,34 +258,29 @@ int main(int argc, char *argv[])
 
   Model cornell = Model("cornell-box");
 
-  for (int i = 0; i < WIDTH * HEIGHT; i++)
-  {
-    depthBuffer[i] = 0;
-  }
-
-  mat4 camToWorld = lookAt(vec3(5.0f, 2.5f, 3.0f), vec3(0.0f, 2.5f, -3.0f));
-  cameraTransforms.push_back(lookAt(vec3(5.0f, 2.5f, 3.0f), vec3(0.0f, 2.5f, -3.0f)));
-  cameraTransforms.push_back(lookAt(vec3(5.0f, 2.5f, 3.0f), vec3(0.0f, 4.0f, -3.0f)));
-  cameraTransforms.push_back(lookAt(vec3(5.0f, 2.5f, 0.0f), vec3(0.0f, 3.0f, 0.0f)));
-  cameraTransforms.push_back(lookAt(vec3(0.0f, 2.5f, 3.0f), vec3(0.0f, 3.0f, -3.0f)));
-  cameraTransforms.push_back(lookAt(vec3(0.0f, 2.5f, 4.0f), vec3(0.0f, 4.0f, 0.0f)));
-  cameraTransforms.push_back(lookAt(vec3(0.0f, 2.5f, 4.0f), vec3(0.0f, 2.0f, 0.0f)));
-  mat4 projection = buildProjection(90.0f, 0.1f, 100.0f);
-  cout << camToWorld[3].x << ' ' << camToWorld[3].y << ' ' << camToWorld[3].z << ' ' << camToWorld[3].w << '\n';
+  Camera cam;
+  cam.setProjection(90.0f, WIDTH / (float)HEIGHT, 0.1f, 100.0f);
+  cam.lookAt(vec3(0.0f, 2.5f, 3.0f), vec3(0.0f, 2.5f, 0.0f));
+  // cameraTransforms.push_back(lookAt(vec3(5.0f, 2.5f, 3.0f), vec3(0.0f, 2.5f, -3.0f)));
+  // cameraTransforms.push_back(lookAt(vec3(5.0f, 2.5f, 3.0f), vec3(0.0f, 4.0f, -3.0f)));
+  // cameraTransforms.push_back(lookAt(vec3(5.0f, 2.5f, 0.0f), vec3(0.0f, 3.0f, 0.0f)));
+  // cameraTransforms.push_back(lookAt(vec3(0.0f, 2.5f, 3.0f), vec3(0.0f, 3.0f, -3.0f)));
+  // cameraTransforms.push_back(lookAt(vec3(0.0f, 2.5f, 4.0f), vec3(0.0f, 4.0f, 0.0f)));
+  // cameraTransforms.push_back(lookAt(vec3(0.0f, 2.5f, 4.0f), vec3(0.0f, 2.0f, 0.0f)));
 
   while (true)
   {
     // We MUST poll for events - otherwise the window will freeze !
     if (window.pollForInputEvents(&event))
-      handleEvent(event, camToWorld);
+      handleEvent(event, cam);
     if (frameCount % 60 == 0)
     {
-      cornell.transform[3].y++;
+      //cornell.transform[3].y++;
     }
-    update(camToWorld);
+    update(cam);
     lastFrameTime = getTime();
     draw();
-    drawTriangles(cornell, camToWorld, projection);
+    drawTriangles(cornell, cam);
     // Need to render the frame at the end, or nothing actually gets shown on
     // the screen !
     window.renderFrame();
@@ -330,111 +293,97 @@ void draw()
   window.clearPixels();
   for (int i = 0; i < WIDTH * HEIGHT; i++)
   {
-    depthBuffer[i] = 0;
+    depthBuffer[i] = std::numeric_limits<float>::infinity();
   }
 }
 
 int moveStage = 0;
 
-void update(mat4 &cam)
+void update(Camera &cam)
 {
   // Function for performing animation (shifting artifacts or moving the camera)
-  float dt = deltaTime();
+  //float dt = deltaTime();
 
-  if (moveStage != -1)
-  {
-    int prevStage = moveStage > 0 ? moveStage - 1 : 0;
-    //vec3 camPos = -vec3(cam[3].x, cam[3].y, cam[3].z);
-    //vec3 delta = dt * (cameraPositions[prevStage] - cameraPositions[moveStage]);
-    mat4 delta = -dt * (cameraTransforms[prevStage] - cameraTransforms[moveStage]);
-    //cout << camPos << endl;
-    mat4 newTransform = mat4();
-    for (int i = 0; i < 4; i++)
-    {
-      newTransform[i] = cam[i] + delta[i];
-    }
-    //would the move take us further from our goal
-    float currentDist = mat4Dist(cam, cameraTransforms[moveStage]);
-    float newDist = mat4Dist(newTransform, cameraTransforms[moveStage]);
-    cout << "currentDist = " << currentDist << " newDist = " << newDist << endl;
-    if (currentDist <= newDist)
-    {
-      //cam[3] = vec4(cameraPositions[moveStage].x, cameraPositions[moveStage].y, cameraPositions[moveStage].z, cam[3].w);
-      if (moveStage + 1 < (int)cameraTransforms.size())
-      {
-        moveStage++;
-      }
-      else
-      {
-        moveStage = -1;
-        savePPM("window.ppm", &window);
-      }
-      cout << "move stage is now " << moveStage << endl;
-    }
-    else
-    {
-      //cam[3] += vec4(delta.x, delta.y, delta.z, 0);
-      for (int i = 0; i < 4; i++)
-      {
-        cam[i] += delta[i];
-      }
-    }
-  }
+  // if (moveStage != -1)
+  // {
+  //   int prevStage = moveStage > 0 ? moveStage - 1 : 0;
+  //   //vec3 camPos = -vec3(cam[3].x, cam[3].y, cam[3].z);
+  //   //vec3 delta = dt * (cameraPositions[prevStage] - cameraPositions[moveStage]);
+  //   mat4 delta = -dt * (cameraTransforms[prevStage] - cameraTransforms[moveStage]);
+  //   //cout << camPos << endl;
+  //   mat4 newTransform = mat4();
+  //   for (int i = 0; i < 4; i++)
+  //   {
+  //     newTransform[i] = cam[i] + delta[i];
+  //   }
+  //   //would the move take us further from our goal
+  //   float currentDist = mat4Dist(cam, cameraTransforms[moveStage]);
+  //   float newDist = mat4Dist(newTransform, cameraTransforms[moveStage]);
+  //   cout << "currentDist = " << currentDist << " newDist = " << newDist << endl;
+  //   if (currentDist <= newDist)
+  //   {
+  //     //cam[3] = vec4(cameraPositions[moveStage].x, cameraPositions[moveStage].y, cameraPositions[moveStage].z, cam[3].w);
+  //     if (moveStage + 1 < (int)cameraTransforms.size())
+  //     {
+  //       moveStage++;
+  //     }
+  //     else
+  //     {
+  //       moveStage = -1;
+  //       savePPM("window.ppm", &window);
+  //     }
+  //     cout << "move stage is now " << moveStage << endl;
+  //   }
+  //   else
+  //   {
+  //     //cam[3] += vec4(delta.x, delta.y, delta.z, 0);
+  //     for (int i = 0; i < 4; i++)
+  //     {
+  //       cam[i] += delta[i];
+  //     }
+  //   }
+  //}
 
   //cam[3] += dt * transpose(cam)[0] * 2.0f;
   //cam[3] += dt * vec4(1, 0, 0, 0);
   //cam = lookAt(, vec3(0.0f, 2.5f, -3.0f));
 }
 
-void handleEvent(SDL_Event event, mat4 &camToWorld)
+void handleEvent(SDL_Event event, Camera& cam)
 {
   if (event.type == SDL_KEYDOWN)
   {
     if (event.key.keysym.sym == SDLK_LEFT)
     {
       cout << "LEFT" << endl;
-      camToWorld[3] += (0.5f * transpose(camToWorld)[0]);
+      cam.move(-0.5f * cam.right);
     }
     else if (event.key.keysym.sym == SDLK_RIGHT)
     {
       cout << "RIGHT" << endl;
-      camToWorld[3] -= (0.5f * transpose(camToWorld)[0]);
+      cam.move(0.5f * cam.right);
     }
     else if (event.key.keysym.sym == SDLK_UP)
     {
       cout << "UP" << endl;
-      camToWorld[3] += (0.5f * transpose(camToWorld)[2]);
+      cam.move(-0.5f * cam.forward);
     }
     else if (event.key.keysym.sym == SDLK_DOWN)
     {
       cout << "DOWN" << endl;
-      camToWorld[3] -= (0.5f * transpose(camToWorld)[2]);
+      cam.move(0.5f * cam.forward);
     }
     else if (event.key.keysym.sym == SDLK_LSHIFT)
     {
       cout << "LSHIFT" << endl;
-      camToWorld[3] += (0.5f * transpose(camToWorld)[1]);
+      cam.move(-0.5f * cam.up);
     }
     else if (event.key.keysym.sym == SDLK_SPACE)
     {
       cout << "SPACE" << endl;
-      camToWorld[3] -= (0.5f * transpose(camToWorld)[1]);
+      cam.move(0.5f * cam.up);
     }
-    cout << -camToWorld[3].x << ' ' << -camToWorld[3].y << ' ' << -camToWorld[3].z << ' ' << camToWorld[3].w << '\n';
   }
-}
-
-mat4 buildProjection(float fov, float near, float far)
-{
-  float aspect_ratio = WIDTH / (float)HEIGHT;
-  float top = tan(radians(fov / 2)) * near;
-  float bottom = -top;
-  float right = top * aspect_ratio;
-  float left = bottom;
-  return mat4(vec4(2 * near / (right - left), 0, 0, 0),
-              vec4(0, 2 * near / (top - bottom), 0, 0),
-              vec4((right + left) / (right - left), (top + bottom) / (top - bottom), -(far + near) / (far - near), -1),
-              vec4(0, 0, -(2 * far * near) / (far - near), 0));
 }
 
 vector<float> Interpolate(float a, float b, int n)
@@ -552,7 +501,7 @@ void triangle(CanvasTriangle t, int colour, bool filled)
       {
         if (x >= 0 && y >= 0 && x < WIDTH && y < HEIGHT)
         {
-          if (currentLine[x - xStart].depth > depthBuffer[x + y * WIDTH])
+          if (currentLine[x - xStart].depth < depthBuffer[x + y * WIDTH])
           {
             window.setPixelColour(x, y, colour);
             depthBuffer[x + y * WIDTH] = currentLine[x - xStart].depth;
@@ -580,7 +529,7 @@ void triangle(CanvasTriangle t, int colour, bool filled)
       {
         if (x >= 0 && y >= 0 && x < WIDTH && y < HEIGHT)
         {
-          if (currentLine[x - xStart].depth > depthBuffer[x + y * WIDTH])
+          if (currentLine[x - xStart].depth < depthBuffer[x + y * WIDTH])
           {
             window.setPixelColour(x, y, colour);
             depthBuffer[x + y * WIDTH] = currentLine[x - xStart].depth;

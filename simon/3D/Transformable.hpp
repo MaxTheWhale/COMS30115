@@ -11,5 +11,6 @@ class Transformable {
     void setScale(const glm::vec3& new_scale);
   protected:
     glm::mat4 positionMat, rotationMat, scaleMat;
-    void updateTransform();
+    virtual void updateTransform();
+    glm::mat4 rotationFromEuler(const glm::vec3& rotation);
 };

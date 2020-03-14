@@ -6,7 +6,7 @@ class CanvasPoint
   public:
     float x;
     float y;
-    double depth;
+    float depth;
     float brightness;
     TexturePoint texturePoint;
 
