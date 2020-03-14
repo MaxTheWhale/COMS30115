@@ -8,6 +8,7 @@
 #include <vector>
 #include <sys/time.h>
 #include "Camera.hpp"
+#include "Model.hpp"
 
 using namespace std;
 using namespace glm;
@@ -27,78 +28,6 @@ void handleEvent(SDL_Event event, Camera& cam);
 float depthBuffer[WIDTH * HEIGHT];
 vector<float> Interpolate(float a, float b, int n);
 vector<vec3> Interpolate(vec3 a, vec3 b, int n);
-unordered_map<string, Colour> loadMTL(string fileName);
-vector<ModelTriangle> loadOBJ(string fileName,
-                              unordered_map<string, Colour> palette);
-vector<ModelTriangle> loadOBJ(string fileName,
-                              unordered_map<string, Colour> palette)
-{
-  ifstream f;
-  string s;
-  Colour colour;
-  vector<vec3> vertices;
-  vector<ModelTriangle> faces;
-  f.open(fileName, ios::in);
-  while (!f.eof())
-  {
-    if (f >> s)
-    {
-      if (s == "mtllib")
-      {
-        f >> s;
-      }
-      if (s == "o")
-      {
-        f >> s;
-      }
-      if (s == "usemtl")
-      {
-        f >> s;
-        colour = palette[s];
-      }
-      if (s == "v")
-      {
-        float x, y, z;
-        f >> x >> y >> z;
-        vertices.push_back(vec3(x, y, z));
-      }
-      if (s == "f")
-      {
-        string a, b, c;
-        f >> a >> b >> c;
-        faces.push_back(ModelTriangle(vertices[stoi(split(a, '/')[0]) - 1],
-                                      vertices[stoi(split(b, '/')[0]) - 1],
-                                      vertices[stoi(split(c, '/')[0]) - 1],
-                                      colour));
-      }
-    }
-  }
-  return faces;
-}
-
-unordered_map<string, Colour> loadMTL(string fileName)
-{
-  unordered_map<string, Colour> palette;
-
-  ifstream f;
-  string s;
-  f.open(fileName, ios::in);
-  while (!f.eof())
-  {
-    f >> s;
-    if (s == "newmtl")
-    {
-      string key, r, g, b;
-      f >> key;
-      f >> s;
-      f >> r;
-      f >> g;
-      f >> b;
-      palette[key] = Colour(key, stof(r) * 255, stof(g) * 255, stof(b) * 255);
-    }
-  }
-  return palette;
-}
 
 std::ostream &operator<<(std::ostream &os, const std::vector<float> vector)
 {
@@ -152,19 +81,6 @@ float mat4Dist(mat4 &a, mat4 &b)
   }
   return result;
 }
-
-class Model
-{
-public:
-  vector<ModelTriangle> tris;
-  mat4 transform;
-  unordered_map<string, Colour> palette;
-  Model(string filename)
-  {
-    palette = loadMTL(filename + ".mtl");
-    tris = loadOBJ(filename + ".obj", palette);
-  }
-};
 
 long long lastFrameTime = getTime();
 

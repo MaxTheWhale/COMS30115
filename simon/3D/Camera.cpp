@@ -1,5 +1,4 @@
 #include "Camera.hpp"
-#include <iostream>
 
 void Camera::lookAt(const glm::vec3& from, const glm::vec3& to) {
   forward = glm::normalize(from - to);
@@ -25,7 +24,6 @@ void Camera::setProjection(float fov, float aspect_ratio, float near, float far)
 }
 
 void Camera::updateTransform() {
-  std::cout << "hi\n";
   transform = rotationMat * positionMat;
   glm::vec4 pos = positionMat[3];
   worldToCamera = glm::transpose(rotationMat) *
