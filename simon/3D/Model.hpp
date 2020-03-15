@@ -1,12 +1,13 @@
 #pragma once
 
 #include "Transformable.hpp"
+#include "Animatable.hpp"
 #include <ModelTriangle.h>
 #include <vector>
 #include <unordered_map>
 #include <string>
 
-class Model : public Transformable {
+class Model : public Animatable {
   public:
     std::vector<ModelTriangle> tris;
     std::unordered_map<std::string, Colour> palette;

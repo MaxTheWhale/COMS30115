@@ -1,7 +1,8 @@
 #include <glm/glm.hpp>
 #include "Transformable.hpp"
+#include "Animatable.hpp"
 
-class Camera : public Transformable {
+class Camera : public Animatable {
   public:
     glm::vec3 right, up, forward;
     glm::vec3 position;

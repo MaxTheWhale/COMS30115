@@ -14,7 +14,7 @@ DEBUG_OPTIONS = -ggdb -g3
 FUSSY_OPTIONS = -Werror -pedantic
 SANITIZER_OPTIONS = -O1 -fsanitize=undefined -fsanitize=address -fno-omit-frame-pointer
 SPEEDY_OPTIONS = -Ofast -funsafe-math-optimizations -march=native
-LINKER_OPTIONS = 
+LINKER_OPTIONS = -mconsole
 
 # Set up flags
 SDW_COMPILER_FLAGS := -I./libs/sdw
@@ -33,8 +33,12 @@ diagnostic: window
 	$(COMPILER) $(COMPILER_OPTIONS) $(FUSSY_OPTIONS) $(SANITIZER_OPTIONS) -o Transformable.o Transformable.cpp $(GLM_COMPILER_FLAGS)
 	$(COMPILER) $(COMPILER_OPTIONS) $(FUSSY_OPTIONS) $(SANITIZER_OPTIONS) -o Camera.o Camera.cpp $(GLM_COMPILER_FLAGS)
 	$(COMPILER) $(COMPILER_OPTIONS) $(FUSSY_OPTIONS) $(SANITIZER_OPTIONS) -o Model.o Model.cpp $(GLM_COMPILER_FLAGS) $(SDW_COMPILER_FLAGS)
+	$(COMPILER) $(COMPILER_OPTIONS) -o Times.o Times.cpp
+	$(COMPILER) $(COMPILER_OPTIONS) -o Movement.o Movement.cpp $(GLM_COMPILER_FLAGS)
+	$(COMPILER) $(COMPILER_OPTIONS) -o Animatable.o Animatable.cpp $(GLM_COMPILER_FLAGS)
+	$(COMPILER) $(COMPILER_OPTIONS) -o VectorOutput.o VectorOutput.cpp $(GLM_COMPILER_FLAGS)
 	$(COMPILER) $(COMPILER_OPTIONS) $(FUSSY_OPTIONS) $(SANITIZER_OPTIONS) -o $(OBJECT_FILE) $(SOURCE_FILE) $(SDL_COMPILER_FLAGS) $(SDW_COMPILER_FLAGS) $(GLM_COMPILER_FLAGS)
-	$(COMPILER) $(LINKER_OPTIONS) $(FUSSY_OPTIONS) $(SANITIZER_OPTIONS) -o $(EXECUTABLE) $(OBJECT_FILE) Camera.o Transformable.o Model.o $(SDW_LINKER_FLAGS) $(SDL_LINKER_FLAGS)
+	$(COMPILER) $(LINKER_OPTIONS) $(FUSSY_OPTIONS) $(SANITIZER_OPTIONS) -o $(EXECUTABLE) $(OBJECT_FILE) Camera.o Transformable.o Model.o Times.o, Movement.o Animatable.o VectorOutput.o $(SDW_LINKER_FLAGS) $(SDL_LINKER_FLAGS)
 	./$(EXECUTABLE)
 
 # Rule to compile and link for production release
@@ -42,8 +46,12 @@ production: window
 	$(COMPILER) $(COMPILER_OPTIONS) -o Transformable.o Transformable.cpp $(GLM_COMPILER_FLAGS)
 	$(COMPILER) $(COMPILER_OPTIONS) -o Camera.o Camera.cpp $(GLM_COMPILER_FLAGS)
 	$(COMPILER) $(COMPILER_OPTIONS) -o Model.o Model.cpp $(GLM_COMPILER_FLAGS) $(SDW_COMPILER_FLAGS)
+	$(COMPILER) $(COMPILER_OPTIONS) -o Times.o Times.cpp
+	$(COMPILER) $(COMPILER_OPTIONS) -o Movement.o Movement.cpp $(GLM_COMPILER_FLAGS)
+	$(COMPILER) $(COMPILER_OPTIONS) -o Animatable.o Animatable.cpp $(GLM_COMPILER_FLAGS)
+	$(COMPILER) $(COMPILER_OPTIONS) -o VectorOutput.o VectorOutput.cpp $(GLM_COMPILER_FLAGS)
 	$(COMPILER) $(COMPILER_OPTIONS) -o $(OBJECT_FILE) $(SOURCE_FILE) $(SDL_COMPILER_FLAGS) $(SDW_COMPILER_FLAGS) $(GLM_COMPILER_FLAGS)
-	$(COMPILER) $(LINKER_OPTIONS) -o $(EXECUTABLE) $(OBJECT_FILE) Camera.o Transformable.o Model.o $(SDW_LINKER_FLAGS) $(SDL_LINKER_FLAGS)
+	$(COMPILER) $(LINKER_OPTIONS) -o $(EXECUTABLE) $(OBJECT_FILE) Camera.o Transformable.o Model.o Times.o Movement.o Animatable.o VectorOutput.o $(SDW_LINKER_FLAGS) $(SDL_LINKER_FLAGS)
 	./$(EXECUTABLE)
 
 # Rule to compile and link for use with a debugger
@@ -51,8 +59,12 @@ debug: window
 	$(COMPILER) $(COMPILER_OPTIONS) $(DEBUG_OPTIONS) -o Transformable.o Transformable.cpp $(GLM_COMPILER_FLAGS)
 	$(COMPILER) $(COMPILER_OPTIONS) $(DEBUG_OPTIONS) -o Camera.o Camera.cpp $(GLM_COMPILER_FLAGS)
 	$(COMPILER) $(COMPILER_OPTIONS) $(DEBUG_OPTIONS) -o Model.o Model.cpp $(GLM_COMPILER_FLAGS) $(SDW_COMPILER_FLAGS)
+	$(COMPILER) $(COMPILER_OPTIONS) -o Times.o Times.cpp
+	$(COMPILER) $(COMPILER_OPTIONS) -o Movement.o Movement.cpp $(GLM_COMPILER_FLAGS)
+	$(COMPILER) $(COMPILER_OPTIONS) -o Animatable.o Animatable.cpp $(GLM_COMPILER_FLAGS)
+	$(COMPILER) $(COMPILER_OPTIONS) -o VectorOutput.o VectorOutput.cpp $(GLM_COMPILER_FLAGS)
 	$(COMPILER) $(COMPILER_OPTIONS) $(DEBUG_OPTIONS) -o $(OBJECT_FILE) $(SOURCE_FILE) $(SDL_COMPILER_FLAGS) $(SDW_COMPILER_FLAGS) $(GLM_COMPILER_FLAGS)
-	$(COMPILER) $(LINKER_OPTIONS) $(DEBUG_OPTIONS) -o $(EXECUTABLE) $(OBJECT_FILE) Camera.o Transformable.o Model.o $(SDW_LINKER_FLAGS) $(SDL_LINKER_FLAGS)
+	$(COMPILER) $(LINKER_OPTIONS) $(DEBUG_OPTIONS) -o $(EXECUTABLE) $(OBJECT_FILE) Camera.o Transformable.o Model.o Times.o Movement.o Animatable.o VectorOutput.o $(SDW_LINKER_FLAGS) $(SDL_LINKER_FLAGS)
 	./$(EXECUTABLE)
 
 # Rule to build for high performance executable
@@ -60,8 +72,12 @@ speedy: window
 	$(COMPILER) $(COMPILER_OPTIONS) $(SPEEDY_OPTIONS) -o Transformable.o Transformable.cpp $(GLM_COMPILER_FLAGS)
 	$(COMPILER) $(COMPILER_OPTIONS) $(SPEEDY_OPTIONS) -o Camera.o Camera.cpp $(GLM_COMPILER_FLAGS)
 	$(COMPILER) $(COMPILER_OPTIONS) $(SPEEDY_OPTIONS) -o Model.o Model.cpp $(GLM_COMPILER_FLAGS) $(SDW_COMPILER_FLAGS)
+	$(COMPILER) $(COMPILER_OPTIONS) -o Times.o Times.cpp
+	$(COMPILER) $(COMPILER_OPTIONS) -o Movement.o Movement.cpp $(GLM_COMPILER_FLAGS)
+	$(COMPILER) $(COMPILER_OPTIONS) -o Animatable.o Animatable.cpp $(GLM_COMPILER_FLAGS)
+	$(COMPILER) $(COMPILER_OPTIONS) -o VectorOutput.o VectorOutput.cpp $(GLM_COMPILER_FLAGS)
 	$(COMPILER) $(COMPILER_OPTIONS) $(SPEEDY_OPTIONS) -o $(OBJECT_FILE) $(SOURCE_FILE) $(SDL_COMPILER_FLAGS) $(SDW_COMPILER_FLAGS) $(GLM_COMPILER_FLAGS)
-	$(COMPILER) $(LINKER_OPTIONS) $(SPEEDY_OPTIONS) -o $(EXECUTABLE) $(OBJECT_FILE) Camera.o Transformable.o Model.o $(SDW_LINKER_FLAGS) $(SDL_LINKER_FLAGS)
+	$(COMPILER) $(LINKER_OPTIONS) $(SPEEDY_OPTIONS) -o $(EXECUTABLE) $(OBJECT_FILE) Camera.o Transformable.o Model.o Times.o Movement.o Animatable.o VectorOutput.o $(SDW_LINKER_FLAGS) $(SDL_LINKER_FLAGS)
 	./$(EXECUTABLE)
 
 # Rule for building the DisplayWindow

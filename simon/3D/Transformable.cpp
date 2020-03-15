@@ -1,4 +1,13 @@
 #include "Transformable.hpp"
+#include <iostream>
+
+Transformable::Transformable() {
+    std::cout << "Transformable constructor called" << std::endl;
+    this->transform= glm::mat4(1, 0, 0, 0,
+                            0, 1, 0, 0,
+                            0, 0, 1, 0,
+                            0, 0, 0, 1);
+}
 
 void Transformable::move(const glm::vec3& delta) {
     positionMat[3].x += delta.x;

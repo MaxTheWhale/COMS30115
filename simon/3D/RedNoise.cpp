@@ -9,109 +9,27 @@
 #include <sys/time.h>
 #include "Camera.hpp"
 #include "Model.hpp"
-
+#include "Times.hpp"
+#include "VectorOutput.hpp"
 using namespace std;
 using namespace glm;
 
 #define WIDTH 320
 #define HEIGHT 240
 
-unsigned long long getTime();
 void draw();
 void line(CanvasPoint p, CanvasPoint q, int colour);
 void triangle(CanvasTriangle t, int colour, bool filled = false);
 int *loadPPM(string fileName, int &width, int &height);
 void savePPM(string fileName, DrawingWindow *window);
 void skipHashWS(ifstream &f);
-void update(Camera& cam);
-void handleEvent(SDL_Event event, Camera& cam);
+void update(Camera &cam, vector<Model> models);
+void handleEvent(SDL_Event event, Camera &cam);
 float depthBuffer[WIDTH * HEIGHT];
 vector<float> Interpolate(float a, float b, int n);
 vector<vec3> Interpolate(vec3 a, vec3 b, int n);
 
-std::ostream &operator<<(std::ostream &os, const std::vector<float> vector)
-{
-  os << '[';
-  for (int i = 0; i < (int)vector.size(); i++)
-  {
-    os << vector[i];
-    if (i != (int)vector.size() - 1)
-    {
-      os << ',';
-    }
-  }
-  os << ']';
-  return os;
-}
-std::ostream &operator<<(std::ostream &os, const vec3 vec3)
-{
-  std::vector<float> vec{vec3.x, vec3.y, vec3.z};
-  os << vec;
-  return os;
-}
-std::ostream &operator<<(std::ostream &os, const vec4 vec4)
-{
-  std::vector<float> vec{vec4.x, vec4.y, vec4.z, vec4.w};
-  os << vec;
-  return os;
-}
-std::ostream &operator<<(std::ostream &os, const mat3 mat3)
-{
-  for (int i = 0; i < 3; i++)
-  {
-    os << mat3[i];
-  }
-  return os;
-}
-std::ostream &operator<<(std::ostream &os, const mat4 mat4)
-{
-  for (int i = 0; i < 4; i++)
-  {
-    os << mat4[i];
-  }
-  return os;
-}
-
-float mat4Dist(mat4 &a, mat4 &b)
-{
-  float result = 0;
-  for (int i = 0; i < 4; i++)
-  {
-    result += distance(a[i], b[i]);
-  }
-  return result;
-}
-
-long long lastFrameTime = getTime();
-
-long long frameCount = 0;
-
-//returns milliseconds since epoch
-unsigned long long getTime()
-{
-  struct timeval tv;
-
-  gettimeofday(&tv, NULL);
-
-  unsigned long long millisecondsSinceEpoch =
-      (unsigned long long)(tv.tv_sec) * 1000 +
-      (unsigned long long)(tv.tv_usec) / 1000;
-  return millisecondsSinceEpoch;
-}
-
-float deltaTime()
-{
-  long long ms = getTime() - lastFrameTime;
-  return (float)ms / (float)1000;
-}
-
-// x = Xf/Z
-// y = Yf/Z
-// x, y = 2d screen coords
-// X, Y, Z = 3d world coords
-// f = focal length
-
-void drawTriangles(Model& model, Camera& cam)
+void drawTriangles(Model &model, Camera &cam)
 {
   mat4 MVP = cam.projection * cam.worldToCamera * model.transform;
   for (auto tri : model.tris)
@@ -183,24 +101,27 @@ int main(int argc, char *argv[])
   // cameraTransforms.push_back(lookAt(vec3(0.0f, 2.5f, 3.0f), vec3(0.0f, 3.0f, -3.0f)));
   // cameraTransforms.push_back(lookAt(vec3(0.0f, 2.5f, 4.0f), vec3(0.0f, 4.0f, 0.0f)));
   // cameraTransforms.push_back(lookAt(vec3(0.0f, 2.5f, 4.0f), vec3(0.0f, 2.0f, 0.0f)));
+  cam.moves.push(Movement(1.0f));
+  cam.moves.top().move(vec3(5.0f, 0.0f, 0.0f));
+  cam.moves.top().rotate(vec3(0.0f, 2.5f, 3.0f));
+
+  Times::init();
 
   while (true)
   {
+    cout << "camera transform = " << cam.transform << endl;
+    Times::update();
+    //cout << "deltaTime: " << Times::deltaTime() << endl;
     // We MUST poll for events - otherwise the window will freeze !
     if (window.pollForInputEvents(&event))
       handleEvent(event, cam);
-    if (frameCount % 60 == 0)
-    {
-      //cornell.transform[3].y++;
-    }
-    update(cam);
-    lastFrameTime = getTime();
+    //cout << "deltaTime = " << Times::deltaTime() << endl;
+    update(cam, vector<Model>{cornell});
     draw();
     drawTriangles(cornell, cam);
     // Need to render the frame at the end, or nothing actually gets shown on
     // the screen !
     window.renderFrame();
-    frameCount++;
   }
 }
 
@@ -215,25 +136,28 @@ void draw()
 
 int moveStage = 0;
 
-void update(Camera &cam)
+void update(Camera &cam, vector<Model> models)
 {
   // Function for performing animation (shifting artifacts or moving the camera)
-  //float dt = deltaTime();
-
+  cam.update();
+  for (unsigned int i = 0; i < models.size(); i++)
+  {
+    models[i].update();
+  }
   // if (moveStage != -1)
   // {
   //   int prevStage = moveStage > 0 ? moveStage - 1 : 0;
   //   //vec3 camPos = -vec3(cam[3].x, cam[3].y, cam[3].z);
   //   //vec3 delta = dt * (cameraPositions[prevStage] - cameraPositions[moveStage]);
-  //   mat4 delta = -dt * (cameraTransforms[prevStage] - cameraTransforms[moveStage]);
+  //   mat4 delta = -times.deltaTime() * (cameraTransforms[prevStage] - cameraTransforms[moveStage]);
   //   //cout << camPos << endl;
   //   mat4 newTransform = mat4();
   //   for (int i = 0; i < 4; i++)
   //   {
-  //     newTransform[i] = cam[i] + delta[i];
+  //     newTransform[i] = cam.transform[i] + delta[i];
   //   }
   //   //would the move take us further from our goal
-  //   float currentDist = mat4Dist(cam, cameraTransforms[moveStage]);
+  //   float currentDist = mat4Dist(cam.transform, cameraTransforms[moveStage]);
   //   float newDist = mat4Dist(newTransform, cameraTransforms[moveStage]);
   //   cout << "currentDist = " << currentDist << " newDist = " << newDist << endl;
   //   if (currentDist <= newDist)
@@ -252,10 +176,9 @@ void update(Camera &cam)
   //   }
   //   else
   //   {
-  //     //cam[3] += vec4(delta.x, delta.y, delta.z, 0);
   //     for (int i = 0; i < 4; i++)
   //     {
-  //       cam[i] += delta[i];
+  //       cam.transform[i] += delta[i];
   //     }
   //   }
   //}
@@ -265,7 +188,7 @@ void update(Camera &cam)
   //cam = lookAt(, vec3(0.0f, 2.5f, -3.0f));
 }
 
-void handleEvent(SDL_Event event, Camera& cam)
+void handleEvent(SDL_Event event, Camera &cam)
 {
   if (event.type == SDL_KEYDOWN)
   {
