@@ -1,3 +1,5 @@
+#pragma once
+
 #include "CanvasPoint.h"
 #include <iostream>
 

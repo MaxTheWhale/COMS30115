@@ -1,3 +1,5 @@
+#pragma once
+
 #include <glm/glm.hpp>
 
 class Transformable {
@@ -9,7 +11,9 @@ class Transformable {
     void setPosition(const glm::vec3& new_position);
     void setRotation(const glm::vec3& new_rotation);
     void setScale(const glm::vec3& new_scale);
+    Transformable();
   protected:
     glm::mat4 positionMat, rotationMat, scaleMat;
-    void updateTransform();
+    virtual void updateTransform();
+    glm::mat4 rotationFromEuler(const glm::vec3& rotation);
 };
