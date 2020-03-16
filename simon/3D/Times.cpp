@@ -16,7 +16,7 @@ unsigned long long Times::getTime()
 {
     struct timeval tv;
 
-    gettimeofday(&tv, NULL);
+    gettimeofday(&tv, nullptr);
 
     unsigned long long millisecondsSinceEpoch =
         (unsigned long long)(tv.tv_sec) * 1000 +
