@@ -3,3 +3,7 @@ RedNoise
 *.o
 *.exe
 window.ppm
+CMakeCache.txt
+*.cmake
+Makefile
+CMakeFiles

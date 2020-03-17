@@ -1,0 +1,31 @@
+cmake_minimum_required(VERSION 3.7)
+set(CMAKE_CXX_STANDARD 11)
+set(SOURCE_FILES libs/sdw/Colour.cpp libs/sdw/Utils.cpp libs/sdw/DrawingWindow.cpp libs/sdw/ModelTriangle.cpp Model.cpp Transformable.cpp Camera.cpp Animatable.cpp Movement.cpp Times.cpp VectorOutput.cpp RedNoise.cpp)
+
+IF(WIN32)
+    set(CMAKE_EXE_LINKER_FLAGS -mconsole)
+ENDIF(WIN32)
+
+project(RedNoise)
+
+find_package(SDL2 REQUIRED)
+include_directories(${SDL2_INCLUDE_DIRS} libs/sdw libs/glm)
+
+add_executable(diagnostic ${SOURCE_FILES})
+set_target_properties(diagnostic PROPERTIES OUTPUT_NAME ${CMAKE_PROJECT_NAME})
+target_compile_options(diagnostic PUBLIC -Wall -Werror -pedantic -O1 -fsanitize=undefined -fsanitize=address -fno-omit-frame-pointer)
+target_link_libraries(diagnostic ${SDL2_LIBRARIES} -fsanitize=undefined -fsanitize=address -fno-omit-frame-pointer)
+
+add_executable(production EXCLUDE_FROM_ALL ${SOURCE_FILES})
+set_target_properties(production PROPERTIES OUTPUT_NAME ${CMAKE_PROJECT_NAME})
+target_link_libraries(production ${SDL2_LIBRARIES})
+
+add_executable(debug EXCLUDE_FROM_ALL ${SOURCE_FILES})
+set_target_properties(debug PROPERTIES OUTPUT_NAME ${CMAKE_PROJECT_NAME})
+target_compile_options(debug PUBLIC -Wall -ggdb -g3)
+target_link_libraries(debug ${SDL2_LIBRARIES})
+
+add_executable(speedy EXCLUDE_FROM_ALL ${SOURCE_FILES})
+set_target_properties(speedy PROPERTIES OUTPUT_NAME ${CMAKE_PROJECT_NAME})
+target_compile_options(speedy PUBLIC -Wall -Ofast -funsafe-math-optimizations -march=native)
+target_link_libraries(speedy ${SDL2_LIBRARIES})
