@@ -38,7 +38,7 @@ void Camera::setProjection(float fov, float aspect_ratio, float near, float far)
 glm::mat4 Camera::worldToCamera() {
   glm::vec4 pos = transform[3];
   glm::mat4 rotationMat = transform;
-  rotationMat[3] = glm::vec4(0, 0, 0, 0);
+  rotationMat[3] = glm::vec4(0, 0, 0, 1);
   return glm::transpose(rotationMat) *
                   glm::mat4(1, 0, 0, 0,
                             0, 1, 0, 0,
