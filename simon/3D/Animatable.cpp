@@ -24,31 +24,42 @@ float mat4Dist(mat4 &a, mat4 &b)
 void Animatable::update()
 {
     //cout << "Animatable update, moves length = " << this->moves.size() << endl;
-    if (!this->moves.empty())
+    if (firstUpdate)
+    {
+        previous.transform = transform;
+        firstUpdate = false;
+    }
+    if (!moves.empty())
     {
         //cout << "delta = deltaTime (" << Times::deltaTime() << ") * (previous transform (" << this->previous.transform << ") - next transform (" << moves.top().transform << "))" << endl;
-        mat4 delta = -Times::deltaTime() / moves.top().time * (this->previous.transform - moves.top().transform);
-        //cout << "delta = " << delta << endl;
+        mat4 delta = -Times::deltaTime() / moves.top().time * (previous.transform - moves.top().transform);
+        cout << "previous = " << previous.transform << endl << "target = " << moves.top().transform << endl << "delta = " << delta << endl;
         mat4 newTransform = mat4();
         for (int i = 0; i < 4; i++)
         {
-            newTransform[i] = this->transform[i] + delta[i];
+            newTransform[i] = transform[i] + delta[i];
         }
         //would the move take us further from our goal
-        float currentDist = mat4Dist(this->transform, moves.top().transform);
+        float currentDist = mat4Dist(transform, moves.top().transform);
         float newDist = mat4Dist(newTransform, moves.top().transform);
         cout << "currentDist = " << currentDist << " newDist = " << newDist << endl;
         if (currentDist < newDist)
         {
-            this->previous = this->moves.top();
-            this->moves.pop();
+            transform = moves.top().transform;
+            previous = moves.top();
+            moves.pop();
         }
         else
         {
             for (int i = 0; i < 4; i++)
             {
-                this->transform[i] += delta[i];
+                transform[i] += delta[i];
             }
         }
     }
+    else
+    {
+        previous.transform = transform;
+    }
+    
 }

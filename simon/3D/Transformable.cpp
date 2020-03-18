@@ -10,42 +10,36 @@ Transformable::Transformable() {
 }
 
 void Transformable::move(const glm::vec3& delta) {
-    positionMat[3].x += delta.x;
-    positionMat[3].y += delta.y;
-    positionMat[3].z += delta.z;
-    updateTransform();
+    transform[3].x += delta.x;
+    transform[3].y += delta.y;
+    transform[3].z += delta.z;
 }
 void Transformable::rotate(const glm::vec3& delta) {
-    rotationMat *= rotationFromEuler(delta);
-    updateTransform();
+    transform *= rotationFromEuler(delta);
 }
 void Transformable::scale(const glm::vec3& delta) {
-    scaleMat[0].x *= delta.x;
-    scaleMat[1].y *= delta.y;
-    scaleMat[2].z *= delta.z;
-    updateTransform();
+    transform[0] *= delta.x;
+    transform[1] *= delta.y;
+    transform[2] *= delta.z;
 }
 void Transformable::setPosition(const glm::vec3& new_position) {
-    positionMat = glm::mat4(1, 0, 0, 0,
-                            0, 1, 0, 0,
-                            0, 0, 1, 0,
-                            new_position.x, new_position.y, new_position.z, 1);
-    updateTransform();
+    transform[3] = glm::vec4(new_position.x, new_position.y, new_position.z, 1);
 }
 void Transformable::setRotation(const glm::vec3& new_rotation) {
-    rotationMat = rotationFromEuler(new_rotation);
-    updateTransform();
+    glm::mat4 rotationMat = rotationFromEuler(new_rotation);
+    for (int i = 0; i < 3; i++) {
+        float scale = glm::length(transform[i]);
+        transform[i] = glm::normalize(rotationMat[i]) * scale;
+    }
 }
 void Transformable::setScale(const glm::vec3& new_scale) {
-    scaleMat = glm::mat4(new_scale.x, 0, 0, 0,
-                         0, new_scale.y, 0, 0,
-                         0, 0, new_scale.z, 0,
-                         0, 0, 0, 1);
-    updateTransform();
+    for (int i = 0; i < 3; i++) {
+        transform[i] = glm::normalize(transform[i]) * new_scale[i];
+    }
 }
-void Transformable::updateTransform() {
-    transform = positionMat * rotationMat * scaleMat;
-}
+// void Transformable::updateTransform() {
+//     transform = positionMat * rotationMat * scaleMat;
+// }
 
 glm::mat4 Transformable::rotationFromEuler(const glm::vec3& rotation) {
     float sa, sb, sc, ca, cb, cc;
