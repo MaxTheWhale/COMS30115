@@ -94,7 +94,7 @@ int main(int argc, char *argv[])
   cam.lookAt(vec3(5.0f, 2.5f, 3.0f), vec3(0.0f, 2.5f, 0.0f));
   cam.moves.push(Movement(cam.transform));
   cam.moves.top().move(vec3(0.0f, -2.0f, 0.0f));
-  cam.moves.top().rotate(vec3(2.0f, 0.0f, 3.0f));
+  //cam.moves.top().rotate(vec3(2.0f, 0.0f, 3.0f));
 
   Times::init();
 
