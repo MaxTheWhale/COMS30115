@@ -1,16 +1,15 @@
 #include "Camera.hpp"
 
-void Camera::lookAt(const glm::vec3& from, const glm::vec3& to) {
-  forward = glm::normalize(from - to);
-  right = glm::normalize(glm::cross(glm::vec3(0, 1, 0), forward));
-  up = glm::normalize(glm::cross(forward, right));
-  //setPosition(from);
-  transform = glm::mat4(right.x, right.y, right.z, 0,
-                     up.x, up.y, up.z, 0,
-                     forward.x, forward.y, forward.z, 0,
-                     from.x, from.y, from.z, 1);
-  //updateTransform();
-}
+// void Camera::lookAt(const glm::vec3& from, const glm::vec3& to) {
+//   vec3 forward = glm::normalize(from - to);
+//   right = glm::normalize(glm::cross(glm::vec3(0, 1, 0), forward));
+//   up = glm::normalize(glm::cross(forward, right));
+//   //setPosition(from);
+//   transform = glm::mat4(right.x, right.y, right.z, 0,
+//                      up.x, up.y, up.z, 0,
+//                      forward.x, forward.y, forward.z, 0,
+//                      from.x, from.y, from.z, 1);
+// }
 
 void Camera::setProjection(float fov, float aspect_ratio, float near, float far) {
   float top = tan(glm::radians(fov / 2)) * near;

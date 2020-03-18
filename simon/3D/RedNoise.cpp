@@ -93,8 +93,7 @@ int main(int argc, char *argv[])
   cam.setProjection(90.0f, WIDTH / (float)HEIGHT, 0.1f, 100.0f);
   cam.lookAt(vec3(5.0f, 2.5f, 3.0f), vec3(0.0f, 2.5f, 0.0f));
   cam.moves.push(Movement(cam.transform));
-  cam.moves.top().move(vec3(0.0f, -2.0f, 0.0f));
-  //cam.moves.top().rotate(vec3(2.0f, 0.0f, 3.0f));
+  cam.moves.top().lookAt(cam.getPosition(), vec3(0, -2.5f, 0));
 
   Times::init();
 
