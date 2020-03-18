@@ -86,30 +86,21 @@ vector<mat4> cameraTransforms = vector<mat4>();
 int main(int argc, char *argv[])
 {
   SDL_Event event;
-  // Texture img = Texture("texture.ppm");
-  // unordered_map<string, Colour> palette = loadMTL("cornell-box.mtl");
-  // vector<ModelTriangle> tris = loadOBJ("cornell-box.obj", palette);
 
   Model cornell = Model("cornell-box");
 
   Camera cam;
   cam.setProjection(90.0f, WIDTH / (float)HEIGHT, 0.1f, 100.0f);
   cam.lookAt(vec3(5.0f, 2.5f, 3.0f), vec3(0.0f, 2.5f, 0.0f));
-  // cameraTransforms.push_back(lookAt(vec3(5.0f, 2.5f, 3.0f), vec3(0.0f, 2.5f, -3.0f)));
-  // cameraTransforms.push_back(lookAt(vec3(5.0f, 2.5f, 3.0f), vec3(0.0f, 4.0f, -3.0f)));
-  // cameraTransforms.push_back(lookAt(vec3(5.0f, 2.5f, 0.0f), vec3(0.0f, 3.0f, 0.0f)));
-  // cameraTransforms.push_back(lookAt(vec3(0.0f, 2.5f, 3.0f), vec3(0.0f, 3.0f, -3.0f)));
-  // cameraTransforms.push_back(lookAt(vec3(0.0f, 2.5f, 4.0f), vec3(0.0f, 4.0f, 0.0f)));
-  // cameraTransforms.push_back(lookAt(vec3(0.0f, 2.5f, 4.0f), vec3(0.0f, 2.0f, 0.0f)));
   cam.moves.push(Movement(cam.transform));
   cam.moves.top().move(vec3(0.0f, -2.0f, 0.0f));
-  //cam.moves.top().rotate(vec3(0.0f, 2.5f, 3.0f));
+  cam.moves.top().rotate(vec3(2.0f, 0.0f, 3.0f));
 
   Times::init();
 
   while (true)
   {
-    cout << "camera transform = " << cam.transform << endl;
+    //cout << "camera transform = " << cam.transform << endl;
     Times::update();
     //cout << "deltaTime: " << Times::deltaTime() << endl;
     // We MUST poll for events - otherwise the window will freeze !
@@ -144,48 +135,6 @@ void update(Camera &cam, vector<Model> models)
   {
     models[i].update();
   }
-  // if (moveStage != -1)
-  // {
-  //   int prevStage = moveStage > 0 ? moveStage - 1 : 0;
-  //   //vec3 camPos = -vec3(cam[3].x, cam[3].y, cam[3].z);
-  //   //vec3 delta = dt * (cameraPositions[prevStage] - cameraPositions[moveStage]);
-  //   mat4 delta = -times.deltaTime() * (cameraTransforms[prevStage] - cameraTransforms[moveStage]);
-  //   //cout << camPos << endl;
-  //   mat4 newTransform = mat4();
-  //   for (int i = 0; i < 4; i++)
-  //   {
-  //     newTransform[i] = cam.transform[i] + delta[i];
-  //   }
-  //   //would the move take us further from our goal
-  //   float currentDist = mat4Dist(cam.transform, cameraTransforms[moveStage]);
-  //   float newDist = mat4Dist(newTransform, cameraTransforms[moveStage]);
-  //   cout << "currentDist = " << currentDist << " newDist = " << newDist << endl;
-  //   if (currentDist <= newDist)
-  //   {
-  //     //cam[3] = vec4(cameraPositions[moveStage].x, cameraPositions[moveStage].y, cameraPositions[moveStage].z, cam[3].w);
-  //     if (moveStage + 1 < (int)cameraTransforms.size())
-  //     {
-  //       moveStage++;
-  //     }
-  //     else
-  //     {
-  //       moveStage = -1;
-  //       savePPM("window.ppm", &window);
-  //     }
-  //     cout << "move stage is now " << moveStage << endl;
-  //   }
-  //   else
-  //   {
-  //     for (int i = 0; i < 4; i++)
-  //     {
-  //       cam.transform[i] += delta[i];
-  //     }
-  //   }
-  //}
-
-  //cam[3] += dt * transpose(cam)[0] * 2.0f;
-  //cam[3] += dt * vec4(1, 0, 0, 0);
-  //cam = lookAt(, vec3(0.0f, 2.5f, -3.0f));
 }
 
 void handleEvent(SDL_Event event, Camera &cam)
