@@ -14,8 +14,8 @@
 using namespace std;
 using namespace glm;
 
-#define WIDTH 320
-#define HEIGHT 240
+#define WIDTH 640
+#define HEIGHT 480
 
 void draw();
 void line(CanvasPoint p, CanvasPoint q, int colour);
@@ -26,34 +26,108 @@ void skipHashWS(ifstream &f);
 void update(Camera &cam, vector<Model> models);
 void handleEvent(SDL_Event event, Camera &cam);
 float depthBuffer[WIDTH * HEIGHT];
+bool wireframe;
 vector<float> Interpolate(float a, float b, int n);
 vector<vec3> Interpolate(vec3 a, vec3 b, int n);
+
+bool inClipSpace(vec3 point) {
+  return (point.x > -1.0f && point.x < 1.0f && point.y > -1.0f && point.y < 1.0f && point.z > -1.0f && point.z < 1.0f);
+}
+
+// based on https://casual-effects.com/research/McGuire2011Clipping/McGuire-Clipping.pdf
+int clipTriangle(vector<ModelTriangle>& tris, const vec4& normal) {
+  vec4 temp;
+  vector<int> toBeCulled;
+  int n = tris.size();
+  for (int i = 0; i < n; i++) {
+    vector<float> distances;
+    distances.push_back(dot(tris[i].vertices[0], normal) + 1.0f);
+    distances.push_back(dot(tris[i].vertices[1], normal) + 1.0f);
+    distances.push_back(dot(tris[i].vertices[2], normal) + 1.0f);
+    if (distances[0] >= 0.0f && distances[1] >= 0.0f && distances[2] >= 0.0f) {
+      continue;
+    }
+    if (distances[0] < 0.0f && distances[1] < 0.0f && distances[2] < 0.0f) {
+      toBeCulled.push_back(i);
+    }
+    bool nextInside;
+    if (distances[1] >= 0.0f && distances[0] < 0.0f) {
+      nextInside = (distances[2] >= 0.0f);
+      temp = tris[i].vertices[0];
+      tris[i].vertices[0] = tris[i].vertices[1];
+      tris[i].vertices[1] = tris[i].vertices[2];
+      tris[i].vertices[2] = temp;
+      rotate(distances.begin(),distances.begin()+1,distances.end());
+    }
+    else if (distances[2] >= 0.0f && distances[1] < 0.0f) {
+      nextInside = (distances[0] >= 0.0f);
+      temp = tris[i].vertices[2];
+      tris[i].vertices[2] = tris[i].vertices[1];
+      tris[i].vertices[1] = tris[i].vertices[0];
+      tris[i].vertices[0] = temp;
+      rotate(distances.begin(),distances.begin()+2,distances.end());
+    }
+    else {
+      nextInside = (distances[1] >= 0.0f);
+    }
+    temp = (tris[i].vertices[0] + (tris[i].vertices[2] - tris[i].vertices[0]) * (distances[0] / (distances[0] - distances[2])));
+    if (nextInside) {
+      tris[i].vertices[2] = (tris[i].vertices[1] + (tris[i].vertices[2] - tris[i].vertices[1]) * (distances[1] / (distances[1] - distances[2])));
+      tris.push_back(ModelTriangle(tris[i].vertices[0], tris[i].vertices[2], temp, tris[i].colour));
+    }
+    else {
+      tris[i].vertices[1] = (tris[i].vertices[0] + (tris[i].vertices[1] - tris[i].vertices[0]) * (distances[0] / (distances[0] - distances[1])));
+      tris[i].vertices[2] = temp;
+    }
+  }
+  for (auto i : toBeCulled) {
+    tris.erase(tris.begin() + i);
+  }
+  return tris.size();
+}
+
+int clipToView(vector<ModelTriangle>& tris) {
+  const vec4 normals[6] = {vec4(1, 0, 0, 0), vec4(0, 1, 0, 0), vec4(0, 0, 1, 0), vec4(-1, 0, 0, 0), vec4(0, -1, 0, 0), vec4(0, 0, -1, 0)};
+  for (auto n : normals) {
+    int num = clipTriangle(tris, n);
+    if (num == 0) {
+      return 0;
+    }
+  }
+  return tris.size();
+}
 
 void drawTriangles(Model &model, Camera &cam)
 {
   mat4 MVP = cam.projection * cam.worldToCamera * model.transform;
   for (auto tri : model.tris)
   {
-    vec4 camToV1 = MVP * tri.vertices[0];
-    camToV1 /= camToV1.w;
-    vec4 camToV2 = MVP * tri.vertices[1];
-    camToV2 /= camToV2.w;
-    vec4 camToV3 = MVP * tri.vertices[2];
-    camToV3 /= camToV3.w;
-    CanvasPoint v1 = CanvasPoint(
-        (camToV1.x + 1) * 0.5f * WIDTH,
-        (1 - (camToV1.y + 1) * 0.5f) * HEIGHT,
-        (99.9f / 2) * camToV1.z + (100.1f / 2));
-    CanvasPoint v2 = CanvasPoint(
-        (camToV2.x + 1) * 0.5f * WIDTH,
-        (1 - (camToV2.y + 1) * 0.5f) * HEIGHT,
-        (99.9f / 2) * camToV2.z + (100.1f / 2));
-    CanvasPoint v3 = CanvasPoint(
-        (camToV3.x + 1) * 0.5f * WIDTH,
-        (1 - (camToV3.y + 1) * 0.5f) * HEIGHT,
-        (99.9f / 2) * camToV3.z + (100.1f / 2));
-    if (v1.depth > 0 || v2.depth > 0 || v3.depth > 0)
-      triangle(CanvasTriangle(v1, v2, v3), tri.colour.toPackedInt(), true);
+    tri.vertices[0] = MVP * tri.vertices[0];
+    tri.vertices[0] /= tri.vertices[0].w;
+    tri.vertices[1] = MVP * tri.vertices[1];
+    tri.vertices[1] /= tri.vertices[1].w;
+    tri.vertices[2] = MVP * tri.vertices[2];
+    tri.vertices[2] /= tri.vertices[2].w;
+    
+    vector<ModelTriangle> clippedTris;
+    clippedTris.push_back(tri);
+    clipToView(clippedTris);
+
+    for (auto t : clippedTris) {
+      CanvasPoint v1 = CanvasPoint(
+        (t.vertices[0].x + 1.0f) * 0.5f * WIDTH,
+        (1 - (t.vertices[0].y + 1.0f) * 0.5f) * HEIGHT,
+        (99.9f / 2) * t.vertices[0].z + (100.1f / 2));
+      CanvasPoint v2 = CanvasPoint(
+        (t.vertices[1].x + 1.0f) * 0.5f * WIDTH,
+        (1 - (t.vertices[1].y + 1.0f) * 0.5f) * HEIGHT,
+        (99.9f / 2) * t.vertices[1].z + (100.1f / 2));
+      CanvasPoint v3 = CanvasPoint(
+        (t.vertices[2].x + 1.0f) * 0.5f * WIDTH,
+        (1 - (t.vertices[2].y + 1.0f) * 0.5f) * HEIGHT,
+        (99.9f / 2) * t.vertices[2].z + (100.1f / 2));
+      triangle(CanvasTriangle(v1, v2, v3), tri.colour.toPackedInt(), wireframe);
+    }
   }
 }
 
@@ -222,6 +296,11 @@ void handleEvent(SDL_Event event, Camera &cam)
       cout << "SPACE" << endl;
       cam.move(0.5f * cam.up);
     }
+    else if (event.key.keysym.sym == SDLK_w)
+    {
+      cout << "W" << endl;
+      wireframe = !wireframe;
+    }
   }
 }
 
@@ -299,79 +378,38 @@ void line(CanvasPoint p, CanvasPoint q, int colour)
   }
 }
 
+inline float edgeFunction(const CanvasPoint& v0, const CanvasPoint& v1, const CanvasPoint& p) {
+  return (p.x - v0.x) * (v1.y - v0.y) - (p.y - v0.y) * (v1.x - v0.x);
+}
+
 void triangle(CanvasTriangle t, int colour, bool filled)
 {
   if (filled)
   {
-    sort(begin(t.vertices), end(t.vertices));
-    // if (t.vertices[0].x < 0 || t.vertices[0].x >= WIDTH ||
-    //     t.vertices[0].y < 0 || t.vertices[0].y >= HEIGHT ||
-    //     t.vertices[1].x < 0 || t.vertices[1].x >= WIDTH ||
-    //     t.vertices[1].y < 0 || t.vertices[1].y >= HEIGHT ||
-    //     t.vertices[2].x < 0 || t.vertices[2].x >= WIDTH ||
-    //     t.vertices[2].y < 0 || t.vertices[2].y >= HEIGHT) return;
-    vector<CanvasPoint> line1 =
-        Interpolate(t.vertices[0], t.vertices[1],
-                    t.vertices[1].y - t.vertices[0].y + 1);
-    vector<CanvasPoint> line2 =
-        Interpolate(t.vertices[0], t.vertices[2],
-                    t.vertices[2].y - t.vertices[0].y + 1);
-    vector<CanvasPoint> line3 =
-        Interpolate(t.vertices[1], t.vertices[2],
-                    t.vertices[2].y - t.vertices[1].y + 1);
+    int x_min = glm::min(t.vertices[0].x, t.vertices[1].x);
+    x_min = glm::min((float)x_min, t.vertices[2].x);
+    int x_max = glm::max(t.vertices[0].x, t.vertices[1].x);
+    x_max = glm::max((float)x_max, t.vertices[2].x);
+    int y_min = glm::min(t.vertices[0].y, t.vertices[1].y);
+    y_min = glm::min((float)y_min, t.vertices[2].y);
+    int y_max = glm::max(t.vertices[0].y, t.vertices[1].y);
+    y_max = glm::max((float)y_max, t.vertices[2].y);
 
-    for (int y = t.vertices[0].y; y < t.vertices[1].y; y++)
-    {
-      int xStart, xEnd;
-      vector<CanvasPoint> currentLine;
-      if (line1[y - t.vertices[0].y].x < line2[y - t.vertices[0].y].x)
-      {
-        xStart = line1[y - t.vertices[0].y].x;
-        xEnd = line2[y - t.vertices[0].y].x;
-        currentLine = Interpolate(line1[y - t.vertices[0].y], line2[y - t.vertices[0].y], xEnd - xStart);
-      }
-      else
-      {
-        xStart = line2[y - t.vertices[0].y].x;
-        xEnd = line1[y - t.vertices[0].y].x;
-        currentLine = Interpolate(line2[y - t.vertices[0].y], line1[y - t.vertices[0].y], xEnd - xStart);
-      }
-      for (int x = xStart; x < xEnd; x++)
-      {
-        if (x >= 0 && y >= 0 && x < WIDTH && y < HEIGHT)
-        {
-          if (currentLine[x - xStart].depth < depthBuffer[x + y * WIDTH])
-          {
+    for (int y = y_min; y <= y_max; y++) {
+      for (int x = x_min; x <= x_max; x++) {
+        CanvasPoint p = CanvasPoint(x + 0.5f, y + 0.5f);
+        float w0 = edgeFunction(t.vertices[1], t.vertices[2], p);
+        float w1 = edgeFunction(t.vertices[2], t.vertices[0], p);
+        float w2 = edgeFunction(t.vertices[0], t.vertices[1], p);
+        if (w0 >= 0 && w1 >= 0 && w2 >= 0) {
+          float area = edgeFunction(t.vertices[0], t.vertices[1], t.vertices[2]);
+          w0 /= area;
+          w1 /= area;
+          w2 /= area;
+          float depth = w0 * t.vertices[0].depth + w1 * t.vertices[1].depth + w2 * t.vertices[2].depth;
+          if (depth < depthBuffer[y * WIDTH + x]) {
+            depthBuffer[y * WIDTH + x] = depth;
             window.setPixelColour(x, y, colour);
-            depthBuffer[x + y * WIDTH] = currentLine[x - xStart].depth;
-          }
-        }
-      }
-    }
-    for (int y = t.vertices[1].y; y < t.vertices[2].y; y++)
-    {
-      int xStart, xEnd;
-      vector<CanvasPoint> currentLine;
-      if (line3[y - t.vertices[1].y].x < line2[y - t.vertices[0].y].x)
-      {
-        xStart = line3[y - t.vertices[1].y].x;
-        xEnd = line2[y - t.vertices[0].y].x;
-        currentLine = Interpolate(line3[y - t.vertices[1].y], line2[y - t.vertices[0].y], xEnd - xStart);
-      }
-      else
-      {
-        xStart = line2[y - t.vertices[0].y].x;
-        xEnd = line3[y - t.vertices[1].y].x;
-        currentLine = Interpolate(line2[y - t.vertices[0].y], line3[y - t.vertices[1].y], xEnd - xStart);
-      }
-      for (int x = xStart; x < xEnd; x++)
-      {
-        if (x >= 0 && y >= 0 && x < WIDTH && y < HEIGHT)
-        {
-          if (currentLine[x - xStart].depth < depthBuffer[x + y * WIDTH])
-          {
-            window.setPixelColour(x, y, colour);
-            depthBuffer[x + y * WIDTH] = currentLine[x - xStart].depth;
           }
         }
       }
