@@ -16,4 +16,5 @@ class Animatable : public Transformable {
         void update();
     protected:
         Movement previous;
+        bool firstUpdate = true;
 };

@@ -11,9 +11,11 @@ class Transformable {
     void setPosition(const glm::vec3& new_position);
     void setRotation(const glm::vec3& new_rotation);
     void setScale(const glm::vec3& new_scale);
+    glm::vec3 getPosition();
+    void lookAt(const glm::vec3& from, const glm::vec3& to);
     Transformable();
   protected:
-    glm::mat4 positionMat, rotationMat, scaleMat;
-    virtual void updateTransform();
+    //glm::mat4 positionMat, rotationMat, scaleMat;
+    //virtual void updateTransform();
     glm::mat4 rotationFromEuler(const glm::vec3& rotation);
 };
