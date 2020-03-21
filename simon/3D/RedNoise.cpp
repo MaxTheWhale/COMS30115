@@ -14,8 +14,8 @@
 using namespace std;
 using namespace glm;
 
-#define WIDTH 320
-#define HEIGHT 240
+#define WIDTH 640
+#define HEIGHT 480
 #define MOUSE_SENSITIVITY 0.0015f
 
 void draw();
@@ -179,7 +179,7 @@ void raytrace(Camera camera, Model model) {
       float x = (2 * (NDC.x) - 1) * angle * aspectRatio;
       float y = (1 - 2 * (NDC.y)) * angle;
 
-      vec4 rayDirection = vec4(x, y, -1, 0) * camera.transform[3];
+      vec4 rayDirection = camera.transform * vec4(x, y, -1, 0);
       float minDistance = std::numeric_limits<float>::infinity();
       ModelTriangle intersection = ModelTriangle();
       bool foundIntersection = false;
@@ -206,8 +206,6 @@ void raytrace(Camera camera, Model model) {
       } else {
         window.setPixelColour(i, j, 0);
       }
-
-      //cout << "raytracing " << i << ", " << j << endl;
     }
   }
 }
