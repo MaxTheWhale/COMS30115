@@ -16,6 +16,7 @@ using namespace glm;
 
 #define WIDTH 640
 #define HEIGHT 480
+#define MOUSE_SENSITIVITY 0.0015f
 
 void draw();
 void line(CanvasPoint p, CanvasPoint q, int colour);
@@ -152,6 +153,16 @@ public:
   }
 };
 
+
+void handleMouse(Camera& cam) {
+  int motion_x = 0;
+  int motion_y = 0;
+  SDL_GetRelativeMouseState(&motion_x, &motion_y);
+  if (motion_x || motion_y) {
+    cam.rotate(vec3(motion_y * MOUSE_SENSITIVITY, motion_x * MOUSE_SENSITIVITY, 0));
+  }
+}
+
 void texturedTriangle(CanvasTriangle screenTri, CanvasTriangle texTri,
                       Texture tex);
 
@@ -204,6 +215,7 @@ vector<mat4> cameraTransforms = vector<mat4>();
 int main(int argc, char *argv[])
 {
   SDL_Event event;
+  //SDL_SetRelativeMouseMode(SDL_TRUE);
 
   Model cornell = Model("cornell-box");
 
@@ -223,6 +235,7 @@ int main(int argc, char *argv[])
     // We MUST poll for events - otherwise the window will freeze !
     if (window.pollForInputEvents(&event))
       handleEvent(event, cam);
+    //handleMouse(cam);
     //cout << "deltaTime = " << Times::deltaTime() << endl;
     update(cam, vector<Model>{cornell});
 
@@ -266,32 +279,32 @@ void handleEvent(SDL_Event event, Camera &cam)
     if (event.key.keysym.sym == SDLK_LEFT)
     {
       cout << "LEFT" << endl;
-      cam.move(-0.5f * cam.right);
+      cam.move(-0.5f * vec3(cam.transform[0].x, cam.transform[0].y, cam.transform[0].z));
     }
     else if (event.key.keysym.sym == SDLK_RIGHT)
     {
       cout << "RIGHT" << endl;
-      cam.move(0.5f * cam.right);
+      cam.move(0.5f * vec3(cam.transform[0].x, cam.transform[0].y, cam.transform[0].z));
     }
     else if (event.key.keysym.sym == SDLK_UP)
     {
       cout << "UP" << endl;
-      cam.move(-0.5f * cam.forward);
+      cam.move(-0.5f * vec3(cam.transform[2].x, cam.transform[2].y, cam.transform[2].z));
     }
     else if (event.key.keysym.sym == SDLK_DOWN)
     {
       cout << "DOWN" << endl;
-      cam.move(0.5f * cam.forward);
+      cam.move(0.5f * vec3(cam.transform[2].x, cam.transform[2].y, cam.transform[2].z));
     }
     else if (event.key.keysym.sym == SDLK_LSHIFT)
     {
       cout << "LSHIFT" << endl;
-      cam.move(-0.5f * cam.up);
+      cam.move(-0.5f * vec3(cam.transform[1].x, cam.transform[1].y, cam.transform[1].z));
     }
     else if (event.key.keysym.sym == SDLK_SPACE)
     {
       cout << "SPACE" << endl;
-      cam.move(0.5f * cam.up);
+      cam.move(0.5f * vec3(cam.transform[1].x, cam.transform[1].y, cam.transform[1].z));
     }
     else if (event.key.keysym.sym == SDLK_w)
     {
