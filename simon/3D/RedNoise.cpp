@@ -30,6 +30,8 @@ bool wireframe;
 vector<float> Interpolate(float a, float b, int n);
 vector<vec3> Interpolate(vec3 a, vec3 b, int n);
 
+bool toRaytrace = false;
+
 bool inClipSpace(vec3 point) {
   return (point.x > -1.0f && point.x < 1.0f && point.y > -1.0f && point.y < 1.0f && point.z > -1.0f && point.z < 1.0f);
 }
@@ -155,6 +157,48 @@ void texturedTriangle(CanvasTriangle screenTri, CanvasTriangle texTri,
 
 DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
 
+void raytrace(Camera camera, Model model) {
+  float fov = 90;
+  float aspectRatio = WIDTH/(float)HEIGHT;
+  float angle = tan(0.5 * fov * M_PI / 180.0); // just fov*0.5 converted to radians
+
+  for(int j = 0; j < HEIGHT; j++) {
+    for(int i = 0; i < WIDTH; i++) {
+      vec2 NDC = vec2((i + 0.5) * (1 / (float) WIDTH), (j + 0.5) * (1 / (float) HEIGHT));
+      float x = (2 * (NDC.x) - 1) * angle * aspectRatio;
+      float y = (1 - 2 * (NDC.y)) * angle;
+
+      vec4 rayDirection = vec4(x, y, -1, 0) * camera.transform[3];
+      float minDistance = std::numeric_limits<float>::infinity();
+      ModelTriangle intersection = ModelTriangle();
+      bool foundIntersection = false;
+
+      for(ModelTriangle triangle : model.tris) {
+        vec4 e0 = triangle.vertices[1] - triangle.vertices[0];
+        vec4 e1 = triangle.vertices[2] - triangle.vertices[0];
+        vec4 SPVector = camera.transform[3] - triangle.vertices[0];
+        mat4 DEMatrix(-rayDirection, e0, e1, vec4(1,1,1,1));
+        vec4 possibleSolution = glm::inverse(DEMatrix) * SPVector;
+
+        //check if ray intersects triangle and not just triangle plane
+        if(possibleSolution.y >= 0 && possibleSolution.y <= 1 && possibleSolution.z >= 0 && possibleSolution.z <= 1 && possibleSolution.y + possibleSolution.z <= 1) {
+          if(possibleSolution.x < minDistance) {
+            foundIntersection = true;
+            intersection = triangle;
+            minDistance = possibleSolution.x;
+          }
+        }
+      }
+
+      if(foundIntersection) {
+        window.setPixelColour(i, j, intersection.colour.toPackedInt());
+      } else {
+        window.setPixelColour(i, j, 0);
+      }
+    }
+  }
+}
+
 //vector<vec3> cameraPositions{ vec3(5.0f, 2.5f, 3.0f), vec3(5.0f, 0.0f, 3.0f), vec3(5.0f, 0.0f, 6.0f) };
 vector<mat4> cameraTransforms = vector<mat4>();
 int main(int argc, char *argv[])
@@ -181,8 +225,13 @@ int main(int argc, char *argv[])
       handleEvent(event, cam);
     //cout << "deltaTime = " << Times::deltaTime() << endl;
     update(cam, vector<Model>{cornell});
-    draw();
-    drawTriangles(cornell, cam);
+
+    if(toRaytrace) {
+      raytrace(cam, cornell);
+    } else {
+      draw();
+      drawTriangles(cornell, cam);
+    }
     // Need to render the frame at the end, or nothing actually gets shown on
     // the screen !
     window.renderFrame();
@@ -248,6 +297,18 @@ void handleEvent(SDL_Event event, Camera &cam)
     {
       cout << "W" << endl;
       wireframe = !wireframe;
+    }
+    else if (event.key.keysym.sym == SDLK_r){
+      cout << "R" << endl;
+      toRaytrace = true;
+    }
+    else if (event.key.keysym.sym == SDLK_t){
+      cout << "W" << endl;
+      toRaytrace = false;
+    }
+    else if (event.key.keysym.sym == SDLK_o) {
+      cout << "O" << endl;
+      cam.setPosition(vec3(0.0f,0.0f,0.0f));
     }
   }
 }
