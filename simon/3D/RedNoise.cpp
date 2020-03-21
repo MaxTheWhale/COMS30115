@@ -418,7 +418,10 @@ void triangle(CanvasTriangle t, int colour, bool filled)
     y_min = glm::min((float)y_min, t.vertices[2].y);
     int y_max = glm::max(t.vertices[0].y, t.vertices[1].y);
     y_max = glm::max((float)y_max, t.vertices[2].y);
-
+    if (x_min < 0) x_min = 0;
+    if (y_min < 0) y_min = 0;
+    if (x_max >= WIDTH) x_max = WIDTH - 1;
+    if (y_max >= HEIGHT) y_max = HEIGHT - 1; 
     for (int y = y_min; y <= y_max; y++) {
       for (int x = x_min; x <= x_max; x++) {
         CanvasPoint p = CanvasPoint(x + 0.5f, y + 0.5f);
