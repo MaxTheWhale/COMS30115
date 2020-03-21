@@ -14,8 +14,8 @@
 using namespace std;
 using namespace glm;
 
-#define WIDTH 640
-#define HEIGHT 480
+#define WIDTH 320
+#define HEIGHT 240
 #define MOUSE_SENSITIVITY 0.0015f
 
 void draw();
@@ -206,6 +206,8 @@ void raytrace(Camera camera, Model model) {
       } else {
         window.setPixelColour(i, j, 0);
       }
+
+      //cout << "raytracing " << i << ", " << j << endl;
     }
   }
 }
@@ -221,9 +223,9 @@ int main(int argc, char *argv[])
 
   Camera cam;
   cam.setProjection(90.0f, WIDTH / (float)HEIGHT, 0.1f, 100.0f);
-  cam.lookAt(vec3(5.0f, 2.5f, 3.0f), vec3(0.0f, 2.5f, 0.0f));
-  cam.moves.push(Movement(cam.transform));
-  cam.moves.top().lookAt(cam.getPosition(), vec3(0, -2.5f, 0));
+  // cam.lookAt(vec3(5.0f, 2.5f, 3.0f), vec3(0.0f, 2.5f, 0.0f));
+  // cam.moves.push(Movement(cam.transform));
+  // cam.moves.top().lookAt(cam.getPosition(), vec3(0, -2.5f, 0));
 
   Times::init();
 
