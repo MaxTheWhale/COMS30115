@@ -9,6 +9,7 @@ class ModelTriangle
   public:
     glm::vec4 vertices[3];
     Colour colour;
+    std::string name;
 
     ModelTriangle()
     {
@@ -31,6 +32,15 @@ class ModelTriangle
       vertices[1] = glm::vec4(v1.x, v1.y, v1.z, 1);
       vertices[2] = glm::vec4(v2.x, v2.y, v2.z, 1);
       colour = trigColour;
+    }
+
+    ModelTriangle(glm::vec3 v0, glm::vec3 v1, glm::vec3 v2, Colour trigColour, std::string n)
+    {
+      vertices[0] = glm::vec4(v0.x, v0.y, v0.z, 1);
+      vertices[1] = glm::vec4(v1.x, v1.y, v1.z, 1);
+      vertices[2] = glm::vec4(v2.x, v2.y, v2.z, 1);
+      colour = trigColour;
+      name = n;
     }
 };
 

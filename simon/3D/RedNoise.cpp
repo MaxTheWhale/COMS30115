@@ -30,8 +30,10 @@ float depthBuffer[WIDTH * HEIGHT];
 bool wireframe;
 vector<float> Interpolate(float a, float b, int n);
 vector<vec3> Interpolate(vec3 a, vec3 b, int n);
+vector<vec4> Interpolate(vec4 a, vec4 b, int n);
 
 bool toRaytrace = false;
+bool softShadows = false;
 
 bool inClipSpace(vec3 point) {
   return (point.x > -1.0f && point.x < 1.0f && point.y > -1.0f && point.y < 1.0f && point.z > -1.0f && point.z < 1.0f);
@@ -163,10 +165,18 @@ void handleMouse(Camera& cam) {
   }
 }
 
-int darkenColour(Colour colour, float brightness) {
+int darkenColour(Colour colour, float brightness, float specular) {
   colour.red *= brightness;
   colour.green *= brightness;
   colour.blue *= brightness;
+
+  colour.red += specular * 255;
+  colour.blue += specular * 255;
+  colour.green += specular * 255;
+
+  colour.red  = colour.red > 255 ? 255 : colour.red;
+  colour.green  = colour.green > 255 ? 255 : colour.green;
+  colour.blue  = colour.blue > 255 ? 255 : colour.blue;
 
   return colour.toPackedInt();
 }
@@ -184,7 +194,16 @@ void texturedTriangle(CanvasTriangle screenTri, CanvasTriangle texTri,
 
 DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
 
-void raytrace(Camera camera, Model model) {
+vector<ModelTriangle> getLights(Model model) {
+  vector<ModelTriangle> lights = vector<ModelTriangle>();
+  for(ModelTriangle triangle : model.tris) {
+    if(triangle.name == "light") lights.push_back(triangle);
+  }
+
+  return lights;
+}
+
+void raytrace(Camera camera, Model model, int softness) {
   float fov = 90;
   float aspectRatio = WIDTH/(float)HEIGHT;
   float angle = tan(0.5 * fov * M_PI / 180.0); // just fov*0.5 converted to radians
@@ -221,49 +240,84 @@ void raytrace(Camera camera, Model model) {
 
       if(foundIntersection) {
         float ambience = 0.25f;
-        float intensity = 10.0f;
-        float shadow = 0.5f;
+        float intensity = 1.0f / softness;
+        float shadow = 0.1f / softness;
+        float shadowCount = 1.0f;
+        float brightnessCount = 0.0f;
+        float angleCount = 0.0f;
+        float specularCount = 0.0f;
+        bool inShadow = false;
 
 
-        ModelTriangle light = model.tris[0];
+        vector<ModelTriangle> lights = getLights(model);
         vec4 intersectionPoint = camera.transform[3] + (t * rayDirection);
         intersectionPoint.w = 1;
 
-        vec4 shadowRayDirection = light.vertices[0] - intersectionPoint;
+        for(ModelTriangle light : lights) {
+          vector<vec4> points = vector<vec4>();
+          vector<vec4> a = Interpolate(light.vertices[0], light.vertices[1], softness);
+          vector<vec4> b = Interpolate(light.vertices[0], light.vertices[2], softness);
+          vector<vec4> c = Interpolate(light.vertices[1], light.vertices[2], softness);
+          points.insert(points.end(), a.begin(), a.end());
+          points.insert(points.end(), b.begin(), b.end());
+          points.insert(points.end(), c.begin(), c.end());
 
-        //cout << shadowRayDirection << " with length " << vectorLength(shadowRayDirection) << endl;
+          for(vec4 vertex : points) {
+            vec4 shadowRayDirection = vertex - intersectionPoint;
 
-        vec3 intersectionNormal = glm::cross(toThree(intersection.vertices[1] - intersection.vertices[0]), toThree(intersection.vertices[2] - intersection.vertices[0]));
-        float angleOfIncidence = glm::dot(toThree(glm::normalize(shadowRayDirection)), glm::normalize(intersectionNormal));
-        angleOfIncidence = angleOfIncidence < 0 ? ambience : angleOfIncidence;
+            //cout << shadowRayDirection << " with length " << vectorLength(shadowRayDirection) << endl;
 
-        bool inShadow = false;
-        float tolerance = 0.01f;
-        float shadowBias = 1e-4;
+            vec3 intersectionNormal = glm::cross(toThree(intersection.vertices[1] - intersection.vertices[0]), toThree(intersection.vertices[2] - intersection.vertices[0]));
+            float angleOfIncidence = glm::dot(toThree(glm::normalize(shadowRayDirection)), glm::normalize(intersectionNormal));
+            angleOfIncidence = angleOfIncidence < 0 ? ambience : angleOfIncidence;
 
-        for(ModelTriangle triangle : model.tris) {
-          vec4 e0 = triangle.vertices[1] - triangle.vertices[0];
-          vec4 e1 = triangle.vertices[2] - triangle.vertices[0];
-          vec4 SPVector = (intersectionPoint + shadowBias) - triangle.vertices[0];
-          mat4 DEMatrix(-shadowRayDirection, e0, e1, vec4(1,1,1,1));
-          vec4 possibleSolution = glm::inverse(DEMatrix) * SPVector;
+            float tolerance = 0.01f;
+            float shadowBias = 1e-4;
+
+            for(ModelTriangle triangle : model.tris) {
+              vec4 e0 = triangle.vertices[1] - triangle.vertices[0];
+              vec4 e1 = triangle.vertices[2] - triangle.vertices[0];
+              vec4 SPVector = (intersectionPoint + shadowBias) - triangle.vertices[0];
+              mat4 DEMatrix(-shadowRayDirection, e0, e1, vec4(1,1,1,1));
+              vec4 possibleSolution = glm::inverse(DEMatrix) * SPVector;
 
 
-          //check if ray intersects triangle and not just triangle plane
-          if(possibleSolution.y >= 0 && possibleSolution.y <= 1 && possibleSolution.z >= 0 && possibleSolution.z <= 1 && possibleSolution.y + possibleSolution.z <= 1) {
-            //cout << "intersection length " << possibleSolution.x << endl;
-            if(possibleSolution.x < 1 - tolerance && possibleSolution.x > tolerance) {
-              //cout << "in shadow for " << i << "," << j << endl;
-              inShadow = true;
+              //check if ray intersects triangle and not just triangle plane
+              if(possibleSolution.y >= 0 && possibleSolution.y <= 1 && possibleSolution.z >= 0 && possibleSolution.z <= 1 && possibleSolution.y + possibleSolution.z <= 1) {
+                //cout << "intersection length " << possibleSolution.x << endl;
+                if(possibleSolution.x < 1 - tolerance && possibleSolution.x > tolerance) {
+                  //cout << "in shadow for " << i << "," << j << endl;
+                  inShadow = true;
+                }
+              }
             }
+
+            float brightness = intensity/pow(vectorLength(shadowRayDirection),2);
+            brightness = brightness < 0 ? 0 : brightness;
+            brightness = brightness > 1 ? 1 : brightness;
+            shadowCount -= inShadow ? shadow : 0;
+            brightnessCount += brightness;
+            angleCount += angleOfIncidence;
+
+            vec3 reflection = toThree(-shadowRayDirection) - 2 * (glm::dot(toThree(-shadowRayDirection), glm::normalize(intersectionNormal))) * glm::normalize(intersectionNormal);
+            float specular = pow(glm::dot(glm::normalize(toThree(-rayDirection)), glm::normalize(reflection)), 128);
+
+            specularCount += specular;
+
           }
         }
 
-        float brightness = intensity/pow(vectorLength(shadowRayDirection),2);
-        brightness = brightness < 0 ? 0 : brightness;
-        brightness = brightness > 1 ? 1 : brightness;
+        shadowCount = shadowCount < 0 ? 0 : shadowCount;
+        shadowCount = shadowCount > 1 ? 1 : shadowCount;
+        brightnessCount = brightnessCount < 0 ? 0 : brightnessCount;
+        brightnessCount = brightnessCount > 1 ? 1 : brightnessCount;
+        angleCount = angleCount < 0 ? 0 : angleCount;
+        angleCount = angleCount > 1 ? 1 : angleCount;
+        specularCount = specularCount < 0 ? 0 : specularCount;
+        specularCount = specularCount > 1 ? 1 : specularCount;
 
-        window.setPixelColour(i, j, inShadow ? darkenColour(intersection.colour, angleOfIncidence * shadow * brightness) : darkenColour(intersection.colour, angleOfIncidence * brightness));
+        if(intersection.name == "light") window.setPixelColour(i, j, intersection.colour.toPackedInt());
+        else window.setPixelColour(i, j, inShadow ? darkenColour(intersection.colour, angleCount * shadowCount * brightnessCount, specularCount) : darkenColour(intersection.colour, angleCount * brightnessCount, specularCount));
       } else {
         window.setPixelColour(i, j, 0);
       }
@@ -301,7 +355,7 @@ int main(int argc, char *argv[])
     update(cam, vector<Model>{cornell});
 
     if(toRaytrace) {
-      raytrace(cam, cornell);
+      raytrace(cam, cornell, softShadows ? 2 : 1);
     } else {
       draw();
       drawTriangles(cornell, cam);
@@ -373,16 +427,16 @@ void handleEvent(SDL_Event event, Camera &cam)
       wireframe = !wireframe;
     }
     else if (event.key.keysym.sym == SDLK_r){
-      cout << "R" << endl;
-      toRaytrace = true;
-    }
-    else if (event.key.keysym.sym == SDLK_t){
-      cout << "W" << endl;
-      toRaytrace = false;
+      toRaytrace = !toRaytrace;
+      cout << "R = " << toRaytrace << endl;
     }
     else if (event.key.keysym.sym == SDLK_o) {
       cout << "O" << endl;
       cam.setPosition(vec3(0.0f,0.0f,0.0f));
+    }
+    else if (event.key.keysym.sym == SDLK_s) {
+      softShadows = !softShadows;
+      cout << "S = " << softShadows << endl;
     }
   }
 }
@@ -418,6 +472,26 @@ vector<vec3> Interpolate(vec3 a, vec3 b, int n)
   else if (n > 1)
   {
     vec3 step = (b - a) / (n - 1.0f);
+    for (int i = 0; i < n; ++i)
+    {
+      result.push_back(a);
+      a += step;
+    }
+  }
+  return result;
+}
+
+vector<vec4> Interpolate(vec4 a, vec4 b, int n)
+{
+  vector<vec4> result;
+  if (n == 1)
+  {
+    result.push_back((a + b) / 2.0f);
+    return result;
+  }
+  else if (n > 1)
+  {
+    vec4 step = (b - a) / (n - 1.0f);
     for (int i = 0; i < n; ++i)
     {
       result.push_back(a);
