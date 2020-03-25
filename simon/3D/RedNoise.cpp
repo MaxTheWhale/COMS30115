@@ -35,10 +35,6 @@ vector<vec4> Interpolate(vec4 a, vec4 b, int n);
 bool toRaytrace = false;
 bool softShadows = false;
 
-bool inClipSpace(vec3 point) {
-  return (point.x > -1.0f && point.x < 1.0f && point.y > -1.0f && point.y < 1.0f && point.z > -1.0f && point.z < 1.0f);
-}
-
 // based on https://casual-effects.com/research/McGuire2011Clipping/McGuire-Clipping.pdf
 int clipTriangle(vector<ModelTriangle>& tris, const vec4& normal) {
   vec4 temp;
@@ -46,9 +42,9 @@ int clipTriangle(vector<ModelTriangle>& tris, const vec4& normal) {
   int n = tris.size();
   for (int i = 0; i < n; i++) {
     vector<float> distances;
-    distances.push_back(dot(tris[i].vertices[0], normal) + 1.0f);
-    distances.push_back(dot(tris[i].vertices[1], normal) + 1.0f);
-    distances.push_back(dot(tris[i].vertices[2], normal) + 1.0f);
+    distances.push_back(dot(tris[i].vertices[0], normal));
+    distances.push_back(dot(tris[i].vertices[1], normal));
+    distances.push_back(dot(tris[i].vertices[2], normal));
     if (distances[0] >= 0.0f && distances[1] >= 0.0f && distances[2] >= 0.0f) {
       continue;
     }
@@ -75,13 +71,26 @@ int clipTriangle(vector<ModelTriangle>& tris, const vec4& normal) {
     else {
       nextInside = (distances[1] >= 0.0f);
     }
-    temp = (tris[i].vertices[0] + (tris[i].vertices[2] - tris[i].vertices[0]) * (distances[0] / (distances[0] - distances[2])));
+    temp = mix(tris[i].vertices[0], tris[i].vertices[2], (distances[0] / (distances[0] - distances[2])));
     if (nextInside) {
-      tris[i].vertices[2] = (tris[i].vertices[1] + (tris[i].vertices[2] - tris[i].vertices[1]) * (distances[1] / (distances[1] - distances[2])));
+      // if ((tris[i].colour.toPackedInt() == (int)0xff00ffff) && (i == 0)) {
+      //   cout << "old2\n";
+      //   cout << tris[i].vertices[2] << '\n';
+      // }
+      tris[i].vertices[2] = mix(tris[i].vertices[1], tris[i].vertices[2], (distances[1] / (distances[1] - distances[2])));
       tris.push_back(ModelTriangle(tris[i].vertices[0], tris[i].vertices[2], temp, tris[i].colour));
+    //   if (tris[i].colour.toPackedInt() == (int)0xff00ffff) {
+    //   if ((tris[i].vertices[2].z > -0.1f) && (tris[i].vertices[2].z < 0.1f) && (i == 0)) {
+    //     cout << "AAH2\n";
+    //     cout << tris[i].vertices[0] << '\n';
+    //     cout << tris[i].vertices[1] << '\n';
+    //     cout << tris[i].vertices[2] << '\n';
+    //     cout << (distances[1] / (distances[1] - distances[2])) << '\n';
+    //   }
+    // }
     }
     else {
-      tris[i].vertices[1] = (tris[i].vertices[0] + (tris[i].vertices[1] - tris[i].vertices[0]) * (distances[0] / (distances[0] - distances[1])));
+      tris[i].vertices[1] = mix(tris[i].vertices[0], tris[i].vertices[1], (distances[0] / (distances[0] - distances[1])));
       tris[i].vertices[2] = temp;
     }
   }
@@ -92,7 +101,7 @@ int clipTriangle(vector<ModelTriangle>& tris, const vec4& normal) {
 }
 
 int clipToView(vector<ModelTriangle>& tris) {
-  const vec4 normals[6] = {vec4(1, 0, 0, 0), vec4(0, 1, 0, 0), vec4(0, 0, 1, 0), vec4(-1, 0, 0, 0), vec4(0, -1, 0, 0), vec4(0, 0, -1, 0)};
+  const vec4 normals[6] = {vec4(1, 0, 0, 1), vec4(-1, 0, 0, 1), vec4(0, 1, 0, 1), vec4(0, -1, 0, 1), vec4(0, 0, 1, 1), vec4(0, 0, -1, 1)};
   for (auto n : normals) {
     int num = clipTriangle(tris, n);
     if (num == 0) {
@@ -105,20 +114,21 @@ int clipToView(vector<ModelTriangle>& tris) {
 void drawTriangles(Model &model, Camera &cam)
 {
   mat4 MVP = cam.projection * cam.worldToCamera() * model.transform;
+  vec3 eye = cam.getPosition();
   for (auto tri : model.tris)
   {
+    if (dot(vec3(tri.vertices[0].x, tri.vertices[0].y, tri.vertices[0].z) - eye, tri.normal) >= 0.0f) continue;
     tri.vertices[0] = MVP * tri.vertices[0];
-    tri.vertices[0] /= tri.vertices[0].w;
     tri.vertices[1] = MVP * tri.vertices[1];
-    tri.vertices[1] /= tri.vertices[1].w;
     tri.vertices[2] = MVP * tri.vertices[2];
-    tri.vertices[2] /= tri.vertices[2].w;
-    
     vector<ModelTriangle> clippedTris;
     clippedTris.push_back(tri);
     clipToView(clippedTris);
 
     for (auto t : clippedTris) {
+      t.vertices[0] /= t.vertices[0].w;
+      t.vertices[1] /= t.vertices[1].w;
+      t.vertices[2] /= t.vertices[2].w;
       CanvasPoint v1 = CanvasPoint(
         (t.vertices[0].x + 1.0f) * 0.5f * WIDTH,
         (1 - (t.vertices[0].y + 1.0f) * 0.5f) * HEIGHT,
@@ -336,7 +346,7 @@ int main(int argc, char *argv[])
 
   Camera cam;
   cam.setProjection(90.0f, WIDTH / (float)HEIGHT, 0.1f, 100.0f);
-  // cam.lookAt(vec3(5.0f, 2.5f, 3.0f), vec3(0.0f, 2.5f, 0.0f));
+  cam.lookAt(vec3(0.0f, 2.5f, -0.25f), vec3(0.0f, 2.5f, -3.0f));
   // cam.moves.push(Movement(cam.transform));
   // cam.moves.top().lookAt(cam.getPosition(), vec3(0, -2.5f, 0));
 
@@ -438,6 +448,7 @@ void handleEvent(SDL_Event event, Camera &cam)
       softShadows = !softShadows;
       cout << "S = " << softShadows << endl;
     }
+    cout << cam.getPosition() << '\n';
   }
 }
 
