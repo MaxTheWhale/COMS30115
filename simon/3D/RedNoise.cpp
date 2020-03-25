@@ -46,6 +46,7 @@ inline vec3 toThree(vec4 v) {
 // based on https://casual-effects.com/research/McGuire2011Clipping/McGuire-Clipping.pdf
 int clipTriangle(vector<ModelTriangle>& tris, const vec4& normal) {
   vec4 temp;
+  float tempBright;
   vector<int> toBeCulled;
   int n = tris.size();
   for (int i = 0; i < n; i++) {
@@ -63,30 +64,42 @@ int clipTriangle(vector<ModelTriangle>& tris, const vec4& normal) {
     if (distances[1] >= 0.0f && distances[0] < 0.0f) {
       nextInside = (distances[2] >= 0.0f);
       temp = tris[i].vertices[0];
+      tempBright = tris[i].brightness[0];
       tris[i].vertices[0] = tris[i].vertices[1];
+      tris[i].brightness[0] = tris[i].brightness[1];
       tris[i].vertices[1] = tris[i].vertices[2];
+      tris[i].brightness[1] = tris[i].brightness[2];
       tris[i].vertices[2] = temp;
+      tris[i].brightness[2] = tempBright;
       rotate(distances.begin(),distances.begin()+1,distances.end());
     }
     else if (distances[2] >= 0.0f && distances[1] < 0.0f) {
       nextInside = (distances[0] >= 0.0f);
       temp = tris[i].vertices[2];
+      tempBright = tris[i].brightness[2];
       tris[i].vertices[2] = tris[i].vertices[1];
+      tris[i].brightness[2] = tris[i].brightness[1];
       tris[i].vertices[1] = tris[i].vertices[0];
+      tris[i].brightness[1] = tris[i].brightness[0];
       tris[i].vertices[0] = temp;
+      tris[i].brightness[0] = tempBright;
       rotate(distances.begin(),distances.begin()+2,distances.end());
     }
     else {
       nextInside = (distances[1] >= 0.0f);
     }
     temp = mix(tris[i].vertices[0], tris[i].vertices[2], (distances[0] / (distances[0] - distances[2])));
+    tempBright = mix(tris[i].brightness[0], tris[i].brightness[2], (distances[0] / (distances[0] - distances[2])));
     if (nextInside) {
       tris[i].vertices[2] = mix(tris[i].vertices[1], tris[i].vertices[2], (distances[1] / (distances[1] - distances[2])));
-      tris.push_back(ModelTriangle(tris[i].vertices[0], tris[i].vertices[2], temp, tris[i].colour, tris[i].normal));
+      tris[i].brightness[2] = mix(tris[i].brightness[1], tris[i].brightness[2], (distances[1] / (distances[1] - distances[2])));
+      tris.push_back(ModelTriangle(tris[i].vertices[0], tris[i].vertices[2], temp, tris[i].brightness[0], tris[i].brightness[2], tempBright, tris[i].colour, tris[i].normal));
     }
     else {
       tris[i].vertices[1] = mix(tris[i].vertices[0], tris[i].vertices[1], (distances[0] / (distances[0] - distances[1])));
+      tris[i].brightness[1] = mix(tris[i].brightness[0], tris[i].brightness[1], (distances[0] / (distances[0] - distances[1])));
       tris[i].vertices[2] = temp;
+      tris[i].brightness[2] = tempBright;
     }
   }
   for (auto i : toBeCulled) {
@@ -113,6 +126,9 @@ void drawTriangles(Model &model, Camera &cam)
   for (auto tri : model.tris)
   {
     if (dot(toThree(tri.vertices[0]) - eye, tri.normal) >= 0.0f) continue;
+    tri.brightness[0] = glm::max(dot(normalize(eye - toThree(tri.vertices[0])), tri.normal), 0.0f);
+    tri.brightness[1] = glm::max(dot(normalize(eye - toThree(tri.vertices[1])), tri.normal), 0.0f);
+    tri.brightness[2] = glm::max(dot(normalize(eye - toThree(tri.vertices[2])), tri.normal), 0.0f);
     tri.vertices[0] = MVP * tri.vertices[0];
     tri.vertices[1] = MVP * tri.vertices[1];
     tri.vertices[2] = MVP * tri.vertices[2];
@@ -128,17 +144,17 @@ void drawTriangles(Model &model, Camera &cam)
         (t.vertices[0].x + 1.0f) * 0.5f * WIDTH,
         (1 - (t.vertices[0].y + 1.0f) * 0.5f) * HEIGHT,
         (99.9f / 2) * t.vertices[0].z + (100.1f / 2),
-        glm::max(dot(normalize(eye - toThree(t.vertices[0])), t.normal), 0.0f));
+        t.brightness[0]);
       CanvasPoint v2 = CanvasPoint(
         (t.vertices[1].x + 1.0f) * 0.5f * WIDTH,
         (1 - (t.vertices[1].y + 1.0f) * 0.5f) * HEIGHT,
         (99.9f / 2) * t.vertices[1].z + (100.1f / 2),
-        glm::max(dot(normalize(eye - toThree(t.vertices[1])), t.normal), 0.0f));
+        t.brightness[1]);
       CanvasPoint v3 = CanvasPoint(
         (t.vertices[2].x + 1.0f) * 0.5f * WIDTH,
         (1 - (t.vertices[2].y + 1.0f) * 0.5f) * HEIGHT,
         (99.9f / 2) * t.vertices[2].z + (100.1f / 2),
-        glm::max(dot(normalize(eye - toThree(t.vertices[2])), t.normal), 0.0f));
+        t.brightness[2]);
       triangle(CanvasTriangle(v1, v2, v3), tri.colour.toPackedInt(), wireframe);
     }
   }
@@ -541,12 +557,11 @@ inline float edgeFunction(const CanvasPoint& v0, const CanvasPoint& v1, const Ca
 }
 
 inline int scaleColour(int colour, float scale) {
-  if (scale < 0.0f || scale > 1.0f) cout << "bad\n";
-  unsigned int red = (colour & 0x00ff0000) >> 16;
+  unsigned char red = (colour & 0x00ff0000) >> 16;
   red *= scale;
-  unsigned int green = (colour & 0x0000ff00) >> 8;
+  unsigned char green = (colour & 0x0000ff00) >> 8;
   green *= scale;
-  unsigned int blue = (colour & 0x000000ff);
+  unsigned char blue = (colour & 0x000000ff);
   blue *= scale;
   return (colour & 0xff000000) | (red << 16) | (green << 8) | blue;
 }
