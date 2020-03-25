@@ -14,6 +14,7 @@ vector<ModelTriangle> Model::loadOBJ(string fileName,
 {
   ifstream f;
   string s;
+  string name;
   Colour colour;
   vector<glm::vec3> vertices;
   vector<ModelTriangle> faces;
@@ -29,6 +30,7 @@ vector<ModelTriangle> Model::loadOBJ(string fileName,
       if (s == "o")
       {
         f >> s;
+        name = s;
       }
       if (s == "usemtl")
       {
@@ -48,7 +50,7 @@ vector<ModelTriangle> Model::loadOBJ(string fileName,
         faces.push_back(ModelTriangle(vertices[stoi(split(a, '/')[0]) - 1],
                                       vertices[stoi(split(b, '/')[0]) - 1],
                                       vertices[stoi(split(c, '/')[0]) - 1],
-                                      colour));
+                                      colour, name));
       }
     }
   }

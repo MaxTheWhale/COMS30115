@@ -31,23 +31,30 @@ float depthBuffer[WIDTH * HEIGHT];
 bool wireframe;
 vector<float> Interpolate(float a, float b, int n);
 vector<vec3> Interpolate(vec3 a, vec3 b, int n);
+vector<vec4> Interpolate(vec4 a, vec4 b, int n);
 
 bool toRaytrace = false;
+bool softShadows = false;
 
-bool inClipSpace(vec3 point) {
-  return (point.x > -1.0f && point.x < 1.0f && point.y > -1.0f && point.y < 1.0f && point.z > -1.0f && point.z < 1.0f);
+inline float vectorLength(vec4 v) {
+  return sqrt(v.x*v.x + v.y*v.y + v.z*v.z + v.w*v.w);
+}
+
+inline vec3 toThree(vec4 v) {
+  return vec3(v.x, v.y, v.z);
 }
 
 // based on https://casual-effects.com/research/McGuire2011Clipping/McGuire-Clipping.pdf
 int clipTriangle(vector<ModelTriangle>& tris, const vec4& normal) {
   vec4 temp;
+  float tempBright;
   vector<int> toBeCulled;
   int n = tris.size();
   for (int i = 0; i < n; i++) {
     vector<float> distances;
-    distances.push_back(dot(tris[i].vertices[0], normal) + 1.0f);
-    distances.push_back(dot(tris[i].vertices[1], normal) + 1.0f);
-    distances.push_back(dot(tris[i].vertices[2], normal) + 1.0f);
+    distances.push_back(dot(tris[i].vertices[0], normal));
+    distances.push_back(dot(tris[i].vertices[1], normal));
+    distances.push_back(dot(tris[i].vertices[2], normal));
     if (distances[0] >= 0.0f && distances[1] >= 0.0f && distances[2] >= 0.0f) {
       continue;
     }
@@ -58,30 +65,42 @@ int clipTriangle(vector<ModelTriangle>& tris, const vec4& normal) {
     if (distances[1] >= 0.0f && distances[0] < 0.0f) {
       nextInside = (distances[2] >= 0.0f);
       temp = tris[i].vertices[0];
+      tempBright = tris[i].brightness[0];
       tris[i].vertices[0] = tris[i].vertices[1];
+      tris[i].brightness[0] = tris[i].brightness[1];
       tris[i].vertices[1] = tris[i].vertices[2];
+      tris[i].brightness[1] = tris[i].brightness[2];
       tris[i].vertices[2] = temp;
+      tris[i].brightness[2] = tempBright;
       rotate(distances.begin(),distances.begin()+1,distances.end());
     }
     else if (distances[2] >= 0.0f && distances[1] < 0.0f) {
       nextInside = (distances[0] >= 0.0f);
       temp = tris[i].vertices[2];
+      tempBright = tris[i].brightness[2];
       tris[i].vertices[2] = tris[i].vertices[1];
+      tris[i].brightness[2] = tris[i].brightness[1];
       tris[i].vertices[1] = tris[i].vertices[0];
+      tris[i].brightness[1] = tris[i].brightness[0];
       tris[i].vertices[0] = temp;
+      tris[i].brightness[0] = tempBright;
       rotate(distances.begin(),distances.begin()+2,distances.end());
     }
     else {
       nextInside = (distances[1] >= 0.0f);
     }
-    temp = (tris[i].vertices[0] + (tris[i].vertices[2] - tris[i].vertices[0]) * (distances[0] / (distances[0] - distances[2])));
+    temp = mix(tris[i].vertices[0], tris[i].vertices[2], (distances[0] / (distances[0] - distances[2])));
+    tempBright = mix(tris[i].brightness[0], tris[i].brightness[2], (distances[0] / (distances[0] - distances[2])));
     if (nextInside) {
-      tris[i].vertices[2] = (tris[i].vertices[1] + (tris[i].vertices[2] - tris[i].vertices[1]) * (distances[1] / (distances[1] - distances[2])));
-      tris.push_back(ModelTriangle(tris[i].vertices[0], tris[i].vertices[2], temp, tris[i].colour));
+      tris[i].vertices[2] = mix(tris[i].vertices[1], tris[i].vertices[2], (distances[1] / (distances[1] - distances[2])));
+      tris[i].brightness[2] = mix(tris[i].brightness[1], tris[i].brightness[2], (distances[1] / (distances[1] - distances[2])));
+      tris.push_back(ModelTriangle(tris[i].vertices[0], tris[i].vertices[2], temp, tris[i].brightness[0], tris[i].brightness[2], tempBright, tris[i].colour, tris[i].normal));
     }
     else {
-      tris[i].vertices[1] = (tris[i].vertices[0] + (tris[i].vertices[1] - tris[i].vertices[0]) * (distances[0] / (distances[0] - distances[1])));
+      tris[i].vertices[1] = mix(tris[i].vertices[0], tris[i].vertices[1], (distances[0] / (distances[0] - distances[1])));
+      tris[i].brightness[1] = mix(tris[i].brightness[0], tris[i].brightness[1], (distances[0] / (distances[0] - distances[1])));
       tris[i].vertices[2] = temp;
+      tris[i].brightness[2] = tempBright;
     }
   }
   for (auto i : toBeCulled) {
@@ -91,7 +110,7 @@ int clipTriangle(vector<ModelTriangle>& tris, const vec4& normal) {
 }
 
 int clipToView(vector<ModelTriangle>& tris) {
-  const vec4 normals[6] = {vec4(1, 0, 0, 0), vec4(0, 1, 0, 0), vec4(0, 0, 1, 0), vec4(-1, 0, 0, 0), vec4(0, -1, 0, 0), vec4(0, 0, -1, 0)};
+  const vec4 normals[6] = {vec4(1, 0, 0, 1), vec4(-1, 0, 0, 1), vec4(0, 1, 0, 1), vec4(0, -1, 0, 1), vec4(0, 0, 1, 1), vec4(0, 0, -1, 1)};
   for (auto n : normals) {
     int num = clipTriangle(tris, n);
     if (num == 0) {
@@ -106,38 +125,41 @@ void drawTriangles(Camera &cam, std::vector<Model *> models)
   for (unsigned int i = 0; i < models.size(); i++)
   {
     Model &model = *models[i];
-    //std::cout << "drawing model " << i << " with " << model.tris.size() << " tris" << std::endl;
     mat4 MVP = cam.projection * cam.worldToCamera() * model.transform;
+    vec3 eye = cam.getPosition();
     for (auto tri : model.tris)
     {
+      if (dot(toThree(tri.vertices[0]) - eye, tri.normal) >= 0.0f) continue;
+      tri.brightness[0] = glm::max(dot(normalize(eye - toThree(tri.vertices[0])), tri.normal), 0.0f);
+      tri.brightness[1] = glm::max(dot(normalize(eye - toThree(tri.vertices[1])), tri.normal), 0.0f);
+      tri.brightness[2] = glm::max(dot(normalize(eye - toThree(tri.vertices[2])), tri.normal), 0.0f);
       tri.vertices[0] = MVP * tri.vertices[0];
-      tri.vertices[0] /= tri.vertices[0].w;
       tri.vertices[1] = MVP * tri.vertices[1];
-      tri.vertices[1] /= tri.vertices[1].w;
       tri.vertices[2] = MVP * tri.vertices[2];
-      tri.vertices[2] /= tri.vertices[2].w;
-
       vector<ModelTriangle> clippedTris;
       clippedTris.push_back(tri);
       clipToView(clippedTris);
 
-      for (auto t : clippedTris)
-      {
+      for (auto t : clippedTris) {
+        t.vertices[0] /= t.vertices[0].w;
+        t.vertices[1] /= t.vertices[1].w;
+        t.vertices[2] /= t.vertices[2].w;
         CanvasPoint v1 = CanvasPoint(
-            (t.vertices[0].x + 1.0f) * 0.5f * WIDTH,
-            (1 - (t.vertices[0].y + 1.0f) * 0.5f) * HEIGHT,
-            (99.9f / 2) * t.vertices[0].z + (100.1f / 2));
+          (t.vertices[0].x + 1.0f) * 0.5f * WIDTH,
+          (1 - (t.vertices[0].y + 1.0f) * 0.5f) * HEIGHT,
+          (99.9f / 2) * t.vertices[0].z + (100.1f / 2),
+          t.brightness[0]);
         CanvasPoint v2 = CanvasPoint(
-            (t.vertices[1].x + 1.0f) * 0.5f * WIDTH,
-            (1 - (t.vertices[1].y + 1.0f) * 0.5f) * HEIGHT,
-            (99.9f / 2) * t.vertices[1].z + (100.1f / 2));
+          (t.vertices[1].x + 1.0f) * 0.5f * WIDTH,
+          (1 - (t.vertices[1].y + 1.0f) * 0.5f) * HEIGHT,
+          (99.9f / 2) * t.vertices[1].z + (100.1f / 2),
+          t.brightness[1]);
         CanvasPoint v3 = CanvasPoint(
-            (t.vertices[2].x + 1.0f) * 0.5f * WIDTH,
-            (1 - (t.vertices[2].y + 1.0f) * 0.5f) * HEIGHT,
-            (99.9f / 2) * t.vertices[2].z + (100.1f / 2));
-        //std::cout << "before traingle" << std::endl;
+          (t.vertices[2].x + 1.0f) * 0.5f * WIDTH,
+          (1 - (t.vertices[2].y + 1.0f) * 0.5f) * HEIGHT,
+          (99.9f / 2) * t.vertices[2].z + (100.1f / 2),
+          t.brightness[2]);
         triangle(CanvasTriangle(v1, v2, v3), tri.colour.toPackedInt(), wireframe);
-        //std::cout << "after traingle" << std::endl;
       }
     }
   }
@@ -172,25 +194,47 @@ void handleMouse(Camera& cam) {
   }
 }
 
+int darkenColour(Colour colour, float brightness, float specular) {
+  colour.red *= brightness;
+  colour.green *= brightness;
+  colour.blue *= brightness;
+
+  colour.red += specular * 255;
+  colour.blue += specular * 255;
+  colour.green += specular * 255;
+
+  colour.red  = colour.red > 255 ? 255 : colour.red;
+  colour.green  = colour.green > 255 ? 255 : colour.green;
+  colour.blue  = colour.blue > 255 ? 255 : colour.blue;
+
+  return colour.toPackedInt();
+}
+
 void texturedTriangle(CanvasTriangle screenTri, CanvasTriangle texTri,
                       Texture tex);
 
 DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
 
-void raytrace(Camera &camera, std::vector<Model *> models)
-{
+vector<ModelTriangle> getLights(Model model) {
+  vector<ModelTriangle> lights = vector<ModelTriangle>();
+  for(ModelTriangle triangle : model.tris) {
+    if(triangle.name == "light") lights.push_back(triangle);
+  }
+
+  return lights;
+}
+
+void raytrace(Camera camera, std::vector<Model*> models, int softness) {
   float fov = 90;
-  float aspectRatio = WIDTH / (float)HEIGHT;
-  float angle = tan(0.5 * fov * M_PI / 180.0); // just fov*0.5 converted to radians
+  float aspectRatio = WIDTH/(float)HEIGHT;
+  float angle = tan(0.5 * radians(fov)); // just fov*0.5 converted to radians
   for (unsigned int i = 0; i < models.size(); i++)
   {
     Model &model = *models[i];
 
-    for (int j = 0; j < HEIGHT; j++)
-    {
-      for (int i = 0; i < WIDTH; i++)
-      {
-        vec2 NDC = vec2((i + 0.5) * (1 / (float)WIDTH), (j + 0.5) * (1 / (float)HEIGHT));
+    for(int j = 0; j < HEIGHT; j++) {
+      for(int i = 0; i < WIDTH; i++) {
+        vec2 NDC = vec2((i + 0.5) * (1 / (float) WIDTH), (j + 0.5) * (1 / (float) HEIGHT));
         float x = (2 * (NDC.x) - 1) * angle * aspectRatio;
         float y = (1 - 2 * (NDC.y)) * angle;
 
@@ -198,38 +242,112 @@ void raytrace(Camera &camera, std::vector<Model *> models)
         float minDistance = std::numeric_limits<float>::infinity();
         ModelTriangle intersection = ModelTriangle();
         bool foundIntersection = false;
+        float t = 0;
 
-        for (ModelTriangle triangle : model.tris)
-        {
+        for(ModelTriangle triangle : model.tris) {
           vec4 e0 = triangle.vertices[1] - triangle.vertices[0];
           vec4 e1 = triangle.vertices[2] - triangle.vertices[0];
           vec4 SPVector = camera.transform[3] - triangle.vertices[0];
-          mat4 DEMatrix(-rayDirection, e0, e1, vec4(1, 1, 1, 1));
+          mat4 DEMatrix(-rayDirection, e0, e1, vec4(1,1,1,1));
           vec4 possibleSolution = glm::inverse(DEMatrix) * SPVector;
 
           //check if ray intersects triangle and not just triangle plane
-          if (possibleSolution.y >= 0 && possibleSolution.y <= 1 && possibleSolution.z >= 0 && possibleSolution.z <= 1 && possibleSolution.y + possibleSolution.z <= 1)
-          {
-            if (possibleSolution.x < minDistance)
-            {
+          if(possibleSolution.y >= 0 && possibleSolution.y <= 1 && possibleSolution.z >= 0 && possibleSolution.z <= 1 && possibleSolution.y + possibleSolution.z <= 1) {
+            if(possibleSolution.x < minDistance) {
               foundIntersection = true;
+              t = possibleSolution.x;
               intersection = triangle;
               minDistance = possibleSolution.x;
             }
           }
-        }
 
-        if (foundIntersection)
-        {
-          window.setPixelColour(i, j, intersection.colour.toPackedInt());
-        }
-        else
-        {
+        if(foundIntersection) {
+          float ambience = 0.25f;
+          float intensity = 1.0f / softness;
+          float shadow = 0.1f / softness;
+          float shadowCount = 1.0f;
+          float brightnessCount = 0.0f;
+          float angleCount = 0.0f;
+          float specularCount = 0.0f;
+          bool inShadow = false;
+
+
+          vector<ModelTriangle> lights = getLights(model);
+          vec4 intersectionPoint = camera.transform[3] + (t * rayDirection);
+          intersectionPoint.w = 1;
+
+          for(ModelTriangle light : lights) {
+            vector<vec4> points = vector<vec4>();
+            vector<vec4> a = Interpolate(light.vertices[0], light.vertices[1], softness);
+            vector<vec4> b = Interpolate(light.vertices[0], light.vertices[2], softness);
+            vector<vec4> c = Interpolate(light.vertices[1], light.vertices[2], softness);
+            points.insert(points.end(), a.begin(), a.end());
+            points.insert(points.end(), b.begin(), b.end());
+            points.insert(points.end(), c.begin(), c.end());
+
+            for(vec4 vertex : points) {
+              vec4 shadowRayDirection = vertex - intersectionPoint;
+
+              //cout << shadowRayDirection << " with length " << vectorLength(shadowRayDirection) << endl;
+
+              vec3 intersectionNormal = glm::cross(toThree(intersection.vertices[1] - intersection.vertices[0]), toThree(intersection.vertices[2] - intersection.vertices[0]));
+              float angleOfIncidence = glm::dot(toThree(glm::normalize(shadowRayDirection)), glm::normalize(intersectionNormal));
+              angleOfIncidence = angleOfIncidence < 0 ? ambience : angleOfIncidence;
+
+              float tolerance = 0.01f;
+              float shadowBias = 1e-4;
+
+              for(ModelTriangle triangle : model.tris) {
+                vec4 e0 = triangle.vertices[1] - triangle.vertices[0];
+                vec4 e1 = triangle.vertices[2] - triangle.vertices[0];
+                vec4 SPVector = (intersectionPoint + shadowBias) - triangle.vertices[0];
+                mat4 DEMatrix(-shadowRayDirection, e0, e1, vec4(1,1,1,1));
+                vec4 possibleSolution = glm::inverse(DEMatrix) * SPVector;
+
+
+                //check if ray intersects triangle and not just triangle plane
+                if(possibleSolution.y >= 0 && possibleSolution.y <= 1 && possibleSolution.z >= 0 && possibleSolution.z <= 1 && possibleSolution.y + possibleSolution.z <= 1) {
+                  //cout << "intersection length " << possibleSolution.x << endl;
+                  if(possibleSolution.x < 1 - tolerance && possibleSolution.x > tolerance) {
+                    //cout << "in shadow for " << i << "," << j << endl;
+                    inShadow = true;
+                  }
+                }
+              }
+
+              float brightness = intensity/pow(vectorLength(shadowRayDirection),2);
+              brightness = brightness < 0 ? 0 : brightness;
+              brightness = brightness > 1 ? 1 : brightness;
+              shadowCount -= inShadow ? shadow : 0;
+              brightnessCount += brightness;
+              angleCount += angleOfIncidence;
+
+              vec3 reflection = toThree(-shadowRayDirection) - 2 * (glm::dot(toThree(-shadowRayDirection), glm::normalize(intersectionNormal))) * glm::normalize(intersectionNormal);
+              float specular = pow(glm::dot(glm::normalize(toThree(-rayDirection)), glm::normalize(reflection)), 128);
+
+              specularCount += specular;
+
+            }
+          }
+
+          shadowCount = shadowCount < 0 ? 0 : shadowCount;
+          shadowCount = shadowCount > 1 ? 1 : shadowCount;
+          brightnessCount = brightnessCount < 0 ? 0 : brightnessCount;
+          brightnessCount = brightnessCount > 1 ? 1 : brightnessCount;
+          angleCount = angleCount < 0 ? 0 : angleCount;
+          angleCount = angleCount > 1 ? 1 : angleCount;
+          specularCount = specularCount < 0 ? 0 : specularCount;
+          specularCount = specularCount > 1 ? 1 : specularCount;
+
+          if(intersection.name == "light") window.setPixelColour(i, j, intersection.colour.toPackedInt());
+          else window.setPixelColour(i, j, inShadow ? darkenColour(intersection.colour, angleCount * shadowCount * brightnessCount, specularCount) : darkenColour(intersection.colour, angleCount * brightnessCount, specularCount));
+        } else {
           window.setPixelColour(i, j, 0);
         }
       }
     }
   }
+}
 }
 
 //vector<vec3> cameraPositions{ vec3(5.0f, 2.5f, 3.0f), vec3(5.0f, 0.0f, 3.0f), vec3(5.0f, 0.0f, 6.0f) };
@@ -274,7 +392,7 @@ int main(int argc, char *argv[])
     std::vector<Model*> models{&cornell, &sphere};
     //std::cout << "about to render" << std::endl;
     if(toRaytrace) {
-      raytrace(cam, models);
+      raytrace(cam, models, softShadows ? 2 : 1);
     } else {
       draw();
       drawTriangles(cam, models);
@@ -346,17 +464,18 @@ void handleEvent(SDL_Event event, Camera &cam)
       wireframe = !wireframe;
     }
     else if (event.key.keysym.sym == SDLK_r){
-      cout << "R" << endl;
-      toRaytrace = true;
-    }
-    else if (event.key.keysym.sym == SDLK_t){
-      cout << "W" << endl;
-      toRaytrace = false;
+      toRaytrace = !toRaytrace;
+      cout << "R = " << toRaytrace << endl;
     }
     else if (event.key.keysym.sym == SDLK_o) {
       cout << "O" << endl;
       cam.setPosition(vec3(0.0f,0.0f,0.0f));
     }
+    else if (event.key.keysym.sym == SDLK_s) {
+      softShadows = !softShadows;
+      cout << "S = " << softShadows << endl;
+    }
+    cout << cam.getPosition() << '\n';
   }
 }
 
@@ -391,6 +510,26 @@ vector<vec3> Interpolate(vec3 a, vec3 b, int n)
   else if (n > 1)
   {
     vec3 step = (b - a) / (n - 1.0f);
+    for (int i = 0; i < n; ++i)
+    {
+      result.push_back(a);
+      a += step;
+    }
+  }
+  return result;
+}
+
+vector<vec4> Interpolate(vec4 a, vec4 b, int n)
+{
+  vector<vec4> result;
+  if (n == 1)
+  {
+    result.push_back((a + b) / 2.0f);
+    return result;
+  }
+  else if (n > 1)
+  {
+    vec4 step = (b - a) / (n - 1.0f);
     for (int i = 0; i < n; ++i)
     {
       result.push_back(a);
@@ -438,6 +577,16 @@ inline float edgeFunction(const CanvasPoint& v0, const CanvasPoint& v1, const Ca
   return (p.x - v0.x) * (v1.y - v0.y) - (p.y - v0.y) * (v1.x - v0.x);
 }
 
+inline int scaleColour(int colour, float scale) {
+  unsigned char red = (colour & 0x00ff0000) >> 16;
+  red *= scale;
+  unsigned char green = (colour & 0x0000ff00) >> 8;
+  green *= scale;
+  unsigned char blue = (colour & 0x000000ff);
+  blue *= scale;
+  return (colour & 0xff000000) | (red << 16) | (green << 8) | blue;
+}
+
 void triangle(CanvasTriangle t, int colour, bool filled)
 {
   if (filled)
@@ -466,9 +615,10 @@ void triangle(CanvasTriangle t, int colour, bool filled)
           w1 /= area;
           w2 /= area;
           float depth = w0 * t.vertices[0].depth + w1 * t.vertices[1].depth + w2 * t.vertices[2].depth;
+          float brightness = w0 * t.vertices[0].brightness + w1 * t.vertices[1].brightness + w2 * t.vertices[2].brightness;
           if (depth < depthBuffer[y * WIDTH + x]) {
             depthBuffer[y * WIDTH + x] = depth;
-            window.setPixelColour(x, y, colour);
+            window.setPixelColour(x, y, scaleColour(colour, brightness));
           }
         }
       }
