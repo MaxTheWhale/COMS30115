@@ -173,6 +173,22 @@ void handleMouse(Camera& cam) {
   }
 }
 
+int darkenColour(Colour colour, float brightness) {
+  colour.red *= brightness;
+  colour.green *= brightness;
+  colour.blue *= brightness;
+
+  return colour.toPackedInt();
+}
+
+float vectorLength(vec4 v) {
+  return sqrt(pow(v.x, 2) + pow(v.y, 2) + pow(v.z, 2) + pow(v.w, 2));
+}
+
+vec3 toThree(vec4 v) {
+  return vec3(v.x, v.y, v.z);
+}
+
 void texturedTriangle(CanvasTriangle screenTri, CanvasTriangle texTri,
                       Texture tex);
 
@@ -193,6 +209,7 @@ void raytrace(Camera camera, Model model) {
       float minDistance = std::numeric_limits<float>::infinity();
       ModelTriangle intersection = ModelTriangle();
       bool foundIntersection = false;
+      float t = 0;
 
       for(ModelTriangle triangle : model.tris) {
         vec4 e0 = triangle.vertices[1] - triangle.vertices[0];
@@ -205,6 +222,7 @@ void raytrace(Camera camera, Model model) {
         if(possibleSolution.y >= 0 && possibleSolution.y <= 1 && possibleSolution.z >= 0 && possibleSolution.z <= 1 && possibleSolution.y + possibleSolution.z <= 1) {
           if(possibleSolution.x < minDistance) {
             foundIntersection = true;
+            t = possibleSolution.x;
             intersection = triangle;
             minDistance = possibleSolution.x;
           }
@@ -212,7 +230,50 @@ void raytrace(Camera camera, Model model) {
       }
 
       if(foundIntersection) {
-        window.setPixelColour(i, j, intersection.colour.toPackedInt());
+        float ambience = 0.25f;
+        float intensity = 10.0f;
+        float shadow = 0.5f;
+
+
+        ModelTriangle light = model.tris[0];
+        vec4 intersectionPoint = camera.transform[3] + (t * rayDirection);
+        intersectionPoint.w = 1;
+
+        vec4 shadowRayDirection = light.vertices[0] - intersectionPoint;
+
+        //cout << shadowRayDirection << " with length " << vectorLength(shadowRayDirection) << endl;
+
+        vec3 intersectionNormal = glm::cross(toThree(intersection.vertices[1] - intersection.vertices[0]), toThree(intersection.vertices[2] - intersection.vertices[0]));
+        float angleOfIncidence = glm::dot(toThree(glm::normalize(shadowRayDirection)), glm::normalize(intersectionNormal));
+        angleOfIncidence = angleOfIncidence < 0 ? ambience : angleOfIncidence;
+
+        bool inShadow = false;
+        float tolerance = 0.01f;
+        float shadowBias = 1e-4;
+
+        for(ModelTriangle triangle : model.tris) {
+          vec4 e0 = triangle.vertices[1] - triangle.vertices[0];
+          vec4 e1 = triangle.vertices[2] - triangle.vertices[0];
+          vec4 SPVector = (intersectionPoint + shadowBias) - triangle.vertices[0];
+          mat4 DEMatrix(-shadowRayDirection, e0, e1, vec4(1,1,1,1));
+          vec4 possibleSolution = glm::inverse(DEMatrix) * SPVector;
+
+
+          //check if ray intersects triangle and not just triangle plane
+          if(possibleSolution.y >= 0 && possibleSolution.y <= 1 && possibleSolution.z >= 0 && possibleSolution.z <= 1 && possibleSolution.y + possibleSolution.z <= 1) {
+            //cout << "intersection length " << possibleSolution.x << endl;
+            if(possibleSolution.x < 1 - tolerance && possibleSolution.x > tolerance) {
+              //cout << "in shadow for " << i << "," << j << endl;
+              inShadow = true;
+            }
+          }
+        }
+
+        float brightness = intensity/pow(vectorLength(shadowRayDirection),2);
+        brightness = brightness < 0 ? 0 : brightness;
+        brightness = brightness > 1 ? 1 : brightness;
+
+        window.setPixelColour(i, j, inShadow ? darkenColour(intersection.colour, angleOfIncidence * shadow * brightness) : darkenColour(intersection.colour, angleOfIncidence * brightness));
       } else {
         window.setPixelColour(i, j, 0);
       }
