@@ -23,6 +23,15 @@ class ModelTriangle
       colour = trigColour;
     }
 
+    ModelTriangle(glm::vec4 v0, glm::vec4 v1, glm::vec4 v2, Colour trigColour, glm::vec3 trigNormal)
+    {
+      vertices[0] = v0;
+      vertices[1] = v1;
+      vertices[2] = v2;
+      colour = trigColour;
+      normal = trigNormal;
+    }
+
     ModelTriangle(glm::vec3 v0, glm::vec3 v1, glm::vec3 v2, Colour trigColour)
     {
       vertices[0] = glm::vec4(v0.x, v0.y, v0.z, 1);

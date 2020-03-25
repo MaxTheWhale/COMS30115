@@ -33,6 +33,14 @@ vector<vec3> Interpolate(vec3 a, vec3 b, int n);
 
 bool toRaytrace = false;
 
+inline float vectorLength(vec4 v) {
+  return sqrt(v.x*v.x + v.y*v.y + v.z*v.z + v.w*v.w);
+}
+
+inline vec3 toThree(vec4 v) {
+  return vec3(v.x, v.y, v.z);
+}
+
 // based on https://casual-effects.com/research/McGuire2011Clipping/McGuire-Clipping.pdf
 int clipTriangle(vector<ModelTriangle>& tris, const vec4& normal) {
   vec4 temp;
@@ -71,21 +79,8 @@ int clipTriangle(vector<ModelTriangle>& tris, const vec4& normal) {
     }
     temp = mix(tris[i].vertices[0], tris[i].vertices[2], (distances[0] / (distances[0] - distances[2])));
     if (nextInside) {
-      // if ((tris[i].colour.toPackedInt() == (int)0xff00ffff) && (i == 0)) {
-      //   cout << "old2\n";
-      //   cout << tris[i].vertices[2] << '\n';
-      // }
       tris[i].vertices[2] = mix(tris[i].vertices[1], tris[i].vertices[2], (distances[1] / (distances[1] - distances[2])));
-      tris.push_back(ModelTriangle(tris[i].vertices[0], tris[i].vertices[2], temp, tris[i].colour));
-    //   if (tris[i].colour.toPackedInt() == (int)0xff00ffff) {
-    //   if ((tris[i].vertices[2].z > -0.1f) && (tris[i].vertices[2].z < 0.1f) && (i == 0)) {
-    //     cout << "AAH2\n";
-    //     cout << tris[i].vertices[0] << '\n';
-    //     cout << tris[i].vertices[1] << '\n';
-    //     cout << tris[i].vertices[2] << '\n';
-    //     cout << (distances[1] / (distances[1] - distances[2])) << '\n';
-    //   }
-    // }
+      tris.push_back(ModelTriangle(tris[i].vertices[0], tris[i].vertices[2], temp, tris[i].colour, tris[i].normal));
     }
     else {
       tris[i].vertices[1] = mix(tris[i].vertices[0], tris[i].vertices[1], (distances[0] / (distances[0] - distances[1])));
@@ -115,7 +110,7 @@ void drawTriangles(Model &model, Camera &cam)
   vec3 eye = cam.getPosition();
   for (auto tri : model.tris)
   {
-    if (dot(vec3(tri.vertices[0].x, tri.vertices[0].y, tri.vertices[0].z) - eye, tri.normal) >= 0.0f) continue;
+    if (dot(toThree(tri.vertices[0]) - eye, tri.normal) >= 0.0f) continue;
     tri.vertices[0] = MVP * tri.vertices[0];
     tri.vertices[1] = MVP * tri.vertices[1];
     tri.vertices[2] = MVP * tri.vertices[2];
@@ -130,15 +125,18 @@ void drawTriangles(Model &model, Camera &cam)
       CanvasPoint v1 = CanvasPoint(
         (t.vertices[0].x + 1.0f) * 0.5f * WIDTH,
         (1 - (t.vertices[0].y + 1.0f) * 0.5f) * HEIGHT,
-        (99.9f / 2) * t.vertices[0].z + (100.1f / 2));
+        (99.9f / 2) * t.vertices[0].z + (100.1f / 2),
+        glm::max(dot(normalize(eye - toThree(t.vertices[0])), t.normal), 0.0f));
       CanvasPoint v2 = CanvasPoint(
         (t.vertices[1].x + 1.0f) * 0.5f * WIDTH,
         (1 - (t.vertices[1].y + 1.0f) * 0.5f) * HEIGHT,
-        (99.9f / 2) * t.vertices[1].z + (100.1f / 2));
+        (99.9f / 2) * t.vertices[1].z + (100.1f / 2),
+        glm::max(dot(normalize(eye - toThree(t.vertices[1])), t.normal), 0.0f));
       CanvasPoint v3 = CanvasPoint(
         (t.vertices[2].x + 1.0f) * 0.5f * WIDTH,
         (1 - (t.vertices[2].y + 1.0f) * 0.5f) * HEIGHT,
-        (99.9f / 2) * t.vertices[2].z + (100.1f / 2));
+        (99.9f / 2) * t.vertices[2].z + (100.1f / 2),
+        glm::max(dot(normalize(eye - toThree(t.vertices[2])), t.normal), 0.0f));
       triangle(CanvasTriangle(v1, v2, v3), tri.colour.toPackedInt(), wireframe);
     }
   }
@@ -181,14 +179,6 @@ int darkenColour(Colour colour, float brightness) {
   return colour.toPackedInt();
 }
 
-float vectorLength(vec4 v) {
-  return sqrt(pow(v.x, 2) + pow(v.y, 2) + pow(v.z, 2) + pow(v.w, 2));
-}
-
-vec3 toThree(vec4 v) {
-  return vec3(v.x, v.y, v.z);
-}
-
 void texturedTriangle(CanvasTriangle screenTri, CanvasTriangle texTri,
                       Texture tex);
 
@@ -197,7 +187,7 @@ DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
 void raytrace(Camera camera, Model model) {
   float fov = 90;
   float aspectRatio = WIDTH/(float)HEIGHT;
-  float angle = tan(0.5 * fov * M_PI / 180.0); // just fov*0.5 converted to radians
+  float angle = tan(0.5 * radians(fov)); // just fov*0.5 converted to radians
 
   for(int j = 0; j < HEIGHT; j++) {
     for(int i = 0; i < WIDTH; i++) {
@@ -476,6 +466,17 @@ inline float edgeFunction(const CanvasPoint& v0, const CanvasPoint& v1, const Ca
   return (p.x - v0.x) * (v1.y - v0.y) - (p.y - v0.y) * (v1.x - v0.x);
 }
 
+inline int scaleColour(int colour, float scale) {
+  if (scale < 0.0f || scale > 1.0f) cout << "bad\n";
+  unsigned int red = (colour & 0x00ff0000) >> 16;
+  red *= scale;
+  unsigned int green = (colour & 0x0000ff00) >> 8;
+  green *= scale;
+  unsigned int blue = (colour & 0x000000ff);
+  blue *= scale;
+  return (colour & 0xff000000) | (red << 16) | (green << 8) | blue;
+}
+
 void triangle(CanvasTriangle t, int colour, bool filled)
 {
   if (filled)
@@ -504,9 +505,10 @@ void triangle(CanvasTriangle t, int colour, bool filled)
           w1 /= area;
           w2 /= area;
           float depth = w0 * t.vertices[0].depth + w1 * t.vertices[1].depth + w2 * t.vertices[2].depth;
+          float brightness = w0 * t.vertices[0].brightness + w1 * t.vertices[1].brightness + w2 * t.vertices[2].brightness;
           if (depth < depthBuffer[y * WIDTH + x]) {
             depthBuffer[y * WIDTH + x] = depth;
-            window.setPixelColour(x, y, colour);
+            window.setPixelColour(x, y, scaleColour(colour, brightness));
           }
         }
       }
