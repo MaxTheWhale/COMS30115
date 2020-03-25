@@ -61,6 +61,9 @@ unordered_map<string, Colour> Model::loadMTL(string fileName) {
   ifstream f;
   string s;
   f.open(fileName, ios::in);
+  if (!f.good()) {
+    return palette;
+  }
   while (!f.eof())
   {
     f >> s;

@@ -11,6 +11,7 @@
 #include "Model.hpp"
 #include "Times.hpp"
 #include "VectorOutput.hpp"
+#include "Rigidbody.hpp"
 using namespace std;
 using namespace glm;
 
@@ -24,7 +25,7 @@ void triangle(CanvasTriangle t, int colour, bool filled = false);
 int *loadPPM(string fileName, int &width, int &height);
 void savePPM(string fileName, DrawingWindow *window);
 void skipHashWS(ifstream &f);
-void update(Camera &cam, vector<Model> models);
+void update(Camera &cam, vector<Updatable*> updatables);
 void handleEvent(SDL_Event event, Camera &cam);
 float depthBuffer[WIDTH * HEIGHT];
 bool wireframe;
@@ -100,36 +101,44 @@ int clipToView(vector<ModelTriangle>& tris) {
   return tris.size();
 }
 
-void drawTriangles(Model &model, Camera &cam)
+void drawTriangles(Camera &cam, std::vector<Model *> models)
 {
-  mat4 MVP = cam.projection * cam.worldToCamera() * model.transform;
-  for (auto tri : model.tris)
+  for (unsigned int i = 0; i < models.size(); i++)
   {
-    tri.vertices[0] = MVP * tri.vertices[0];
-    tri.vertices[0] /= tri.vertices[0].w;
-    tri.vertices[1] = MVP * tri.vertices[1];
-    tri.vertices[1] /= tri.vertices[1].w;
-    tri.vertices[2] = MVP * tri.vertices[2];
-    tri.vertices[2] /= tri.vertices[2].w;
-    
-    vector<ModelTriangle> clippedTris;
-    clippedTris.push_back(tri);
-    clipToView(clippedTris);
+    Model &model = *models[i];
+    //std::cout << "drawing model " << i << " with " << model.tris.size() << " tris" << std::endl;
+    mat4 MVP = cam.projection * cam.worldToCamera() * model.transform;
+    for (auto tri : model.tris)
+    {
+      tri.vertices[0] = MVP * tri.vertices[0];
+      tri.vertices[0] /= tri.vertices[0].w;
+      tri.vertices[1] = MVP * tri.vertices[1];
+      tri.vertices[1] /= tri.vertices[1].w;
+      tri.vertices[2] = MVP * tri.vertices[2];
+      tri.vertices[2] /= tri.vertices[2].w;
 
-    for (auto t : clippedTris) {
-      CanvasPoint v1 = CanvasPoint(
-        (t.vertices[0].x + 1.0f) * 0.5f * WIDTH,
-        (1 - (t.vertices[0].y + 1.0f) * 0.5f) * HEIGHT,
-        (99.9f / 2) * t.vertices[0].z + (100.1f / 2));
-      CanvasPoint v2 = CanvasPoint(
-        (t.vertices[1].x + 1.0f) * 0.5f * WIDTH,
-        (1 - (t.vertices[1].y + 1.0f) * 0.5f) * HEIGHT,
-        (99.9f / 2) * t.vertices[1].z + (100.1f / 2));
-      CanvasPoint v3 = CanvasPoint(
-        (t.vertices[2].x + 1.0f) * 0.5f * WIDTH,
-        (1 - (t.vertices[2].y + 1.0f) * 0.5f) * HEIGHT,
-        (99.9f / 2) * t.vertices[2].z + (100.1f / 2));
-      triangle(CanvasTriangle(v1, v2, v3), tri.colour.toPackedInt(), wireframe);
+      vector<ModelTriangle> clippedTris;
+      clippedTris.push_back(tri);
+      clipToView(clippedTris);
+
+      for (auto t : clippedTris)
+      {
+        CanvasPoint v1 = CanvasPoint(
+            (t.vertices[0].x + 1.0f) * 0.5f * WIDTH,
+            (1 - (t.vertices[0].y + 1.0f) * 0.5f) * HEIGHT,
+            (99.9f / 2) * t.vertices[0].z + (100.1f / 2));
+        CanvasPoint v2 = CanvasPoint(
+            (t.vertices[1].x + 1.0f) * 0.5f * WIDTH,
+            (1 - (t.vertices[1].y + 1.0f) * 0.5f) * HEIGHT,
+            (99.9f / 2) * t.vertices[1].z + (100.1f / 2));
+        CanvasPoint v3 = CanvasPoint(
+            (t.vertices[2].x + 1.0f) * 0.5f * WIDTH,
+            (1 - (t.vertices[2].y + 1.0f) * 0.5f) * HEIGHT,
+            (99.9f / 2) * t.vertices[2].z + (100.1f / 2));
+        //std::cout << "before traingle" << std::endl;
+        triangle(CanvasTriangle(v1, v2, v3), tri.colour.toPackedInt(), wireframe);
+        //std::cout << "after traingle" << std::endl;
+      }
     }
   }
 }
@@ -168,43 +177,56 @@ void texturedTriangle(CanvasTriangle screenTri, CanvasTriangle texTri,
 
 DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
 
-void raytrace(Camera camera, Model model) {
+void raytrace(Camera &camera, std::vector<Model *> models)
+{
   float fov = 90;
-  float aspectRatio = WIDTH/(float)HEIGHT;
+  float aspectRatio = WIDTH / (float)HEIGHT;
   float angle = tan(0.5 * fov * M_PI / 180.0); // just fov*0.5 converted to radians
+  for (unsigned int i = 0; i < models.size(); i++)
+  {
+    Model &model = *models[i];
 
-  for(int j = 0; j < HEIGHT; j++) {
-    for(int i = 0; i < WIDTH; i++) {
-      vec2 NDC = vec2((i + 0.5) * (1 / (float) WIDTH), (j + 0.5) * (1 / (float) HEIGHT));
-      float x = (2 * (NDC.x) - 1) * angle * aspectRatio;
-      float y = (1 - 2 * (NDC.y)) * angle;
+    for (int j = 0; j < HEIGHT; j++)
+    {
+      for (int i = 0; i < WIDTH; i++)
+      {
+        vec2 NDC = vec2((i + 0.5) * (1 / (float)WIDTH), (j + 0.5) * (1 / (float)HEIGHT));
+        float x = (2 * (NDC.x) - 1) * angle * aspectRatio;
+        float y = (1 - 2 * (NDC.y)) * angle;
 
-      vec4 rayDirection = camera.transform * vec4(x, y, -1, 0);
-      float minDistance = std::numeric_limits<float>::infinity();
-      ModelTriangle intersection = ModelTriangle();
-      bool foundIntersection = false;
+        vec4 rayDirection = camera.transform * vec4(x, y, -1, 0);
+        float minDistance = std::numeric_limits<float>::infinity();
+        ModelTriangle intersection = ModelTriangle();
+        bool foundIntersection = false;
 
-      for(ModelTriangle triangle : model.tris) {
-        vec4 e0 = triangle.vertices[1] - triangle.vertices[0];
-        vec4 e1 = triangle.vertices[2] - triangle.vertices[0];
-        vec4 SPVector = camera.transform[3] - triangle.vertices[0];
-        mat4 DEMatrix(-rayDirection, e0, e1, vec4(1,1,1,1));
-        vec4 possibleSolution = glm::inverse(DEMatrix) * SPVector;
+        for (ModelTriangle triangle : model.tris)
+        {
+          vec4 e0 = triangle.vertices[1] - triangle.vertices[0];
+          vec4 e1 = triangle.vertices[2] - triangle.vertices[0];
+          vec4 SPVector = camera.transform[3] - triangle.vertices[0];
+          mat4 DEMatrix(-rayDirection, e0, e1, vec4(1, 1, 1, 1));
+          vec4 possibleSolution = glm::inverse(DEMatrix) * SPVector;
 
-        //check if ray intersects triangle and not just triangle plane
-        if(possibleSolution.y >= 0 && possibleSolution.y <= 1 && possibleSolution.z >= 0 && possibleSolution.z <= 1 && possibleSolution.y + possibleSolution.z <= 1) {
-          if(possibleSolution.x < minDistance) {
-            foundIntersection = true;
-            intersection = triangle;
-            minDistance = possibleSolution.x;
+          //check if ray intersects triangle and not just triangle plane
+          if (possibleSolution.y >= 0 && possibleSolution.y <= 1 && possibleSolution.z >= 0 && possibleSolution.z <= 1 && possibleSolution.y + possibleSolution.z <= 1)
+          {
+            if (possibleSolution.x < minDistance)
+            {
+              foundIntersection = true;
+              intersection = triangle;
+              minDistance = possibleSolution.x;
+            }
           }
         }
-      }
 
-      if(foundIntersection) {
-        window.setPixelColour(i, j, intersection.colour.toPackedInt());
-      } else {
-        window.setPixelColour(i, j, 0);
+        if (foundIntersection)
+        {
+          window.setPixelColour(i, j, intersection.colour.toPackedInt());
+        }
+        else
+        {
+          window.setPixelColour(i, j, 0);
+        }
       }
     }
   }
@@ -218,10 +240,20 @@ int main(int argc, char *argv[])
   //SDL_SetRelativeMouseMode(SDL_TRUE);
 
   Model cornell = Model("cornell-box");
+  std::cout << "cornell address = " << &cornell << std::endl;
+  Rigidbody cornellRB = Rigidbody(&cornell);
+  cornellRB.hasGravity = false;
+  //cornell.setPosition(vec3(0,2,0));
+
+  Model sphere = Model("blob");
+  sphere.setPosition(vec3(0,7,-3));
+  Rigidbody sphereRB = Rigidbody(&sphere);
+  //sphereRB.hasGravity = false;
+  //std::cout << "address stored as " << cornellRB.model << std::endl;
 
   Camera cam;
   cam.setProjection(90.0f, WIDTH / (float)HEIGHT, 0.1f, 100.0f);
-  // cam.lookAt(vec3(5.0f, 2.5f, 3.0f), vec3(0.0f, 2.5f, 0.0f));
+  cam.lookAt(vec3(5.0f, 2.5f, 3.0f), vec3(0.0f, 2.5f, 0.0f));
   // cam.moves.push(Movement(cam.transform));
   // cam.moves.top().lookAt(cam.getPosition(), vec3(0, -2.5f, 0));
 
@@ -237,13 +269,15 @@ int main(int argc, char *argv[])
       handleEvent(event, cam);
     //handleMouse(cam);
     //cout << "deltaTime = " << Times::deltaTime() << endl;
-    update(cam, vector<Model>{cornell});
-
+    //std::cout << "sphere transform = " << sphere.transform << std::endl;
+    update(cam, vector<Updatable*>{&cornell, &cornellRB, &sphereRB});
+    std::vector<Model*> models{&cornell, &sphere};
+    //std::cout << "about to render" << std::endl;
     if(toRaytrace) {
-      raytrace(cam, cornell);
+      raytrace(cam, models);
     } else {
       draw();
-      drawTriangles(cornell, cam);
+      drawTriangles(cam, models);
     }
     // Need to render the frame at the end, or nothing actually gets shown on
     // the screen !
@@ -262,13 +296,13 @@ void draw()
 
 int moveStage = 0;
 
-void update(Camera &cam, vector<Model> models)
+void update(Camera &cam, vector<Updatable*> updatables)
 {
   // Function for performing animation (shifting artifacts or moving the camera)
   cam.update();
-  for (unsigned int i = 0; i < models.size(); i++)
+  for (unsigned int i = 0; i < updatables.size(); i++)
   {
-    models[i].update();
+    updatables[i]->update();
   }
 }
 
