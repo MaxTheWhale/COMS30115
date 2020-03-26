@@ -36,8 +36,28 @@ vector<float> Interpolate(float a, float b, int n);
 vector<vec3> Interpolate(vec3 a, vec3 b, int n);
 vector<vec4> Interpolate(vec4 a, vec4 b, int n);
 
+class Texture
+{
+public:
+  int width, height;
+  int *buff;
+  Texture(string fileName) { buff = loadPPM(fileName, width, height); }
+
+  void draw(DrawingWindow window)
+  {
+    for (int y = 0; y < height; y++)
+    {
+      for (int x = 0; x < width; x++)
+      {
+        window.setPixelColour(x, y, buff[y * width + x]);
+      }
+    }
+  }
+};
+
 bool toRaytrace = false;
 bool softShadows = false;
+DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
 
 inline float vectorLength(vec4 v) {
   return sqrt(v.x*v.x + v.y*v.y + v.z*v.z + v.w*v.w);
@@ -168,26 +188,6 @@ void drawTriangles(Camera &cam, std::vector<Model *> models)
   }
 }
 
-class Texture
-{
-public:
-  int width, height;
-  int *buff;
-  Texture(string fileName) { buff = loadPPM(fileName, width, height); }
-
-  void draw(DrawingWindow window)
-  {
-    for (int y = 0; y < height; y++)
-    {
-      for (int x = 0; x < width; x++)
-      {
-        window.setPixelColour(x, y, buff[y * width + x]);
-      }
-    }
-  }
-};
-
-
 void handleMouse(Camera& cam) {
   int motion_x = 0;
   int motion_y = 0;
@@ -212,11 +212,6 @@ int darkenColour(Colour colour, float brightness, float specular) {
 
   return colour.toPackedInt();
 }
-
-void texturedTriangle(CanvasTriangle screenTri, CanvasTriangle texTri,
-                      Texture tex);
-
-DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
 
 vector<ModelTriangle> getLights(Model model) {
   vector<ModelTriangle> lights = vector<ModelTriangle>();
@@ -249,12 +244,6 @@ vector<vec4> getLightPoints(vector<ModelTriangle> lights) {
   result.push_back(average);
 
   return result;
-}
-
-float limit(float f, float lower, float upper) {
-  f = f < lower ? lower : f;
-  f = f > upper ? upper : f;
-  return f;
 }
 
 void raytrace(Camera camera, std::vector<Model*> models, int softness) {
@@ -376,14 +365,14 @@ void raytrace(Camera camera, std::vector<Model*> models, int softness) {
         }
 
         //adjust the totalled lighting values
-        shadowCount = limit(shadowCount, 0, 1);
-        brightnessCount = limit(brightnessCount, 0, 1);
-        angleCount = limit(angleCount, 0, 1);
-        specularCount = limit(specularCount, 0, 1);
+        shadowCount = clamp<float>(shadowCount, 0, 1);
+        brightnessCount = clamp<float>(brightnessCount, 0, 1);
+        angleCount = clamp<float>(angleCount, 0, 1);
+        specularCount = clamp<float>(specularCount, 0, 1);
 
         //set the final pixels
         if(intersection.intersectedTriangle.name == "light") window.setPixelColour(i, j, intersection.intersectedTriangle.colour.toPackedInt());
-        else window.setPixelColour(i, j, darkenColour(intersection.intersectedTriangle.colour, limit(angleCount * (inShadow ? shadowCount : 1.0f) * brightnessCount, AMBIENCE, 1), inShadow? 0 : specularCount));
+        else window.setPixelColour(i, j, darkenColour(intersection.intersectedTriangle.colour, clamp<float>(angleCount * (inShadow ? shadowCount : 1.0f) * brightnessCount, AMBIENCE, 1), inShadow? 0 : specularCount));
       } else {
         window.setPixelColour(i, j, 0);
       }
@@ -391,7 +380,6 @@ void raytrace(Camera camera, std::vector<Model*> models, int softness) {
   }
 }
 
-//vector<vec3> cameraPositions{ vec3(5.0f, 2.5f, 3.0f), vec3(5.0f, 0.0f, 3.0f), vec3(5.0f, 0.0f, 6.0f) };
 vector<mat4> cameraTransforms = vector<mat4>();
 int main(int argc, char *argv[])
 {
@@ -670,98 +658,6 @@ void triangle(CanvasTriangle t, int colour, bool filled)
     line(t.vertices[0], t.vertices[1], colour);
     line(t.vertices[1], t.vertices[2], colour);
     line(t.vertices[2], t.vertices[0], colour);
-  }
-}
-
-void texturedTriangle(CanvasTriangle screenTri, CanvasTriangle texTri,
-                      Texture tex)
-{
-  if (screenTri.vertices[0].y > screenTri.vertices[1].y)
-  {
-    swap(screenTri.vertices[0], screenTri.vertices[1]);
-    swap(texTri.vertices[0], texTri.vertices[1]);
-  }
-  if (screenTri.vertices[1].y > screenTri.vertices[2].y)
-  {
-    swap(screenTri.vertices[1], screenTri.vertices[2]);
-    swap(texTri.vertices[1], texTri.vertices[2]);
-  }
-  if (screenTri.vertices[0].y > screenTri.vertices[1].y)
-  {
-    swap(screenTri.vertices[0], screenTri.vertices[1]);
-    swap(texTri.vertices[0], texTri.vertices[1]);
-  }
-
-  vector<float> sline1 =
-      Interpolate(screenTri.vertices[0].x, screenTri.vertices[1].x,
-                  abs(screenTri.vertices[0].y - screenTri.vertices[1].y) + 1);
-  vector<float> sline2 =
-      Interpolate(screenTri.vertices[0].x, screenTri.vertices[2].x,
-                  abs(screenTri.vertices[0].y - screenTri.vertices[2].y) + 1);
-  vector<float> sline3 =
-      Interpolate(screenTri.vertices[1].x, screenTri.vertices[2].x,
-                  abs(screenTri.vertices[1].y - screenTri.vertices[2].y) + 1);
-  vector<float> txline1 =
-      Interpolate(texTri.vertices[0].x, texTri.vertices[1].x,
-                  abs(screenTri.vertices[0].y - screenTri.vertices[1].y) + 1);
-  vector<float> txline2 =
-      Interpolate(texTri.vertices[0].x, texTri.vertices[2].x,
-                  abs(screenTri.vertices[0].y - screenTri.vertices[2].y) + 1);
-  vector<float> txline3 =
-      Interpolate(texTri.vertices[1].x, texTri.vertices[2].x,
-                  abs(screenTri.vertices[1].y - screenTri.vertices[2].y) + 1);
-  vector<float> tyline1 =
-      Interpolate(texTri.vertices[0].y, texTri.vertices[1].y,
-                  abs(screenTri.vertices[0].y - screenTri.vertices[1].y) + 1);
-  vector<float> tyline2 =
-      Interpolate(texTri.vertices[0].y, texTri.vertices[2].y,
-                  abs(screenTri.vertices[0].y - screenTri.vertices[2].y) + 1);
-  vector<float> tyline3 =
-      Interpolate(texTri.vertices[1].y, texTri.vertices[2].y,
-                  abs(screenTri.vertices[1].y - screenTri.vertices[2].y) + 1);
-
-  for (int y = screenTri.vertices[0].y; y < screenTri.vertices[1].y; y++)
-  {
-    float tx1 = txline1[y - screenTri.vertices[0].y];
-    float ty1 = tyline1[y - screenTri.vertices[0].y];
-    float tx2 = txline2[y - screenTri.vertices[0].y];
-    float ty2 = tyline2[y - screenTri.vertices[0].y];
-    int xStart = std::min(sline1[y - screenTri.vertices[0].y],
-                          sline2[y - screenTri.vertices[0].y]);
-    int xEnd = std::max(sline1[y - screenTri.vertices[0].y],
-                        sline2[y - screenTri.vertices[0].y]);
-    vector<float> txs = Interpolate(tx1, tx2, xEnd - xStart);
-    vector<float> tys = Interpolate(ty1, ty2, xEnd - xStart);
-    for (int x = xStart; x < xEnd; x++)
-    {
-      window.setPixelColour(
-          x, y,
-          tex.buff[(int)tys[x - xStart] * tex.width + (int)txs[x - xStart]]);
-    }
-  }
-  for (int y = screenTri.vertices[1].y; y < screenTri.vertices[2].y; y++)
-  {
-    float tx1 = txline2[y - screenTri.vertices[0].y];
-    float ty1 = tyline2[y - screenTri.vertices[0].y];
-    float tx2 = txline3[y - screenTri.vertices[1].y];
-    float ty2 = tyline3[y - screenTri.vertices[1].y];
-    if (tx1 > tx2)
-    {
-      swap(tx1, tx2);
-      swap(ty1, ty2);
-    }
-    int xStart = std::min(sline3[y - screenTri.vertices[1].y],
-                          sline2[y - screenTri.vertices[0].y]);
-    int xEnd = std::max(sline3[y - screenTri.vertices[1].y],
-                        sline2[y - screenTri.vertices[0].y]);
-    vector<float> txs = Interpolate(tx1, tx2, xEnd - xStart);
-    vector<float> tys = Interpolate(ty1, ty2, xEnd - xStart);
-    for (int x = xStart; x < xEnd; x++)
-    {
-      window.setPixelColour(
-          x, y,
-          tex.buff[(int)tys[x - xStart] * tex.width + (int)txs[x - xStart]]);
-    }
   }
 }
 
