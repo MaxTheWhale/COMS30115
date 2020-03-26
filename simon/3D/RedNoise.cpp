@@ -1,5 +1,6 @@
 #include <ModelTriangle.h>
 #include <CanvasTriangle.h>
+#include <RayTriangleIntersection.h>
 #include <DrawingWindow.h>
 #include <Utils.h>
 #include <fstream>
@@ -17,6 +18,7 @@ using namespace glm;
 #define WIDTH 640
 #define HEIGHT 480
 #define MOUSE_SENSITIVITY 0.0015f
+float ASPECT_RATIO = WIDTH/(float)HEIGHT;
 
 void draw();
 void line(CanvasPoint p, CanvasPoint q, int colour);
@@ -213,23 +215,64 @@ vector<ModelTriangle> getLights(Model model) {
   return lights;
 }
 
-void raytrace(Camera camera, Model model, int softness) {
-  float fov = 90;
-  float aspectRatio = WIDTH/(float)HEIGHT;
-  float angle = tan(0.5 * fov * M_PI / 180.0); // just fov*0.5 converted to radians
+vector<vec4> getLightPoints(vector<ModelTriangle> lights) {
+  vector<vec4> vertices = vector<vec4>();
+  vec4 average = vec4(0, 0, 0, 0);
+  for(ModelTriangle light : lights) {
+    vertices.push_back(light.vertices[0]);
+    vertices.push_back(light.vertices[1]);
+    vertices.push_back(light.vertices[2]);
 
+    average += light.vertices[0];
+    average += light.vertices[1];
+    average += light.vertices[2];
+  }
+
+  average.x /= vertices.size();
+  average.y /= vertices.size();
+  average.z /= vertices.size();
+  average.w = 1;
+
+  vector<vec4> result = vector<vec4>();
+  result.push_back(average);
+
+  return result;
+}
+
+float limit(float f, float lower, float upper) {
+  f = f < lower ? lower : f;
+  f = f > upper ? upper : f;
+  return f;
+}
+
+void raytrace(Camera camera, Model model, int softness) {
+  //lighting options. Make ambience global and the others properties of the lights
+  float ambience = 0.1f;
+  float intensity = 10.0f / softness;
+  float shadow = 0.1f / softness;
+
+  //gets all the triangles that are lights in the scene
+  vector<ModelTriangle> lights = getLights(model);
+
+  vector<vec4> lightPoints = getLightPoints(lights);
+
+  //loop through each pixel in image plane
   for(int j = 0; j < HEIGHT; j++) {
     for(int i = 0; i < WIDTH; i++) {
+      //convert image plane cordinates into world space
       vec2 NDC = vec2((i + 0.5) * (1 / (float) WIDTH), (j + 0.5) * (1 / (float) HEIGHT));
-      float x = (2 * (NDC.x) - 1) * angle * aspectRatio;
-      float y = (1 - 2 * (NDC.y)) * angle;
+      float x = (2 * (NDC.x) - 1) * camera.angle * ASPECT_RATIO;
+      float y = (1 - 2 * (NDC.y)) * camera.angle;
 
+      // the main camera ray
       vec4 rayDirection = camera.transform * vec4(x, y, -1, 0);
-      float minDistance = std::numeric_limits<float>::infinity();
-      ModelTriangle intersection = ModelTriangle();
-      bool foundIntersection = false;
-      float t = 0;
 
+      float minDistance = std::numeric_limits<float>::infinity();
+      
+      RayTriangleIntersection intersection = RayTriangleIntersection();
+      bool foundIntersection = false;
+
+      //calculate closest intersection by looping through each of the triangles
       for(ModelTriangle triangle : model.tris) {
         vec4 e0 = triangle.vertices[1] - triangle.vertices[0];
         vec4 e1 = triangle.vertices[2] - triangle.vertices[0];
@@ -241,93 +284,80 @@ void raytrace(Camera camera, Model model, int softness) {
         if(possibleSolution.y >= 0 && possibleSolution.y <= 1 && possibleSolution.z >= 0 && possibleSolution.z <= 1 && possibleSolution.y + possibleSolution.z <= 1) {
           if(possibleSolution.x < minDistance) {
             foundIntersection = true;
-            t = possibleSolution.x;
-            intersection = triangle;
+            intersection = RayTriangleIntersection(camera.transform[3] + (possibleSolution.x * rayDirection) , possibleSolution.x, triangle);
+            intersection.intersectionPoint.w = 1;
             minDistance = possibleSolution.x;
           }
         }
       }
 
       if(foundIntersection) {
-        float ambience = 0.25f;
-        float intensity = 1.0f / softness;
-        float shadow = 0.1f / softness;
-        float shadowCount = 1.0f;
+        //TODO: make special float that automatically binds between 0 and 1
+        //these values lighten the pixel, so they go from 0 (dark) to 1 (fully in light)
         float brightnessCount = 0.0f;
         float angleCount = 0.0f;
         float specularCount = 0.0f;
+
+        float shadowCount = shadow;
+        
         bool inShadow = false;
 
+        //fires a shadow ray to each light point
+        for(vec4 light : lightPoints) {
+          vec4 shadowRayDirection = light - intersection.intersectionPoint;
+          vec3 shadowRayNormalised = toThree(glm::normalize(shadowRayDirection));
 
-        vector<ModelTriangle> lights = getLights(model);
-        vec4 intersectionPoint = camera.transform[3] + (t * rayDirection);
-        intersectionPoint.w = 1;
+          //cross and dot only work on vec4s
+          vec3 intersectionNormal = glm::normalize(glm::cross(toThree(intersection.intersectedTriangle.vertices[1] - intersection.intersectedTriangle.vertices[0]),
+                                    toThree(intersection.intersectedTriangle.vertices[2] - intersection.intersectedTriangle.vertices[0])));
 
-        for(ModelTriangle light : lights) {
-          vector<vec4> points = vector<vec4>();
-          vector<vec4> a = Interpolate(light.vertices[0], light.vertices[1], softness);
-          vector<vec4> b = Interpolate(light.vertices[0], light.vertices[2], softness);
-          vector<vec4> c = Interpolate(light.vertices[1], light.vertices[2], softness);
-          points.insert(points.end(), a.begin(), a.end());
-          points.insert(points.end(), b.begin(), b.end());
-          points.insert(points.end(), c.begin(), c.end());
+          //calculate the angleOfIncidence between 0 and 1
+          float angleOfIncidence = glm::dot(shadowRayNormalised, intersectionNormal);
+          angleOfIncidence = angleOfIncidence < 0 ? ambience : angleOfIncidence;
+          angleCount += angleOfIncidence;
 
-          for(vec4 vertex : points) {
-            vec4 shadowRayDirection = vertex - intersectionPoint;
+          //adjust brightness for proximity lighting
+          float brightness = intensity/pow(vectorLength(shadowRayDirection),2);
+          brightnessCount += brightness;
 
-            //cout << shadowRayDirection << " with length " << vectorLength(shadowRayDirection) << endl;
+          //128 will later have to be paramaterised to reflect each material
+          vec3 reflection = glm::normalize(toThree(-shadowRayDirection) - 2.0f * (glm::dot(toThree(-shadowRayDirection), intersectionNormal) * intersectionNormal));
+          float specular = pow(glm::dot(glm::normalize(toThree(-rayDirection)), reflection), 128);
 
-            vec3 intersectionNormal = glm::cross(toThree(intersection.vertices[1] - intersection.vertices[0]), toThree(intersection.vertices[2] - intersection.vertices[0]));
-            float angleOfIncidence = glm::dot(toThree(glm::normalize(shadowRayDirection)), glm::normalize(intersectionNormal));
-            angleOfIncidence = angleOfIncidence < 0 ? ambience : angleOfIncidence;
+          specularCount += specular;
 
-            float tolerance = 0.01f;
-            float shadowBias = 1e-4;
+          float shadowBias = 1e-4;
 
-            for(ModelTriangle triangle : model.tris) {
-              vec4 e0 = triangle.vertices[1] - triangle.vertices[0];
-              vec4 e1 = triangle.vertices[2] - triangle.vertices[0];
-              vec4 SPVector = (intersectionPoint + shadowBias) - triangle.vertices[0];
-              mat4 DEMatrix(-shadowRayDirection, e0, e1, vec4(1,1,1,1));
-              vec4 possibleSolution = glm::inverse(DEMatrix) * SPVector;
+          //check if the ray is in shadow. 
+          for(ModelTriangle triangle : model.tris) {
+            vec4 e0 = triangle.vertices[1] - triangle.vertices[0];
+            vec4 e1 = triangle.vertices[2] - triangle.vertices[0];
+            vec4 SPVector = (intersection.intersectionPoint) - triangle.vertices[0];
+            mat4 DEMatrix(-shadowRayDirection, e0, e1, vec4(1,1,1,1));
+            vec4 possibleSolution = glm::inverse(DEMatrix) * SPVector;
 
-
-              //check if ray intersects triangle and not just triangle plane
-              if(possibleSolution.y >= 0 && possibleSolution.y <= 1 && possibleSolution.z >= 0 && possibleSolution.z <= 1 && possibleSolution.y + possibleSolution.z <= 1) {
-                //cout << "intersection length " << possibleSolution.x << endl;
-                if(possibleSolution.x < 1 - tolerance && possibleSolution.x > tolerance) {
-                  //cout << "in shadow for " << i << "," << j << endl;
-                  inShadow = true;
-                }
+            //check if ray intersects triangle and not just triangle plane
+            if(possibleSolution.y >= 0 && possibleSolution.y <= 1 && possibleSolution.z >= 0 && possibleSolution.z <= 1 && possibleSolution.y + possibleSolution.z <= 1) {
+              //I genuinely have no idea why doing the shadowBias this way works. without it the shadows are just everywhere???
+              if(possibleSolution.x < 1 - shadowBias && possibleSolution.x > shadowBias) {
+                inShadow = true;
+                break;
               }
             }
-
-            float brightness = intensity/pow(vectorLength(shadowRayDirection),2);
-            brightness = brightness < 0 ? 0 : brightness;
-            brightness = brightness > 1 ? 1 : brightness;
-            shadowCount -= inShadow ? shadow : 0;
-            brightnessCount += brightness;
-            angleCount += angleOfIncidence;
-
-            vec3 reflection = toThree(-shadowRayDirection) - 2 * (glm::dot(toThree(-shadowRayDirection), glm::normalize(intersectionNormal))) * glm::normalize(intersectionNormal);
-            float specular = pow(glm::dot(glm::normalize(toThree(-rayDirection)), glm::normalize(reflection)), 128);
-
-            specularCount += specular;
-
           }
+
+          shadowCount -= inShadow ? shadow/10 : 0;
         }
 
-        shadowCount = shadowCount < 0 ? 0 : shadowCount;
-        shadowCount = shadowCount > 1 ? 1 : shadowCount;
-        brightnessCount = brightnessCount < 0 ? 0 : brightnessCount;
-        brightnessCount = brightnessCount > 1 ? 1 : brightnessCount;
-        angleCount = angleCount < 0 ? 0 : angleCount;
-        angleCount = angleCount > 1 ? 1 : angleCount;
-        specularCount = specularCount < 0 ? 0 : specularCount;
-        specularCount = specularCount > 1 ? 1 : specularCount;
+        //adjust the totalled lighting values
+        shadowCount = limit(shadowCount, 0, 1);
+        brightnessCount = limit(brightnessCount, 0, 1);
+        angleCount = limit(angleCount, 0, 1);
+        specularCount = limit(specularCount, 0, 1);
 
-        if(intersection.name == "light") window.setPixelColour(i, j, intersection.colour.toPackedInt());
-        else window.setPixelColour(i, j, inShadow ? darkenColour(intersection.colour, angleCount * shadowCount * brightnessCount, specularCount) : darkenColour(intersection.colour, angleCount * brightnessCount, specularCount));
+        //set the final pixels
+        if(intersection.intersectedTriangle.name == "light") window.setPixelColour(i, j, intersection.intersectedTriangle.colour.toPackedInt());
+        else window.setPixelColour(i, j, darkenColour(intersection.intersectedTriangle.colour, limit(angleCount * (inShadow ? shadowCount : 1.0f) * brightnessCount, ambience, 1), specularCount));
       } else {
         window.setPixelColour(i, j, 0);
       }

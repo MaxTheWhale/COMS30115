@@ -2,11 +2,13 @@
 
 #include <glm/glm.hpp>
 #include <iostream>
+#include <ModelTriangle.h>
+#include "../../VectorOutput.hpp"
 
 class RayTriangleIntersection
 {
   public:
-    glm::vec3 intersectionPoint;
+    glm::vec4 intersectionPoint;
     float distanceFromCamera;
     ModelTriangle intersectedTriangle;
 
@@ -14,7 +16,7 @@ class RayTriangleIntersection
     {
     }
 
-    RayTriangleIntersection(glm::vec3 point, float distance, ModelTriangle triangle)
+    RayTriangleIntersection(glm::vec4 point, float distance, ModelTriangle triangle)
     {
         intersectionPoint = point;
         distanceFromCamera = distance;

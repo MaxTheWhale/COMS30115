@@ -8,6 +8,9 @@ class Camera : public Animatable {
     glm::vec3 position;
     glm::mat4 projection;//, worldToCamera;
     glm::mat4 worldToCamera();
+    float fov = 90;
+    float angle = tan(0.5 * fov * M_PI / 180.0); // just fov*0.5 converted to radians
+
     //void lookAt(const glm::vec3& from, const glm::vec3& to); //moved down to Transformable
     void setProjection(float fov, float aspect_ratio, float near, float far);
   private:
