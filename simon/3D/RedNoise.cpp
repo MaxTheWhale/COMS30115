@@ -133,7 +133,8 @@ int clipTriangle(vector<ModelTriangle>& tris, const vec4& normal) {
 }
 
 int clipToView(vector<ModelTriangle>& tris) {
-  const vec4 normals[6] = {vec4(1, 0, 0, 1), vec4(-1, 0, 0, 1), vec4(0, 1, 0, 1), vec4(0, -1, 0, 1), vec4(0, 0, 1, 1), vec4(0, 0, -1, 1)};
+  const vec4 normals[2] = {vec4(0, 0, 1, 1), vec4(0, 0, -1, 1)}; // swap these two lines for full frustrum clipping
+  // const vec4 normals[6] = {vec4(1, 0, 0, 1), vec4(-1, 0, 0, 1), vec4(0, 1, 0, 1), vec4(0, -1, 0, 1), vec4(0, 0, 1, 1), vec4(0, 0, -1, 1)};
   for (auto n : normals) {
     int num = clipTriangle(tris, n);
     if (num == 0) {
@@ -628,21 +629,28 @@ void triangle(CanvasTriangle t, int colour, bool filled)
     y_min = glm::min((float)y_min, t.vertices[2].y);
     int y_max = glm::max(t.vertices[0].y, t.vertices[1].y);
     y_max = glm::max((float)y_max, t.vertices[2].y);
-    if (x_min < 0) x_min = 0;
-    if (y_min < 0) y_min = 0;
-    if (x_max >= WIDTH) x_max = WIDTH - 1;
-    if (y_max >= HEIGHT) y_max = HEIGHT - 1; 
+    x_min = clamp<int>(x_min, 0, WIDTH - 1);
+    x_max = clamp<int>(x_max, 0, WIDTH - 1);
+    y_min = clamp<int>(y_min, 0, HEIGHT - 1);
+    y_max = clamp<int>(y_max, 0, HEIGHT - 1);
+    float area_inv = 1.0f / edgeFunction(t.vertices[0], t.vertices[1], t.vertices[2]);
+    float w0_step_x = (t.vertices[2].y - t.vertices[1].y) * area_inv;
+    float w1_step_x = (t.vertices[0].y - t.vertices[2].y) * area_inv;
+    float w2_step_x = (t.vertices[1].y - t.vertices[0].y) * area_inv;
+    float w0_step_y = (t.vertices[1].x - t.vertices[2].x) * area_inv;
+    float w1_step_y = (t.vertices[2].x - t.vertices[0].x) * area_inv;
+    float w2_step_y = (t.vertices[0].x - t.vertices[1].x) * area_inv;
+    CanvasPoint p = CanvasPoint(x_min + 0.5f, y_min + 0.5f);
+    float w0_line = edgeFunction(t.vertices[1], t.vertices[2], p) * area_inv;
+    float w1_line = edgeFunction(t.vertices[2], t.vertices[0], p) * area_inv;
+    float w2_line = edgeFunction(t.vertices[0], t.vertices[1], p) * area_inv;
+    float w0, w1, w2;
     for (int y = y_min; y <= y_max; y++) {
+      w0 = w0_line;
+      w1 = w1_line;
+      w2 = w2_line;
       for (int x = x_min; x <= x_max; x++) {
-        CanvasPoint p = CanvasPoint(x + 0.5f, y + 0.5f);
-        float w0 = edgeFunction(t.vertices[1], t.vertices[2], p);
-        float w1 = edgeFunction(t.vertices[2], t.vertices[0], p);
-        float w2 = edgeFunction(t.vertices[0], t.vertices[1], p);
         if (w0 >= 0 && w1 >= 0 && w2 >= 0) {
-          float area = edgeFunction(t.vertices[0], t.vertices[1], t.vertices[2]);
-          w0 /= area;
-          w1 /= area;
-          w2 /= area;
           float depth = w0 * t.vertices[0].depth + w1 * t.vertices[1].depth + w2 * t.vertices[2].depth;
           float brightness = w0 * t.vertices[0].brightness + w1 * t.vertices[1].brightness + w2 * t.vertices[2].brightness;
           if (depth < depthBuffer[y * WIDTH + x]) {
@@ -650,7 +658,13 @@ void triangle(CanvasTriangle t, int colour, bool filled)
             window.setPixelColour(x, y, scaleColour(colour, brightness));
           }
         }
+        w0 += w0_step_x;
+        w1 += w1_step_x;
+        w2 += w2_step_x;
       }
+      w0_line += w0_step_y;
+      w1_line += w1_step_y;
+      w2_line += w2_step_y;
     }
   }
   else
