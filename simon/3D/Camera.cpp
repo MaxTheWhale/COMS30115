@@ -18,6 +18,9 @@ void Camera::setProjection(float fov, float aspect_ratio, float near, float far)
                          0, near / top, 0, 0,
                          0, 0, -(far + near) / (far - near), -1,
                          0, 0, -(2 * far * near) / (far - near), 0);
+  (*this).near = near;
+  (*this).far = far;
+  (*this).fov = fov;
 }
 
 // void Camera::updateTransform() {

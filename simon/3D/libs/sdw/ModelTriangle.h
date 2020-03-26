@@ -8,7 +8,7 @@ class ModelTriangle
 {
   public:
     glm::vec4 vertices[3];
-    glm::vec3 normal;
+    glm::vec4 normal;
     float brightness[3];
     Colour colour;
     std::string name;
@@ -25,7 +25,7 @@ class ModelTriangle
       colour = trigColour;
     }
 
-    ModelTriangle(glm::vec4 v0, glm::vec4 v1, glm::vec4 v2, Colour trigColour, glm::vec3 trigNormal)
+    ModelTriangle(glm::vec4 v0, glm::vec4 v1, glm::vec4 v2, Colour trigColour, glm::vec4 trigNormal)
     {
       vertices[0] = v0;
       vertices[1] = v1;
@@ -34,7 +34,7 @@ class ModelTriangle
       normal = trigNormal;
     }
 
-    ModelTriangle(glm::vec4 v0, glm::vec4 v1, glm::vec4 v2, float b0, float b1, float b2, Colour trigColour, glm::vec3 trigNormal)
+    ModelTriangle(glm::vec4 v0, glm::vec4 v1, glm::vec4 v2, float b0, float b1, float b2, Colour trigColour, glm::vec4 trigNormal)
     {
       vertices[0] = v0;
       vertices[1] = v1;
@@ -51,7 +51,7 @@ class ModelTriangle
       vertices[0] = glm::vec4(v0.x, v0.y, v0.z, 1);
       vertices[1] = glm::vec4(v1.x, v1.y, v1.z, 1);
       vertices[2] = glm::vec4(v2.x, v2.y, v2.z, 1);
-      normal = glm::normalize(glm::cross(v0 - v1, v0 - v2));
+      normal = glm::vec4(glm::normalize(glm::cross(v0 - v1, v0 - v2)), 0);
       colour = trigColour;
     }
 
@@ -60,7 +60,7 @@ class ModelTriangle
       vertices[0] = glm::vec4(v0.x, v0.y, v0.z, 1);
       vertices[1] = glm::vec4(v1.x, v1.y, v1.z, 1);
       vertices[2] = glm::vec4(v2.x, v2.y, v2.z, 1);
-      normal = glm::normalize(glm::cross(v0 - v1, v0 - v2));
+      normal = glm::vec4(glm::normalize(glm::cross(v0 - v1, v0 - v2)), 0);
       colour = trigColour;
       name = n;
     }

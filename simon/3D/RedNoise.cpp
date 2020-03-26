@@ -67,6 +67,10 @@ inline vec3 toThree(vec4 v) {
   return vec3(v.x, v.y, v.z);
 }
 
+inline vec4 cross(const vec4& a, const vec4& b) {
+  return vec4(a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x, 0);
+}
+
 // based on https://casual-effects.com/research/McGuire2011Clipping/McGuire-Clipping.pdf
 int clipTriangle(vector<ModelTriangle>& tris, const vec4& normal) {
   vec4 temp;
@@ -150,13 +154,13 @@ void drawTriangles(Camera &cam, std::vector<Model *> models)
   {
     Model &model = *models[i];
     mat4 MVP = cam.projection * cam.worldToCamera() * model.transform;
-    vec3 eye = cam.getPosition();
+    vec4 eye = vec4(cam.getPosition(), 0);
     for (auto tri : model.tris)
     {
-      if (dot(toThree(model.transform * tri.vertices[0]) - eye, tri.normal) >= 0.0f) continue;
-      tri.brightness[0] = glm::max(dot(normalize(eye - toThree(model.transform * tri.vertices[0])), tri.normal), 0.0f);
-      tri.brightness[1] = glm::max(dot(normalize(eye - toThree(model.transform * tri.vertices[1])), tri.normal), 0.0f);
-      tri.brightness[2] = glm::max(dot(normalize(eye - toThree(model.transform * tri.vertices[2])), tri.normal), 0.0f);
+      if (dot((model.transform * tri.vertices[0]) - eye, tri.normal) >= 0.0f) continue;
+      tri.brightness[0] = glm::max(dot(normalize(eye - (model.transform * tri.vertices[0])), tri.normal), 0.0f);
+      tri.brightness[1] = glm::max(dot(normalize(eye - (model.transform * tri.vertices[1])), tri.normal), 0.0f);
+      tri.brightness[2] = glm::max(dot(normalize(eye - (model.transform * tri.vertices[2])), tri.normal), 0.0f);
       tri.vertices[0] = MVP * tri.vertices[0];
       tri.vertices[1] = MVP * tri.vertices[1];
       tri.vertices[2] = MVP * tri.vertices[2];
@@ -171,17 +175,17 @@ void drawTriangles(Camera &cam, std::vector<Model *> models)
         CanvasPoint v1 = CanvasPoint(
           (t.vertices[0].x + 1.0f) * 0.5f * WIDTH,
           (1 - (t.vertices[0].y + 1.0f) * 0.5f) * HEIGHT,
-          (99.9f / 2) * t.vertices[0].z + (100.1f / 2),
+          ((cam.far - cam.near) / 2.0f) * t.vertices[0].z + ((cam.far + cam.near) / 2.0f),
           t.brightness[0]);
         CanvasPoint v2 = CanvasPoint(
           (t.vertices[1].x + 1.0f) * 0.5f * WIDTH,
           (1 - (t.vertices[1].y + 1.0f) * 0.5f) * HEIGHT,
-          (99.9f / 2) * t.vertices[1].z + (100.1f / 2),
+          ((cam.far - cam.near) / 2.0f) * t.vertices[1].z + ((cam.far + cam.near) / 2.0f),
           t.brightness[1]);
         CanvasPoint v3 = CanvasPoint(
           (t.vertices[2].x + 1.0f) * 0.5f * WIDTH,
           (1 - (t.vertices[2].y + 1.0f) * 0.5f) * HEIGHT,
-          (99.9f / 2) * t.vertices[2].z + (100.1f / 2),
+          ((cam.far - cam.near) / 2.0f) * t.vertices[2].z + ((cam.far + cam.near) / 2.0f),
           t.brightness[2]);
         triangle(CanvasTriangle(v1, v2, v3), tri.colour.toPackedInt(), wireframe);
       }
@@ -273,10 +277,11 @@ void raytrace(Camera camera, std::vector<Model*> models, int softness) {
   //loop through each pixel in image plane
   for(int j = 0; j < HEIGHT; j++) {
     for(int i = 0; i < WIDTH; i++) {
+      float angle = tanf(0.5f * glm::radians(camera.fov)); // just fov*0.5 converted to radians
       //convert image plane cordinates into world space
       vec2 NDC = vec2((i + 0.5) * (1 / (float) WIDTH), (j + 0.5) * (1 / (float) HEIGHT));
-      float x = (2 * (NDC.x) - 1) * camera.angle * ASPECT_RATIO;
-      float y = (1 - 2 * (NDC.y)) * camera.angle;
+      float x = (2 * (NDC.x) - 1) * angle * ASPECT_RATIO;
+      float y = (1 - 2 * (NDC.y)) * angle;
 
       // the main camera ray
       vec4 rayDirection = camera.transform * vec4(x, y, -1, 0);
@@ -321,11 +326,11 @@ void raytrace(Camera camera, std::vector<Model*> models, int softness) {
         //fires a shadow ray to each light point
         for(vec4 light : lightPoints) {
           vec4 shadowRayDirection = light - intersection.intersectionPoint;
-          vec3 shadowRayNormalised = toThree(glm::normalize(shadowRayDirection));
+          vec4 shadowRayNormalised = glm::normalize(shadowRayDirection);
 
           //cross and dot only work on vec4s
-          vec3 intersectionNormal = glm::normalize(glm::cross(toThree(intersection.intersectedTriangle.vertices[1] - intersection.intersectedTriangle.vertices[0]),
-                                    toThree(intersection.intersectedTriangle.vertices[2] - intersection.intersectedTriangle.vertices[0])));
+          vec4 intersectionNormal = glm::normalize(cross(intersection.intersectedTriangle.vertices[1] - intersection.intersectedTriangle.vertices[0],
+                                    intersection.intersectedTriangle.vertices[2] - intersection.intersectedTriangle.vertices[0]));
 
           //calculate the angleOfIncidence between 0 and 1
           float angleOfIncidence = glm::dot(shadowRayNormalised, intersectionNormal);
@@ -337,8 +342,8 @@ void raytrace(Camera camera, std::vector<Model*> models, int softness) {
           brightnessCount += brightness;
 
           //128 will later have to be paramaterised to reflect each material
-          vec3 reflection = glm::normalize(toThree(-shadowRayDirection) - 2.0f * (glm::dot(toThree(-shadowRayDirection), intersectionNormal) * intersectionNormal));
-          float specular = pow(glm::dot(glm::normalize(toThree(-rayDirection)), reflection), 128);
+          vec4 reflection = glm::normalize((-shadowRayDirection) - 2.0f * (glm::dot((-shadowRayDirection), intersectionNormal) * intersectionNormal));
+          float specular = pow(glm::dot(glm::normalize((-rayDirection)), reflection), 128);
 
           specularCount += specular;
 
