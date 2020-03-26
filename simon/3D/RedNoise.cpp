@@ -36,25 +36,6 @@ vector<float> Interpolate(float a, float b, int n);
 vector<vec3> Interpolate(vec3 a, vec3 b, int n);
 vector<vec4> Interpolate(vec4 a, vec4 b, int n);
 
-class Texture
-{
-public:
-  int width, height;
-  int *buff;
-  Texture(string fileName) { buff = loadPPM(fileName, width, height); }
-
-  void draw(DrawingWindow window)
-  {
-    for (int y = 0; y < height; y++)
-    {
-      for (int x = 0; x < width; x++)
-      {
-        window.setPixelColour(x, y, buff[y * width + x]);
-      }
-    }
-  }
-};
-
 bool toRaytrace = false;
 bool softShadows = false;
 DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
@@ -393,6 +374,9 @@ int main(int argc, char *argv[])
   //SDL_SetRelativeMouseMode(SDL_TRUE);
 
   Model cornell = Model("cornell-box");
+  Model hs_logo = Model("HackspaceLogo/logo");
+  hs_logo.scale(vec3(0.005f, 0.005f, 0.005f));
+  hs_logo.move(vec3(-1.1f, 1.21f, -1.8f));
   std::cout << "cornell address = " << &cornell << std::endl;
   Rigidbody cornellRB = Rigidbody(&cornell);
   cornellRB.hasGravity = false;
@@ -424,7 +408,7 @@ int main(int argc, char *argv[])
     //cout << "deltaTime = " << Times::deltaTime() << endl;
     //std::cout << "sphere transform = " << sphere.transform << std::endl;
     update(cam, vector<Updatable*>{&cornell, &cornellRB, &sphereRB});
-    std::vector<Model*> models{&cornell, &sphere};
+    std::vector<Model*> models{&cornell, &sphere, &hs_logo};
     //std::cout << "about to render" << std::endl;
     if(toRaytrace) {
       raytrace(cam, models, softShadows ? 2 : 1);
@@ -680,31 +664,6 @@ void triangle(CanvasTriangle t, int colour, bool filled)
   }
 }
 
-int *loadPPM(string fileName, int &width, int &height)
-{
-  ifstream f;
-  string s;
-  f.open(fileName, ios::in | ios::binary);
-  f >> s;
-  skipHashWS(f);
-  f >> s;
-  width = stoi(s);
-  skipHashWS(f);
-  f >> s;
-  height = stoi(s);
-  skipHashWS(f);
-  f >> s;
-  f.seekg(1, f.cur);
-
-  int *buff = new int[width * height];
-  for (int i = 0; i < width * height; i++)
-  {
-    buff[i] = 0xff000000;
-    f.read((char *)&buff[i], 3);
-  }
-  return buff;
-}
-
 void savePPM(string fileName, DrawingWindow *window)
 {
   ofstream f;
@@ -725,20 +684,4 @@ void savePPM(string fileName, DrawingWindow *window)
     f.write((char *)buffer, window->width * 3);
   }
   f.close();
-}
-
-void skipHashWS(ifstream &f)
-{
-  ws(f);
-  char current;
-  f.read(&current, 1);
-  if (current == '#')
-  {
-    f.ignore(1000, '\n');
-    ws(f);
-  }
-  else
-  {
-    f.seekg(-1, f.cur);
-  }
 }
