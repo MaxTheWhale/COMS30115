@@ -19,7 +19,8 @@ using namespace glm;
 #define WIDTH 640
 #define HEIGHT 480
 #define MOUSE_SENSITIVITY 0.0015f
-float ASPECT_RATIO = WIDTH/(float)HEIGHT;
+#define AMBIENCE 0.1f
+#define ASPECT_RATIO WIDTH/(float)HEIGHT
 
 void draw();
 void line(CanvasPoint p, CanvasPoint q, int colour);
@@ -258,7 +259,6 @@ float limit(float f, float lower, float upper) {
 
 void raytrace(Camera camera, std::vector<Model*> models, int softness) {
   //lighting options. Make ambience global and the others properties of the lights
-  float ambience = 0.1f;
   float intensity = 10.0f / softness;
   float shadow = 0.1f / softness;
 
@@ -339,7 +339,7 @@ void raytrace(Camera camera, std::vector<Model*> models, int softness) {
 
           //calculate the angleOfIncidence between 0 and 1
           float angleOfIncidence = glm::dot(shadowRayNormalised, intersectionNormal);
-          angleOfIncidence = angleOfIncidence < 0 ? ambience : angleOfIncidence;
+          angleOfIncidence = angleOfIncidence < 0 ? AMBIENCE : angleOfIncidence;
           angleCount += angleOfIncidence;
 
           //adjust brightness for proximity lighting
@@ -383,7 +383,7 @@ void raytrace(Camera camera, std::vector<Model*> models, int softness) {
 
         //set the final pixels
         if(intersection.intersectedTriangle.name == "light") window.setPixelColour(i, j, intersection.intersectedTriangle.colour.toPackedInt());
-        else window.setPixelColour(i, j, darkenColour(intersection.intersectedTriangle.colour, limit(angleCount * (inShadow ? shadowCount : 1.0f) * brightnessCount, ambience, 1), inShadow? 0 : specularCount));
+        else window.setPixelColour(i, j, darkenColour(intersection.intersectedTriangle.colour, limit(angleCount * (inShadow ? shadowCount : 1.0f) * brightnessCount, AMBIENCE, 1), inShadow? 0 : specularCount));
       } else {
         window.setPixelColour(i, j, 0);
       }
