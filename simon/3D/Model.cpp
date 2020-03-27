@@ -15,7 +15,7 @@ vector<ModelTriangle> Model::loadOBJ(string fileName,
   ifstream f;
   string s;
   string name = "";
-  Colour colour;
+  Colour colour = Colour(255, 255, 255);
   vector<glm::vec3> vertices;
   vector<glm::vec2> uvs;
   vector<ModelTriangle> faces;
