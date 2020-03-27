@@ -5,7 +5,7 @@
 using namespace std;
 
 Model::Model(string filename) {
-    palette = loadMTL(filename + ".mtl");
+    palette = loadMTL(filename + ".mtl", texture.data, texture.width, texture.height);
     tris = loadOBJ(filename + ".obj", palette);
 }
 
@@ -14,9 +14,10 @@ vector<ModelTriangle> Model::loadOBJ(string fileName,
 {
   ifstream f;
   string s;
-  string name;
-  Colour colour;
+  string name = "";
+  Colour colour = Colour(255, 255, 255);
   vector<glm::vec3> vertices;
+  vector<glm::vec2> uvs;
   vector<ModelTriangle> faces;
   f.open(fileName, ios::in);
   while (!f.eof())
@@ -43,6 +44,12 @@ vector<ModelTriangle> Model::loadOBJ(string fileName,
         f >> x >> y >> z;
         vertices.push_back(glm::vec3(x, y, z));
       }
+      if (s == "vt")
+      {
+        float u, v;
+        f >> u >> v;
+        uvs.push_back(glm::vec2(u, v));
+      }
       if (s == "f")
       {
         string a, b, c;
@@ -57,7 +64,48 @@ vector<ModelTriangle> Model::loadOBJ(string fileName,
   return faces;
 }
 
-unordered_map<string, Colour> Model::loadMTL(string fileName) {
+void skipHashWS(ifstream &f)
+{
+  ws(f);
+  char current;
+  f.read(&current, 1);
+  if (current == '#')
+  {
+    f.ignore(1000, '\n');
+    ws(f);
+  }
+  else
+  {
+    f.seekg(-1, f.cur);
+  }
+}
+
+int *loadPPM(string fileName, int &width, int &height)
+{
+  ifstream f;
+  string s;
+  f.open(fileName, ios::in | ios::binary);
+  f >> s;
+  skipHashWS(f);
+  f >> s;
+  width = stoi(s);
+  skipHashWS(f);
+  f >> s;
+  height = stoi(s);
+  skipHashWS(f);
+  f >> s;
+  f.seekg(1, f.cur);
+
+  int *buff = new int[width * height];
+  for (int i = 0; i < width * height; i++)
+  {
+    buff[i] = 0xff000000;
+    f.read((char *)&buff[i], 3);
+  }
+  return buff;
+}
+
+unordered_map<string, Colour> Model::loadMTL(string fileName, int*& data, int& width, int& height) {
   unordered_map<string, Colour> palette;
 
   ifstream f;
@@ -78,6 +126,11 @@ unordered_map<string, Colour> Model::loadMTL(string fileName) {
       f >> g;
       f >> b;
       palette[key] = Colour(key, stof(r) * 255, stof(g) * 255, stof(b) * 255);
+    }
+    if (s == "map_Kd") {
+      string texture_file;
+      f >> texture_file;
+      data = loadPPM(texture_file, width, height);
     }
   }
   return palette;

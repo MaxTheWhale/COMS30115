@@ -10,11 +10,11 @@ private:
   SDL_Window *window;
   SDL_Renderer *renderer;
   SDL_Texture *texture;
-  uint32_t *pixelBuffer;
 
 public:
   int height;
   int width;
+  uint32_t *pixelBuffer;
 
   // Constructor method
   DrawingWindow();
