@@ -18,19 +18,26 @@ using namespace glm;
 
 #define WIDTH 640
 #define HEIGHT 480
+#define SSAA true
+#define SSAA_SCALE 4
+#define S_WIDTH (WIDTH*SSAA_SCALE)
+#define S_HEIGHT (HEIGHT*SSAA_SCALE)
 #define MOUSE_SENSITIVITY 0.0015f
 #define AMBIENCE 0.1f
 #define ASPECT_RATIO WIDTH/(float)HEIGHT
 
+enum CLIP_CODE {TOP = 1, RIGHT = 2, BOTTOM = 4, LEFT = 8};
+
 void draw();
-void line(CanvasPoint p, CanvasPoint q, int colour);
-void triangle(CanvasTriangle t, int colour, bool filled = false);
+void line(CanvasPoint p, CanvasPoint q, int colour, uint32_t *buffer, int width, int height);
+void triangle(CanvasTriangle t, int colour, bool filled, int width, int height, uint32_t *buffer);
 int *loadPPM(string fileName, int &width, int &height);
 void savePPM(string fileName, DrawingWindow *window);
 void skipHashWS(ifstream &f);
 void update(Camera &cam, vector<Updatable*> updatables);
 void handleEvent(SDL_Event event, Camera &cam);
-float depthBuffer[WIDTH * HEIGHT];
+float depthBuffer[S_WIDTH * S_HEIGHT];
+uint32_t imageBuffer[S_WIDTH * S_HEIGHT];
 bool wireframe;
 vector<float> Interpolate(float a, float b, int n);
 vector<vec3> Interpolate(vec3 a, vec3 b, int n);
@@ -131,6 +138,9 @@ int clipToView(vector<ModelTriangle>& tris) {
 
 void drawTriangles(Camera &cam, std::vector<Model *> models)
 {
+  int width = (SSAA) ? S_WIDTH : WIDTH;
+  int height = (SSAA) ? S_HEIGHT : HEIGHT;
+  uint32_t *buffer = (SSAA) ? imageBuffer : window.pixelBuffer;
   for (unsigned int i = 0; i < models.size(); i++)
   {
     Model &model = *models[i];
@@ -154,22 +164,44 @@ void drawTriangles(Camera &cam, std::vector<Model *> models)
         t.vertices[1] /= t.vertices[1].w;
         t.vertices[2] /= t.vertices[2].w;
         CanvasPoint v1 = CanvasPoint(
-          (t.vertices[0].x + 1.0f) * 0.5f * WIDTH,
-          (1 - (t.vertices[0].y + 1.0f) * 0.5f) * HEIGHT,
+          (t.vertices[0].x + 1.0f) * 0.5f * width,
+          (1 - (t.vertices[0].y + 1.0f) * 0.5f) * height,
           ((cam.far - cam.near) / 2.0f) * t.vertices[0].z + ((cam.far + cam.near) / 2.0f),
           t.brightness[0]);
         CanvasPoint v2 = CanvasPoint(
-          (t.vertices[1].x + 1.0f) * 0.5f * WIDTH,
-          (1 - (t.vertices[1].y + 1.0f) * 0.5f) * HEIGHT,
+          (t.vertices[1].x + 1.0f) * 0.5f * width,
+          (1 - (t.vertices[1].y + 1.0f) * 0.5f) * height,
           ((cam.far - cam.near) / 2.0f) * t.vertices[1].z + ((cam.far + cam.near) / 2.0f),
           t.brightness[1]);
         CanvasPoint v3 = CanvasPoint(
-          (t.vertices[2].x + 1.0f) * 0.5f * WIDTH,
-          (1 - (t.vertices[2].y + 1.0f) * 0.5f) * HEIGHT,
+          (t.vertices[2].x + 1.0f) * 0.5f * width,
+          (1 - (t.vertices[2].y + 1.0f) * 0.5f) * height,
           ((cam.far - cam.near) / 2.0f) * t.vertices[2].z + ((cam.far + cam.near) / 2.0f),
           t.brightness[2]);
-        triangle(CanvasTriangle(v1, v2, v3), tri.colour.toPackedInt(), wireframe);
+        triangle(CanvasTriangle(v1, v2, v3), tri.colour.toPackedInt(), wireframe, width, height, buffer);
       }
+    }
+  }
+}
+
+void downsample() {
+  uint32_t pixel, subpixel, red, green, blue;
+  int num_samples = SSAA_SCALE * SSAA_SCALE;
+  for (int y = 0; y < HEIGHT; y++) {
+    for (int x = 0; x < WIDTH; x++) {
+      red = 0;
+      green = 0;
+      blue = 0;
+      for (int sy = 0; sy < SSAA_SCALE; sy++) {
+        for (int sx = 0; sx < SSAA_SCALE; sx++) {
+          subpixel = imageBuffer[(x * SSAA_SCALE + sx) + (y * SSAA_SCALE + sy) * S_WIDTH];
+          red += (subpixel & 0x00ff0000);
+          green += (subpixel & 0x0000ff00);
+          blue += (subpixel & 0x000000ff);
+        }
+      }
+      pixel = 0xff000000 | ((red / num_samples) & 0x00ff0000) | ((green / num_samples) & 0x0000ff00) | ((blue / num_samples) & 0x000000ff);
+      window.pixelBuffer[x + y * WIDTH] = pixel;
     }
   }
 }
@@ -415,6 +447,7 @@ int main(int argc, char *argv[])
     } else {
       draw();
       drawTriangles(cam, models);
+      if (SSAA) downsample();
     }
     // Need to render the frame at the end, or nothing actually gets shown on
     // the screen !
@@ -424,10 +457,11 @@ int main(int argc, char *argv[])
 
 void draw()
 {
-  window.clearPixels();
-  for (int i = 0; i < WIDTH * HEIGHT; i++)
+  if (!SSAA) window.clearPixels();
+  for (int i = 0; i < S_WIDTH * S_HEIGHT; i++)
   {
     depthBuffer[i] = std::numeric_limits<float>::infinity();
+    imageBuffer[i] = 0;
   }
 }
 
@@ -578,8 +612,55 @@ vector<CanvasPoint> Interpolate(CanvasPoint a, CanvasPoint b, int n)
   return result;
 }
 
-void line(CanvasPoint p, CanvasPoint q, int colour)
+int clipCode(CanvasPoint& p, int width, int height) {
+  int code = 0;
+  if (p.x < 0.0f) code |= LEFT;
+  if (p.y < 0.0f) code |= TOP;
+  if (p.x > width - 1.0f) code |= RIGHT;
+  if (p.y > height - 1.0f) code |= BOTTOM;
+  return code;
+}
+
+bool clipLine(CanvasPoint& p, CanvasPoint& q, int width, int height) {
+  int p_code = clipCode(p, width, height);
+  int q_code = clipCode(q, width, height);
+  while (true) {
+    if (p_code == 0 && q_code == 0) return true;
+    if (p_code & q_code) return false;
+    int current_code = p_code ? p_code : q_code;
+    float x = 0.0f, y = 0.0f;
+    if (current_code & TOP) {
+      x = mix(p.x, q.x, (-p.y) / (q.y - p.y));
+      y = 0.0f;
+    }
+    else if (current_code & RIGHT) {
+      y = mix(p.y, q.y, ((width - 1.0f) - p.x) / (q.x - p.x));
+      x = width - 1.0f;
+    }
+    else if (current_code & BOTTOM) {
+      x = mix(p.x, q.x, ((height - 1.0f) - p.y) / (q.y - p.y));
+      y = height - 1.0f;
+    }
+    else if (current_code & LEFT) {
+      y = mix(p.y, q.y, (-p.x) / (q.x - p.x));
+      x = 0.0f;
+    }
+    if (current_code == p_code) {
+      p.x = x;
+      p.y = y;
+      p_code = clipCode(p, width, height);
+    }
+    else {
+      q.x = x; 
+      q.y = y; 
+      q_code = clipCode(p, width, height);
+    }
+  }
+}
+
+void line(CanvasPoint p, CanvasPoint q, int colour, uint32_t *buffer, int width, int height)
 {
+  if (!clipLine(p, q, width, height)) return;
   float x_diff = p.x - q.x;
   float y_diff = p.y - q.y;
   float max_diff = std::max(abs(x_diff), abs(y_diff));
@@ -587,8 +668,7 @@ void line(CanvasPoint p, CanvasPoint q, int colour)
   vector<float> interpolate_y = Interpolate(p.y, q.y, max_diff + 1);
   for (int i = 0; i < max_diff; i++)
   {
-    window.setPixelColour(round(interpolate_x[i]), round(interpolate_y[i]),
-                          colour);
+    buffer[(int)(round(interpolate_y[i]) * width + round(interpolate_x[i]))] = colour;
   }
 }
 
@@ -606,7 +686,7 @@ inline int scaleColour(int colour, float scale) {
   return (colour & 0xff000000) | (red << 16) | (green << 8) | blue;
 }
 
-void triangle(CanvasTriangle t, int colour, bool filled)
+void triangle(CanvasTriangle t, int colour, bool filled, int width, int height, uint32_t *buffer)
 {
   if (filled)
   {
@@ -618,10 +698,10 @@ void triangle(CanvasTriangle t, int colour, bool filled)
     y_min = glm::min((float)y_min, t.vertices[2].y);
     int y_max = glm::max(t.vertices[0].y, t.vertices[1].y);
     y_max = glm::max((float)y_max, t.vertices[2].y);
-    x_min = clamp<int>(x_min, 0, WIDTH - 1);
-    x_max = clamp<int>(x_max, 0, WIDTH - 1);
-    y_min = clamp<int>(y_min, 0, HEIGHT - 1);
-    y_max = clamp<int>(y_max, 0, HEIGHT - 1);
+    x_min = clamp<int>(x_min, 0, width - 1);
+    x_max = clamp<int>(x_max, 0, width - 1);
+    y_min = clamp<int>(y_min, 0, height - 1);
+    y_max = clamp<int>(y_max, 0, height - 1);
     float area_inv = 1.0f / edgeFunction(t.vertices[0], t.vertices[1], t.vertices[2]);
     float w0_step_x = (t.vertices[2].y - t.vertices[1].y) * area_inv;
     float w1_step_x = (t.vertices[0].y - t.vertices[2].y) * area_inv;
@@ -642,9 +722,9 @@ void triangle(CanvasTriangle t, int colour, bool filled)
         if (w0 >= 0 && w1 >= 0 && w2 >= 0) {
           float depth = w0 * t.vertices[0].depth + w1 * t.vertices[1].depth + w2 * t.vertices[2].depth;
           float brightness = w0 * t.vertices[0].brightness + w1 * t.vertices[1].brightness + w2 * t.vertices[2].brightness;
-          if (depth < depthBuffer[y * WIDTH + x]) {
-            depthBuffer[y * WIDTH + x] = depth;
-            window.setPixelColour(x, y, scaleColour(colour, brightness));
+          if (depth < depthBuffer[y * width + x]) {
+            depthBuffer[y * width + x] = depth;
+            buffer[y * width + x] = scaleColour(colour, brightness);
           }
         }
         w0 += w0_step_x;
@@ -658,9 +738,9 @@ void triangle(CanvasTriangle t, int colour, bool filled)
   }
   else
   {
-    line(t.vertices[0], t.vertices[1], colour);
-    line(t.vertices[1], t.vertices[2], colour);
-    line(t.vertices[2], t.vertices[0], colour);
+    line(t.vertices[0], t.vertices[1], colour, buffer, width, height);
+    line(t.vertices[1], t.vertices[2], colour, buffer, width, height);
+    line(t.vertices[2], t.vertices[0], colour, buffer, width, height);
   }
 }
 
