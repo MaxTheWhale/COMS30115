@@ -643,6 +643,7 @@ vector<CanvasPoint> Interpolate(CanvasPoint a, CanvasPoint b, int n)
   return result;
 }
 
+// Line clipping based on https://www.geeksforgeeks.org/line-clipping-set-1-cohen-sutherland-algorithm/
 int clipCode(CanvasPoint& p, int width, int height) {
   int code = 0;
   if (p.x < 0.0f) code |= LEFT;
@@ -684,7 +685,7 @@ bool clipLine(CanvasPoint& p, CanvasPoint& q, int width, int height) {
     else {
       q.x = x; 
       q.y = y; 
-      q_code = clipCode(p, width, height);
+      q_code = clipCode(q, width, height);
     }
   }
 }
