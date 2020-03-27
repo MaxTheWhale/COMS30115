@@ -386,22 +386,50 @@ void raytrace(Camera camera, std::vector<Model*> models, int softness) {
   }
 }
 
-vector<mat4> cameraTransforms = vector<mat4>();
+//vector<mat4> cameraTransforms = vector<mat4>();
+
 int main(int argc, char *argv[])
 {
   SDL_Event event;
   //SDL_SetRelativeMouseMode(SDL_TRUE);
 
+  vector<Model*> renderQueue = vector<Model*>();
+  vector<Updatable*> updateQueue = vector<Updatable*>();
+
   Model cornell = Model("cornell-box");
-  std::cout << "cornell address = " << &cornell << std::endl;
+  renderQueue.push_back(&cornell);
   Rigidbody cornellRB = Rigidbody(&cornell);
   cornellRB.hasGravity = false;
-  //cornell.setPosition(vec3(0,2,0));
+  updateQueue.push_back(&cornellRB);
+
+  // Model cornell2 = Model("cornell-box");
+  // // cornell2.move(glm::vec3(0,1,0));
+  // cornell2.rotate(glm::vec3(0,1,0));
+  // renderQueue.push_back(&cornell2);
+  // Rigidbody cornellRB2 = Rigidbody(&cornell2);
+  // cornellRB2.hasGravity = false;
+  // updateQueue.push_back(&cornellRB2);
 
   Model sphere = Model("blob");
-  sphere.setPosition(vec3(0,7,-3));
+  sphere.setPosition(vec3(0,5.5f,-3));
+  renderQueue.push_back(&sphere);
   Rigidbody sphereRB = Rigidbody(&sphere);
-  //sphereRB.hasGravity = false;
+  updateQueue.push_back(&sphereRB);
+
+  // Model tri1 = Model("triangle");
+  // renderQueue.push_back(&tri1);
+  // Rigidbody tri1RB = Rigidbody(&tri1);
+  // tri1RB.hasGravity = false;
+  // updateQueue.push_back(&tri1RB);
+
+  // Model tri2 = Model("triangle2");
+  // tri2.move(glm::vec3(0,0.5f,0));
+  // tri2.rotate(glm::vec3(1, 1, 0));
+  // renderQueue.push_back(&tri2);
+  // Rigidbody tri2RB = Rigidbody(&tri2);
+  // tri2RB.hasGravity = false;
+  // updateQueue.push_back(&tri2RB);
+
   //std::cout << "address stored as " << cornellRB.model << std::endl;
 
   Camera cam;
@@ -423,14 +451,15 @@ int main(int argc, char *argv[])
     //handleMouse(cam);
     //cout << "deltaTime = " << Times::deltaTime() << endl;
     //std::cout << "sphere transform = " << sphere.transform << std::endl;
-    update(cam, vector<Updatable*>{&cornell, &cornellRB, &sphereRB});
-    std::vector<Model*> models{&cornell, &sphere};
+    //update(cam, vector<Updatable*>{&cornell, &cornellRB, &sphereRB});
+    update(cam, updateQueue);
+    //std::vector<Model*> models{&cornell, &sphere};
     //std::cout << "about to render" << std::endl;
     if(toRaytrace) {
-      raytrace(cam, models, softShadows ? 2 : 1);
+      raytrace(cam, renderQueue, softShadows ? 2 : 1);
     } else {
       draw();
-      drawTriangles(cam, models);
+      drawTriangles(cam, renderQueue);
     }
     // Need to render the frame at the end, or nothing actually gets shown on
     // the screen !

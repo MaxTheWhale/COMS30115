@@ -6,7 +6,7 @@ class Rigidbody : public Updatable {
     public:
         glm::mat4 velocity;
         void update() override;
-        void collide(Rigidbody other);
+        bool collide(Rigidbody other);
         bool hasGravity = true;
         bool collisionEnabled = true;
         static glm::vec3 gravity;

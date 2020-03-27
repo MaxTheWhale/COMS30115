@@ -17,8 +17,8 @@ void Transformable::move(const glm::vec3& delta) {
 }
 void Transformable::rotate(const glm::vec3& delta) {
     glm::mat4 rot = rotationFromEuler(delta);
-    std::cout << "rotation matrix = " << rot << std::endl;
-    transform *= -glm::transpose(rot);
+    //std::cout << "rotation matrix = " << rot << std::endl;
+    transform *= glm::transpose(rot);
 }
 void Transformable::scale(const glm::vec3& delta) {
     transform[0] *= delta.x;

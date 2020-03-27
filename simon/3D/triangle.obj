@@ -1,0 +1,11 @@
+# This file uses centimeters as units for non-parametric coordinates.
+
+mtllib blob.mtl
+v 0.500000 -0.463948 0.186418
+v -0.500000 0.463948 -0.186418
+v 0.500000 0.463948 -0.186418
+usemtl Magenta
+vt 1.000000 0.000000
+vt 0.000000 1.000000
+vt 1.000000 1.000000
+f 1/1 3/3 2/2
