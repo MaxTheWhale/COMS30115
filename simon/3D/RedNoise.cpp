@@ -18,10 +18,10 @@ using namespace glm;
 
 #define WIDTH 640
 #define HEIGHT 480
+#define IMG_SIZE (WIDTH*HEIGHT)
 #define SSAA true
-#define SSAA_SCALE 4
-#define S_WIDTH (WIDTH*SSAA_SCALE)
-#define S_HEIGHT (HEIGHT*SSAA_SCALE)
+#define SSAA_SCALE 3
+#define SSAA_SAMPLES (SSAA_SCALE*SSAA_SCALE)
 #define MOUSE_SENSITIVITY 0.0015f
 #define AMBIENCE 0.1f
 #define ASPECT_RATIO WIDTH/(float)HEIGHT
@@ -29,15 +29,20 @@ using namespace glm;
 enum CLIP_CODE {TOP = 1, RIGHT = 2, BOTTOM = 4, LEFT = 8};
 
 void draw();
-void line(CanvasPoint p, CanvasPoint q, int colour, uint32_t *buffer, int width, int height);
-void triangle(CanvasTriangle t, int colour, bool filled, int width, int height, uint32_t *buffer);
+void line(CanvasPoint p, CanvasPoint q, int colour, uint32_t *buffer, vec2 offset);
+void triangle(CanvasTriangle t, int colour, bool filled, uint32_t *buffer, float* depthBuff, vec2 offset);
 int *loadPPM(string fileName, int &width, int &height);
 void savePPM(string fileName, DrawingWindow *window);
 void skipHashWS(ifstream &f);
 void update(Camera &cam, vector<Updatable*> updatables);
 void handleEvent(SDL_Event event, Camera &cam);
-float depthBuffer[S_WIDTH * S_HEIGHT];
-uint32_t imageBuffer[S_WIDTH * S_HEIGHT];
+#if SSAA
+float depthBuffer[IMG_SIZE * SSAA_SAMPLES];
+uint32_t imageBuffer[IMG_SIZE * SSAA_SAMPLES];
+#else
+float depthBuffer[IMG_SIZE];
+uint32_t imageBuffer[IMG_SIZE];
+#endif
 bool wireframe;
 vector<float> Interpolate(float a, float b, int n);
 vector<vec3> Interpolate(vec3 a, vec3 b, int n);
@@ -136,11 +141,24 @@ int clipToView(vector<ModelTriangle>& tris) {
   return tris.size();
 }
 
+vector<vec2> generateRotatedGrid(int gridSize) {
+  vector<vec2> result;
+  const int numSamples = gridSize * gridSize;
+  const float step = 1.0f / numSamples;
+  float x = (step * 0.5f) + step * (numSamples - gridSize);
+  for (float y = step * 0.5f; y < 1.0f; y += step) {
+    result.push_back(vec2(x, y));
+    x -= step * gridSize;
+    if (x < 0)
+      x += step * (numSamples + 1);
+  }
+  return result;
+}
+
 void drawTriangles(Camera &cam, std::vector<Model *> models)
 {
-  int width = (SSAA) ? S_WIDTH : WIDTH;
-  int height = (SSAA) ? S_HEIGHT : HEIGHT;
   uint32_t *buffer = (SSAA) ? imageBuffer : window.pixelBuffer;
+  vector<vec2> offsets = generateRotatedGrid(SSAA_SCALE);
   for (unsigned int i = 0; i < models.size(); i++)
   {
     Model &model = *models[i];
@@ -164,44 +182,47 @@ void drawTriangles(Camera &cam, std::vector<Model *> models)
         t.vertices[1] /= t.vertices[1].w;
         t.vertices[2] /= t.vertices[2].w;
         CanvasPoint v1 = CanvasPoint(
-          (t.vertices[0].x + 1.0f) * 0.5f * width,
-          (1 - (t.vertices[0].y + 1.0f) * 0.5f) * height,
+          (t.vertices[0].x + 1.0f) * 0.5f * WIDTH,
+          (1 - (t.vertices[0].y + 1.0f) * 0.5f) * HEIGHT,
           ((cam.far - cam.near) / 2.0f) * t.vertices[0].z + ((cam.far + cam.near) / 2.0f),
           t.brightness[0]);
         CanvasPoint v2 = CanvasPoint(
-          (t.vertices[1].x + 1.0f) * 0.5f * width,
-          (1 - (t.vertices[1].y + 1.0f) * 0.5f) * height,
+          (t.vertices[1].x + 1.0f) * 0.5f * WIDTH,
+          (1 - (t.vertices[1].y + 1.0f) * 0.5f) * HEIGHT,
           ((cam.far - cam.near) / 2.0f) * t.vertices[1].z + ((cam.far + cam.near) / 2.0f),
           t.brightness[1]);
         CanvasPoint v3 = CanvasPoint(
-          (t.vertices[2].x + 1.0f) * 0.5f * width,
-          (1 - (t.vertices[2].y + 1.0f) * 0.5f) * height,
+          (t.vertices[2].x + 1.0f) * 0.5f * WIDTH,
+          (1 - (t.vertices[2].y + 1.0f) * 0.5f) * HEIGHT,
           ((cam.far - cam.near) / 2.0f) * t.vertices[2].z + ((cam.far + cam.near) / 2.0f),
           t.brightness[2]);
-        triangle(CanvasTriangle(v1, v2, v3), tri.colour.toPackedInt(), wireframe, width, height, buffer);
+        #if SSAA
+        for (int s = 0; s < SSAA_SAMPLES; s++) {
+          triangle(CanvasTriangle(v1, v2, v3), tri.colour.toPackedInt(), wireframe, buffer + (IMG_SIZE * s), depthBuffer + (IMG_SIZE * s), offsets[s]);
+        }
+        #else
+        triangle(CanvasTriangle(v1, v2, v3), tri.colour.toPackedInt(), wireframe, buffer, depthBuffer, vec2(0.5f, 0.5f));
+        #endif
       }
     }
   }
 }
 
-void downsample() {
-  uint32_t pixel, subpixel, red, green, blue;
-  int num_samples = SSAA_SCALE * SSAA_SCALE;
-  for (int y = 0; y < HEIGHT; y++) {
-    for (int x = 0; x < WIDTH; x++) {
+void downsample(uint32_t *source, uint32_t *dest, int width, int height, int num_samples) {
+  uint32_t pixel, sample, red, green, blue;
+  for (int y = 0; y < height; y++) {
+    for (int x = 0; x < width; x++) {
       red = 0;
       green = 0;
       blue = 0;
-      for (int sy = 0; sy < SSAA_SCALE; sy++) {
-        for (int sx = 0; sx < SSAA_SCALE; sx++) {
-          subpixel = imageBuffer[(x * SSAA_SCALE + sx) + (y * SSAA_SCALE + sy) * S_WIDTH];
-          red += (subpixel & 0x00ff0000);
-          green += (subpixel & 0x0000ff00);
-          blue += (subpixel & 0x000000ff);
-        }
+      for (int s = 0; s < num_samples; s++) {
+        sample = source[(s * width * height) + x + y * width];
+        red += (sample & 0x00ff0000);
+        green += (sample & 0x0000ff00);
+        blue += (sample & 0x000000ff);
       }
       pixel = 0xff000000 | ((red / num_samples) & 0x00ff0000) | ((green / num_samples) & 0x0000ff00) | ((blue / num_samples) & 0x000000ff);
-      window.pixelBuffer[x + y * WIDTH] = pixel;
+      dest[x + y * width] = pixel;
     }
   }
 }
@@ -478,7 +499,7 @@ int main(int argc, char *argv[])
     } else {
       draw();
       drawTriangles(cam, renderQueue);
-      if (SSAA) downsample();
+      if (SSAA) downsample(imageBuffer, window.pixelBuffer, WIDTH, HEIGHT, SSAA_SAMPLES);
     }
     // Need to render the frame at the end, or nothing actually gets shown on
     // the screen !
@@ -489,11 +510,12 @@ int main(int argc, char *argv[])
 void draw()
 {
   if (!SSAA) window.clearPixels();
-  for (int i = 0; i < S_WIDTH * S_HEIGHT; i++)
+  size_t img_size = SSAA ? (IMG_SIZE * SSAA_SAMPLES) : IMG_SIZE;
+  for (size_t i = 0; i < img_size; i++)
   {
     depthBuffer[i] = std::numeric_limits<float>::infinity();
-    imageBuffer[i] = 0;
   }
+  memset(imageBuffer, 0, img_size * sizeof(uint32_t));
 }
 
 int moveStage = 0;
@@ -690,17 +712,17 @@ bool clipLine(CanvasPoint& p, CanvasPoint& q, int width, int height) {
   }
 }
 
-void line(CanvasPoint p, CanvasPoint q, int colour, uint32_t *buffer, int width, int height)
+void line(CanvasPoint p, CanvasPoint q, int colour, uint32_t *buffer, vec2 offset)
 {
-  if (!clipLine(p, q, width, height)) return;
+  if (!clipLine(p, q, WIDTH, HEIGHT)) return;
   float x_diff = p.x - q.x;
   float y_diff = p.y - q.y;
   float max_diff = std::max(abs(x_diff), abs(y_diff));
-  vector<float> interpolate_x = Interpolate(p.x, q.x, max_diff + 1);
-  vector<float> interpolate_y = Interpolate(p.y, q.y, max_diff + 1);
+  vector<float> interpolate_x = Interpolate(p.x + offset.x, q.x + offset.x, max_diff + 1);
+  vector<float> interpolate_y = Interpolate(p.y + offset.y, q.y + offset.y, max_diff + 1);
   for (int i = 0; i < max_diff; i++)
   {
-    buffer[(int)(round(interpolate_y[i]) * width + round(interpolate_x[i]))] = colour;
+    buffer[(int)(interpolate_y[i]) * WIDTH + (int)interpolate_x[i]] = colour;
   }
 }
 
@@ -718,7 +740,7 @@ inline int scaleColour(int colour, float scale) {
   return (colour & 0xff000000) | (red << 16) | (green << 8) | blue;
 }
 
-void triangle(CanvasTriangle t, int colour, bool filled, int width, int height, uint32_t *buffer)
+void triangle(CanvasTriangle t, int colour, bool filled, uint32_t *buffer, float *depthBuff, vec2 offset)
 {
   if (filled)
   {
@@ -730,10 +752,10 @@ void triangle(CanvasTriangle t, int colour, bool filled, int width, int height, 
     y_min = glm::min((float)y_min, t.vertices[2].y);
     int y_max = glm::max(t.vertices[0].y, t.vertices[1].y);
     y_max = glm::max((float)y_max, t.vertices[2].y);
-    x_min = clamp<int>(x_min, 0, width - 1);
-    x_max = clamp<int>(x_max, 0, width - 1);
-    y_min = clamp<int>(y_min, 0, height - 1);
-    y_max = clamp<int>(y_max, 0, height - 1);
+    x_min = clamp<int>(x_min, 0, WIDTH - 1);
+    x_max = clamp<int>(x_max, 0, WIDTH - 1);
+    y_min = clamp<int>(y_min, 0, HEIGHT - 1);
+    y_max = clamp<int>(y_max, 0, HEIGHT - 1);
     float area_inv = 1.0f / edgeFunction(t.vertices[0], t.vertices[1], t.vertices[2]);
     float w0_step_x = (t.vertices[2].y - t.vertices[1].y) * area_inv;
     float w1_step_x = (t.vertices[0].y - t.vertices[2].y) * area_inv;
@@ -741,7 +763,7 @@ void triangle(CanvasTriangle t, int colour, bool filled, int width, int height, 
     float w0_step_y = (t.vertices[1].x - t.vertices[2].x) * area_inv;
     float w1_step_y = (t.vertices[2].x - t.vertices[0].x) * area_inv;
     float w2_step_y = (t.vertices[0].x - t.vertices[1].x) * area_inv;
-    CanvasPoint p = CanvasPoint(x_min + 0.5f, y_min + 0.5f);
+    CanvasPoint p = CanvasPoint(x_min + offset.x, y_min + offset.y);
     float w0_line = edgeFunction(t.vertices[1], t.vertices[2], p) * area_inv;
     float w1_line = edgeFunction(t.vertices[2], t.vertices[0], p) * area_inv;
     float w2_line = edgeFunction(t.vertices[0], t.vertices[1], p) * area_inv;
@@ -754,9 +776,9 @@ void triangle(CanvasTriangle t, int colour, bool filled, int width, int height, 
         if (w0 >= 0 && w1 >= 0 && w2 >= 0) {
           float depth = w0 * t.vertices[0].depth + w1 * t.vertices[1].depth + w2 * t.vertices[2].depth;
           float brightness = w0 * t.vertices[0].brightness + w1 * t.vertices[1].brightness + w2 * t.vertices[2].brightness;
-          if (depth < depthBuffer[y * width + x]) {
-            depthBuffer[y * width + x] = depth;
-            buffer[y * width + x] = scaleColour(colour, brightness);
+          if (depth < depthBuff[y * WIDTH + x]) {
+            depthBuff[y * WIDTH + x] = depth;
+            buffer[y * WIDTH + x] = scaleColour(colour, brightness);
           }
         }
         w0 += w0_step_x;
@@ -770,9 +792,9 @@ void triangle(CanvasTriangle t, int colour, bool filled, int width, int height, 
   }
   else
   {
-    line(t.vertices[0], t.vertices[1], colour, buffer, width, height);
-    line(t.vertices[1], t.vertices[2], colour, buffer, width, height);
-    line(t.vertices[2], t.vertices[0], colour, buffer, width, height);
+    line(t.vertices[0], t.vertices[1], colour, buffer, offset);
+    line(t.vertices[1], t.vertices[2], colour, buffer, offset);
+    line(t.vertices[2], t.vertices[0], colour, buffer, offset);
   }
 }
 
