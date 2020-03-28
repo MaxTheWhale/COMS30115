@@ -7,6 +7,7 @@
 #include <glm/glm.hpp>
 #include <unordered_map>
 #include <vector>
+#include <chrono>
 #include <sys/time.h>
 #include "Camera.hpp"
 #include "Model.hpp"
@@ -20,7 +21,7 @@ using namespace glm;
 #define HEIGHT 480
 #define IMG_SIZE (WIDTH*HEIGHT)
 #define SSAA true
-#define SSAA_SCALE 3
+#define SSAA_SCALE 2
 #define SSAA_SAMPLES (SSAA_SCALE*SSAA_SCALE)
 #define MOUSE_SENSITIVITY 0.0015f
 #define AMBIENCE 0.1f
@@ -478,9 +479,17 @@ int main(int argc, char *argv[])
   // cam.moves.top().lookAt(cam.getPosition(), vec3(0, -2.5f, 0));
 
   Times::init();
-
+  auto start = std::chrono::high_resolution_clock::now();
+  int frameCount = 0;
   while (true)
   {
+    auto elapsed = std::chrono::high_resolution_clock::now() - start;
+    long long millis = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
+    if (millis >= 1000) {
+      cout << "FPS: " << frameCount << '\n';
+      start = std::chrono::high_resolution_clock::now();
+      frameCount = 0;
+    }
     //cout << "camera transform = " << cam.transform << endl;
     Times::update();
     //cout << "deltaTime: " << Times::deltaTime() << endl;
@@ -504,6 +513,7 @@ int main(int argc, char *argv[])
     // Need to render the frame at the end, or nothing actually gets shown on
     // the screen !
     window.renderFrame();
+    frameCount++;
   }
 }
 
