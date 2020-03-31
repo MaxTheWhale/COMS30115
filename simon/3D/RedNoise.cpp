@@ -286,6 +286,13 @@ vector<vec4> getLightPoints(vector<ModelTriangle> lights) {
   return result;
 }
 
+Colour addColours(Colour base, Colour add) {
+  base.red += add.red;
+  base.green += add.green;
+  base.blue += add.blue;
+  return base;
+}
+
 void raytrace(Camera camera, std::vector<Model*> models, int softness) {
   //lighting options. Make ambience global and the others properties of the lights
   float intensity = 10.0f / softness;
@@ -294,6 +301,7 @@ void raytrace(Camera camera, std::vector<Model*> models, int softness) {
   //idk what this does
   for (unsigned int i = 1; i < models.size(); i++) {
     for (auto tri : (*models[i]).tris) {
+      //if (dot(((*models[i]).transform * tri.vertices[0]) - vec4(camera.getPosition(), 0), tri.normal) >= 0.0f) continue;
       (*models[0])
           .tris.push_back(
               ModelTriangle((*models[i]).transform * tri.vertices[0],
@@ -325,6 +333,7 @@ void raytrace(Camera camera, std::vector<Model*> models, int softness) {
       
       RayTriangleIntersection intersection = RayTriangleIntersection();
       bool foundIntersection = false;
+      Colour transparentColour = Colour(0, 0, 0);
 
       //calculate closest intersection by looping through each of the triangles
       for(ModelTriangle triangle : model.tris) {
@@ -336,9 +345,11 @@ void raytrace(Camera camera, std::vector<Model*> models, int softness) {
 
         // check if ray intersects triangle and not just triangle plane
         if (possibleSolution.y >= 0 && possibleSolution.y <= 1 &&
-            possibleSolution.z >= 0 && possibleSolution.z <= 1 &&
-            possibleSolution.y + possibleSolution.z <= 1) {
-          if (possibleSolution.x < minDistance) {
+          possibleSolution.z >= 0 && possibleSolution.z <= 1 &&
+          possibleSolution.y + possibleSolution.z <= 1) {
+          if(triangle.name == "short_box") {
+            transparentColour.red += 200;
+          } else if (possibleSolution.x < minDistance) {
             foundIntersection = true;
             intersection = RayTriangleIntersection(camera.transform[3] + (possibleSolution.x * rayDirection) , possibleSolution.x, triangle);
             intersection.intersectionPoint.w = 1;
@@ -348,6 +359,48 @@ void raytrace(Camera camera, std::vector<Model*> models, int softness) {
       }
 
       if(foundIntersection) {
+        bool mirror = false;
+
+        if(intersection.intersectedTriangle.name == "tall_box") {
+          // the main camera ray
+          vec4 mirrorRayDirection = glm::normalize((intersection.intersectedTriangle.normal) - 2.0f * (glm::dot((intersection.intersectedTriangle.normal), rayDirection) * rayDirection));
+          mirrorRayDirection.w = 0;
+
+          float minDistance = std::numeric_limits<float>::infinity();
+          
+          RayTriangleIntersection mirrorIntersection = RayTriangleIntersection();
+          bool foundIntersection = false;
+
+          //calculate closest intersection by looping through each of the triangles
+          for(ModelTriangle triangle : model.tris) {
+            vec4 e0 = triangle.vertices[1] - triangle.vertices[0];
+            vec4 e1 = triangle.vertices[2] - triangle.vertices[0];
+            vec4 SPVector = camera.transform[3] - triangle.vertices[0];
+            mat4 DEMatrix(-mirrorRayDirection, e0, e1, vec4(1, 1, 1, 1));
+            vec4 possibleSolution = glm::inverse(DEMatrix) * SPVector;
+
+            // check if ray intersects triangle and not just triangle plane
+            if (possibleSolution.y >= 0 && possibleSolution.y <= 1 &&
+                possibleSolution.z >= 0 && possibleSolution.z <= 1 &&
+                possibleSolution.y + possibleSolution.z <= 1) {
+              if (possibleSolution.x < minDistance) {
+                foundIntersection = true;
+                mirrorIntersection = RayTriangleIntersection(camera.transform[3] + (possibleSolution.x * rayDirection) , possibleSolution.x, triangle);
+                mirrorIntersection.intersectionPoint.w = 1;
+                minDistance = possibleSolution.x;
+              }
+            }
+          }
+
+          if(foundIntersection) {
+            mirror = true;
+            intersection = mirrorIntersection;
+          } else {
+            break;
+          }
+        }
+
+
         //TODO: make special float that automatically binds between 0 and 1
         //these values lighten the pixel, so they go from 0 (dark) to 1 (fully in light)
         float brightnessCount = 0.0f;
@@ -363,12 +416,8 @@ void raytrace(Camera camera, std::vector<Model*> models, int softness) {
           vec4 shadowRayDirection = light - intersection.intersectionPoint;
           vec4 shadowRayNormalised = glm::normalize(shadowRayDirection);
 
-          //cross and dot only work on vec4s
-          vec4 intersectionNormal = glm::normalize(cross(intersection.intersectedTriangle.vertices[1] - intersection.intersectedTriangle.vertices[0],
-                                    intersection.intersectedTriangle.vertices[2] - intersection.intersectedTriangle.vertices[0]));
-
           //calculate the angleOfIncidence between 0 and 1
-          float angleOfIncidence = glm::dot(shadowRayNormalised, intersectionNormal);
+          float angleOfIncidence = glm::dot(shadowRayNormalised, intersection.intersectedTriangle.normal);
           angleOfIncidence = angleOfIncidence < 0 ? AMBIENCE : angleOfIncidence;
           angleCount += angleOfIncidence;
 
@@ -377,7 +426,7 @@ void raytrace(Camera camera, std::vector<Model*> models, int softness) {
           brightnessCount += brightness;
 
           //128 will later have to be paramaterised to reflect each material
-          vec4 reflection = glm::normalize((-shadowRayDirection) - 2.0f * (glm::dot((-shadowRayDirection), intersectionNormal) * intersectionNormal));
+          vec4 reflection = glm::normalize((-shadowRayDirection) - 2.0f * (glm::dot((-shadowRayDirection), intersection.intersectedTriangle.normal) * intersection.intersectedTriangle.normal));
           float specular = pow(glm::dot(glm::normalize((-rayDirection)), reflection), 128);
 
           specularCount += specular;
@@ -411,9 +460,11 @@ void raytrace(Camera camera, std::vector<Model*> models, int softness) {
         angleCount = clamp<float>(angleCount, 0, 1);
         specularCount = clamp<float>(specularCount, 0, 1);
 
+        Colour c = addColours(intersection.intersectedTriangle.colour, transparentColour);
+
         //set the final pixels
-        if(intersection.intersectedTriangle.name == "light") window.setPixelColour(i, j, intersection.intersectedTriangle.colour.toPackedInt());
-        else window.setPixelColour(i, j, darkenColour(intersection.intersectedTriangle.colour, clamp<float>(angleCount * (inShadow ? shadowCount : 1.0f) * brightnessCount, AMBIENCE, 1), inShadow? 0 : specularCount));
+        if(intersection.intersectedTriangle.name == "light") window.setPixelColour(i, j, c.toPackedInt());
+        else window.setPixelColour(i, j, darkenColour(c, clamp<float>(angleCount * (inShadow ? shadowCount : 1.0f) * brightnessCount, AMBIENCE, 1), inShadow || mirror ? 0 : specularCount));
       } else {
         window.setPixelColour(i, j, 0);
       }
@@ -450,11 +501,11 @@ int main(int argc, char *argv[])
   // cornellRB2.hasGravity = false;
   // updateQueue.push_back(&cornellRB2);
 
-  Model sphere = Model("blob");
-  sphere.setPosition(vec3(0,5.5f,-3));
-  renderQueue.push_back(&sphere);
-  Rigidbody sphereRB = Rigidbody(&sphere);
-  updateQueue.push_back(&sphereRB);
+  // Model sphere = Model("blob");
+  // sphere.setPosition(vec3(0,5.5f,-3));
+  // renderQueue.push_back(&sphere);
+  // Rigidbody sphereRB = Rigidbody(&sphere);
+  // updateQueue.push_back(&sphereRB);
 
   // Model tri1 = Model("triangle");
   // renderQueue.push_back(&tri1);
@@ -504,6 +555,7 @@ int main(int argc, char *argv[])
     //std::vector<Model*> models{&cornell, &sphere};
     //std::cout << "about to render" << std::endl;
     if(toRaytrace) {
+      draw();
       raytrace(cam, renderQueue, softShadows ? 2 : 1);
     } else {
       draw();
