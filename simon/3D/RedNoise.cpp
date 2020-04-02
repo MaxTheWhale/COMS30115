@@ -28,6 +28,7 @@ using namespace glm;
 #define ASPECT_RATIO WIDTH/(float)HEIGHT
 
 enum CLIP_CODE {TOP = 1, RIGHT = 2, BOTTOM = 4, LEFT = 8};
+enum COLOUR_MASK {ALPHA = 0xff000000, RED = 0x00ff0000, GREEN = 0x0000ff00, BLUE = 0x000000ff};
 
 void draw();
 void line(CanvasPoint p, CanvasPoint q, int colour, uint32_t *buffer, vec2 offset);
@@ -234,11 +235,11 @@ void downsample(uint32_t *source, uint32_t *dest, int width, int height, int num
       blue = 0;
       for (int s = 0; s < num_samples; s++) {
         sample = source[(s * width * height) + x + y * width];
-        red += (sample & 0x00ff0000);
-        green += (sample & 0x0000ff00);
-        blue += (sample & 0x000000ff);
+        red += (sample & RED);
+        green += (sample & GREEN);
+        blue += (sample & BLUE);
       }
-      pixel = 0xff000000 | ((red / num_samples) & 0x00ff0000) | ((green / num_samples) & 0x0000ff00) | ((blue / num_samples) & 0x000000ff);
+      pixel = ALPHA | ((red / num_samples) & RED) | ((green / num_samples) & GREEN) | ((blue / num_samples) & BLUE);
       dest[x + y * width] = pixel;
     }
   }
@@ -809,13 +810,26 @@ inline float edgeFunction(const CanvasPoint& v0, const CanvasPoint& v1, const Ca
 }
 
 inline int scaleColour(int colour, float scale) {
-  unsigned char red = (colour & 0x00ff0000) >> 16;
+  unsigned char red = (colour & RED) >> 16;
   red *= scale;
-  unsigned char green = (colour & 0x0000ff00) >> 8;
+  unsigned char green = (colour & GREEN) >> 8;
   green *= scale;
-  unsigned char blue = (colour & 0x000000ff);
+  unsigned char blue = (colour & BLUE);
   blue *= scale;
-  return (colour & 0xff000000) | (red << 16) | (green << 8) | blue;
+  return (colour & ALPHA) | (red << 16) | (green << 8) | blue;
+}
+
+inline int bilinearColour(int tl, int tr, int bl, int br, vec2 pos) {
+  float xy = pos.x * pos.y;
+  float a0 = xy - pos.x - pos.y + 1.0f;
+  float a1 = pos.y - xy;
+  float a2 = pos.x - xy;
+  float a3 = xy;
+  tl = scaleColour(tl, a0);
+  bl = scaleColour(bl, a1);
+  tr = scaleColour(tr, a2);
+  br = scaleColour(br, a3);
+  return ALPHA | (tl + bl + tr + br);
 }
 
 void triangle(CanvasTriangle t, Texture &tex, int colour, bool filled, uint32_t *buffer, float *depthBuff, vec2 offset)
@@ -862,7 +876,8 @@ void triangle(CanvasTriangle t, Texture &tex, int colour, bool filled, uint32_t 
               float v = w0 * t.vertices[0].uv.y + w1 * t.vertices[1].uv.y + w2 * t.vertices[2].uv.y;
               u *= tex.width;
               v *= tex.height;
-              buffer[y * WIDTH + x] = scaleColour(tex.data[(int)u + (int)v * tex.width], brightness);
+              int biColour = bilinearColour(tex.data[(int)u + (int)v * tex.width], tex.data[((int)u) + 1 + (int)v * tex.width], tex.data[(int)u + (((int)v) + 1) * tex.width], tex.data[((int)u) + 1 + (((int)v) + 1) * tex.width], vec2(u - (int)u, v - (int)v));
+              buffer[y * WIDTH + x] = scaleColour(biColour, brightness);
             }
             else
               buffer[y * WIDTH + x] = scaleColour(colour, brightness);
