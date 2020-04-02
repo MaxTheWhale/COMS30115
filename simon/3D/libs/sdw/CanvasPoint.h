@@ -8,11 +8,11 @@ class CanvasPoint
     float y;
     float depth;
     float brightness;
-    TexturePoint texturePoint;
+    glm::vec2 uv;
 
     CanvasPoint()
     {
-        texturePoint = TexturePoint(-1,-1);
+        uv = glm::vec2(-1,-1);
     }
 
     CanvasPoint(float xPos, float yPos)
@@ -21,7 +21,7 @@ class CanvasPoint
       y = yPos;
       depth = 0.0;
       brightness = 1.0;
-      texturePoint = TexturePoint(-1,-1);
+      uv = glm::vec2(-1,-1);
     }
 
     CanvasPoint(float xPos, float yPos, float pointDepth)
@@ -30,7 +30,7 @@ class CanvasPoint
       y = yPos;
       depth = pointDepth;
       brightness = 1.0;
-      texturePoint = TexturePoint(-1,-1);
+      uv = glm::vec2(-1,-1);
     }
 
     CanvasPoint(float xPos, float yPos, float pointDepth, float pointBrightness)
@@ -39,16 +39,16 @@ class CanvasPoint
       y = yPos;
       depth = pointDepth;
       brightness = pointBrightness;
-      texturePoint = TexturePoint(-1,-1);
+      uv = glm::vec2(-1,-1);
     }
 
-    CanvasPoint(float xPos, float yPos, float pointDepth, float pointBrightness, TexturePoint& texPoint)
+    CanvasPoint(float xPos, float yPos, float pointDepth, float pointBrightness, glm::vec2 uvCoord)
     {
       x = xPos;
       y = yPos;
       depth = pointDepth;
       brightness = pointBrightness;
-      texturePoint = texPoint;
+      uv = uvCoord;
     }
 
     CanvasPoint operator+=(const CanvasPoint& rhs)
@@ -57,7 +57,7 @@ class CanvasPoint
       y += rhs.y;
       depth += rhs.depth;
       brightness += rhs.brightness;
-      texturePoint += rhs.texturePoint;
+      uv += rhs.uv;
       return *this;
     }
 
@@ -73,7 +73,7 @@ class CanvasPoint
       y -= rhs.y;
       depth -= rhs.depth;
       brightness -= rhs.brightness;
-      texturePoint -= rhs.texturePoint;
+      uv -= rhs.uv;
       return *this;
     }
 
@@ -89,7 +89,7 @@ class CanvasPoint
       y *= rhs;
       depth *= rhs;
       brightness *= rhs;
-      texturePoint *= rhs;
+      uv *= rhs;
       return *this;
     }
 
@@ -105,7 +105,7 @@ class CanvasPoint
       y /= rhs;
       depth /= rhs;
       brightness /= rhs;
-      texturePoint /= rhs;
+      uv /= rhs;
       return *this;
     }
 
@@ -113,19 +113,6 @@ class CanvasPoint
     {
       lhs /= rhs;
       return lhs;
-    }
-
-    friend bool operator<(const CanvasPoint& lhs, const CanvasPoint& rhs)
-    {
-      return lhs.y < rhs.y;
-    }
-    friend bool operator==(const CanvasPoint& lhs, const CanvasPoint& rhs)
-    {
-      return lhs.y == rhs.y;
-    }
-    friend bool operator!=(const CanvasPoint& lhs, const CanvasPoint& rhs)
-    {
-      return !(lhs == rhs);
     }
 };
 

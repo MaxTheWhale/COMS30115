@@ -54,10 +54,22 @@ vector<ModelTriangle> Model::loadOBJ(string fileName,
       {
         string a, b, c;
         f >> a >> b >> c;
-        faces.push_back(ModelTriangle(vertices[stoi(split(a, '/')[0]) - 1],
-                                      vertices[stoi(split(b, '/')[0]) - 1],
-                                      vertices[stoi(split(c, '/')[0]) - 1],
-                                      colour, name));
+        string *as = split(a, '/');
+        string *bs = split(b, '/');
+        string *cs = split(c, '/');
+        ModelTriangle tri = ModelTriangle(vertices[stoi(as[0]) - 1],
+                                      vertices[stoi(bs[0]) - 1],
+                                      vertices[stoi(cs[0]) - 1],
+                                      colour, name);
+        if (as[1] != "" && bs[1] != "" && cs[1] != "") {
+          tri.uvs[0] = uvs[stoi(as[1]) - 1];
+          tri.uvs[1] = uvs[stoi(bs[1]) - 1];
+          tri.uvs[2] = uvs[stoi(cs[1]) - 1];
+        }
+        delete [] as;
+        delete [] bs;
+        delete [] cs;
+        faces.push_back(tri);
       }
     }
   }
@@ -100,7 +112,9 @@ int *loadPPM(string fileName, int &width, int &height)
   for (int i = 0; i < width * height; i++)
   {
     buff[i] = 0xff000000;
-    f.read((char *)&buff[i], 3);
+    f.read(((char*)&buff[i]) + 2, 1);
+    f.read(((char*)&buff[i]) + 1, 1);
+    f.read((char*)&buff[i], 1);
   }
   return buff;
 }
@@ -130,6 +144,12 @@ unordered_map<string, Colour> Model::loadMTL(string fileName, int*& data, int& w
     if (s == "map_Kd") {
       string texture_file;
       f >> texture_file;
+      size_t pos = fileName.find('/');
+      if (pos != fileName.npos) {
+        fileName.erase(pos + 1);
+        texture_file = fileName + texture_file;
+        cout << texture_file << '\n';
+      }
       data = loadPPM(texture_file, width, height);
     }
   }

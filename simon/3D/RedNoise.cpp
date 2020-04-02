@@ -21,7 +21,7 @@ using namespace glm;
 #define HEIGHT 480
 #define IMG_SIZE (WIDTH*HEIGHT)
 #define SSAA true
-#define SSAA_SCALE 2
+#define SSAA_SCALE 3
 #define SSAA_SAMPLES (SSAA_SCALE*SSAA_SCALE)
 #define MOUSE_SENSITIVITY 0.0015f
 #define AMBIENCE 0.1f
@@ -31,7 +31,7 @@ enum CLIP_CODE {TOP = 1, RIGHT = 2, BOTTOM = 4, LEFT = 8};
 
 void draw();
 void line(CanvasPoint p, CanvasPoint q, int colour, uint32_t *buffer, vec2 offset);
-void triangle(CanvasTriangle t, int colour, bool filled, uint32_t *buffer, float* depthBuff, vec2 offset);
+void triangle(CanvasTriangle t, Texture &tex, int colour, bool filled, uint32_t *buffer, float *depthBuff, vec2 offset);
 int *loadPPM(string fileName, int &width, int &height);
 void savePPM(string fileName, DrawingWindow *window);
 void skipHashWS(ifstream &f);
@@ -69,6 +69,7 @@ inline vec4 cross(const vec4& a, const vec4& b) {
 int clipTriangle(vector<ModelTriangle>& tris, const vec4& normal) {
   vec4 temp;
   float tempBright;
+  vec2 tempUV;
   vector<int> toBeCulled;
   int n = tris.size();
   for (int i = 0; i < n; i++) {
@@ -87,24 +88,32 @@ int clipTriangle(vector<ModelTriangle>& tris, const vec4& normal) {
       nextInside = (distances[2] >= 0.0f);
       temp = tris[i].vertices[0];
       tempBright = tris[i].brightness[0];
+      tempUV = tris[i].uvs[0];
       tris[i].vertices[0] = tris[i].vertices[1];
       tris[i].brightness[0] = tris[i].brightness[1];
+      tris[i].uvs[0] = tris[i].uvs[1];
       tris[i].vertices[1] = tris[i].vertices[2];
       tris[i].brightness[1] = tris[i].brightness[2];
+      tris[i].uvs[1] = tris[i].uvs[2];
       tris[i].vertices[2] = temp;
       tris[i].brightness[2] = tempBright;
+      tris[i].uvs[2] = tempUV;
       rotate(distances.begin(),distances.begin()+1,distances.end());
     }
     else if (distances[2] >= 0.0f && distances[1] < 0.0f) {
       nextInside = (distances[0] >= 0.0f);
       temp = tris[i].vertices[2];
       tempBright = tris[i].brightness[2];
+      tempUV = tris[i].uvs[2];
       tris[i].vertices[2] = tris[i].vertices[1];
       tris[i].brightness[2] = tris[i].brightness[1];
+      tris[i].uvs[2] = tris[i].uvs[1];
       tris[i].vertices[1] = tris[i].vertices[0];
       tris[i].brightness[1] = tris[i].brightness[0];
+      tris[i].uvs[1] = tris[i].uvs[0];
       tris[i].vertices[0] = temp;
       tris[i].brightness[0] = tempBright;
+      tris[i].uvs[0] = tempUV;
       rotate(distances.begin(),distances.begin()+2,distances.end());
     }
     else {
@@ -112,16 +121,24 @@ int clipTriangle(vector<ModelTriangle>& tris, const vec4& normal) {
     }
     temp = mix(tris[i].vertices[0], tris[i].vertices[2], (distances[0] / (distances[0] - distances[2])));
     tempBright = mix(tris[i].brightness[0], tris[i].brightness[2], (distances[0] / (distances[0] - distances[2])));
+    tempUV = mix(tris[i].uvs[0], tris[i].uvs[2], (distances[0] / (distances[0] - distances[2])));
     if (nextInside) {
       tris[i].vertices[2] = mix(tris[i].vertices[1], tris[i].vertices[2], (distances[1] / (distances[1] - distances[2])));
       tris[i].brightness[2] = mix(tris[i].brightness[1], tris[i].brightness[2], (distances[1] / (distances[1] - distances[2])));
-      tris.push_back(ModelTriangle(tris[i].vertices[0], tris[i].vertices[2], temp, tris[i].brightness[0], tris[i].brightness[2], tempBright, tris[i].colour, tris[i].normal));
+      tris[i].uvs[2] = mix(tris[i].uvs[1], tris[i].uvs[2], (distances[1] / (distances[1] - distances[2])));
+      ModelTriangle newTri = ModelTriangle(tris[i].vertices[0], tris[i].vertices[2], temp, tris[i].brightness[0], tris[i].brightness[2], tempBright, tris[i].colour, tris[i].normal);
+      newTri.uvs[0] = tris[i].uvs[0];
+      newTri.uvs[1] = tris[i].uvs[2];
+      newTri.uvs[2] = tempUV;
+      tris.push_back(newTri);
     }
     else {
       tris[i].vertices[1] = mix(tris[i].vertices[0], tris[i].vertices[1], (distances[0] / (distances[0] - distances[1])));
       tris[i].brightness[1] = mix(tris[i].brightness[0], tris[i].brightness[1], (distances[0] / (distances[0] - distances[1])));
+      tris[i].uvs[1] = mix(tris[i].uvs[0], tris[i].uvs[1], (distances[0] / (distances[0] - distances[1])));
       tris[i].vertices[2] = temp;
       tris[i].brightness[2] = tempBright;
+      tris[i].uvs[2] = tempUV;
     }
   }
   for (auto i : toBeCulled) {
@@ -131,8 +148,7 @@ int clipTriangle(vector<ModelTriangle>& tris, const vec4& normal) {
 }
 
 int clipToView(vector<ModelTriangle>& tris) {
-  const vec4 normals[2] = {vec4(0, 0, 1, 1), vec4(0, 0, -1, 1)}; // swap these two lines for full frustrum clipping
-  // const vec4 normals[6] = {vec4(1, 0, 0, 1), vec4(-1, 0, 0, 1), vec4(0, 1, 0, 1), vec4(0, -1, 0, 1), vec4(0, 0, 1, 1), vec4(0, 0, -1, 1)};
+  const vec4 normals[6] = {vec4(1, 0, 0, 1), vec4(-1, 0, 0, 1), vec4(0, 1, 0, 1), vec4(0, -1, 0, 1), vec4(0, 0, 1, 1), vec4(0, 0, -1, 1)};
   for (auto n : normals) {
     int num = clipTriangle(tris, n);
     if (num == 0) {
@@ -186,23 +202,23 @@ void drawTriangles(Camera &cam, std::vector<Model *> models)
           (t.vertices[0].x + 1.0f) * 0.5f * WIDTH,
           (1 - (t.vertices[0].y + 1.0f) * 0.5f) * HEIGHT,
           ((cam.far - cam.near) / 2.0f) * t.vertices[0].z + ((cam.far + cam.near) / 2.0f),
-          t.brightness[0]);
+          t.brightness[0], t.uvs[0]);
         CanvasPoint v2 = CanvasPoint(
           (t.vertices[1].x + 1.0f) * 0.5f * WIDTH,
           (1 - (t.vertices[1].y + 1.0f) * 0.5f) * HEIGHT,
           ((cam.far - cam.near) / 2.0f) * t.vertices[1].z + ((cam.far + cam.near) / 2.0f),
-          t.brightness[1]);
+          t.brightness[1], t.uvs[1]);
         CanvasPoint v3 = CanvasPoint(
           (t.vertices[2].x + 1.0f) * 0.5f * WIDTH,
           (1 - (t.vertices[2].y + 1.0f) * 0.5f) * HEIGHT,
           ((cam.far - cam.near) / 2.0f) * t.vertices[2].z + ((cam.far + cam.near) / 2.0f),
-          t.brightness[2]);
+          t.brightness[2], t.uvs[2]);
         #if SSAA
         for (int s = 0; s < SSAA_SAMPLES; s++) {
-          triangle(CanvasTriangle(v1, v2, v3), tri.colour.toPackedInt(), wireframe, buffer + (IMG_SIZE * s), depthBuffer + (IMG_SIZE * s), offsets[s]);
+          triangle(CanvasTriangle(v1, v2, v3), model.texture, tri.colour.toPackedInt(), wireframe, buffer + (IMG_SIZE * s), depthBuffer + (IMG_SIZE * s), offsets[s]);
         }
         #else
-        triangle(CanvasTriangle(v1, v2, v3), tri.colour.toPackedInt(), wireframe, buffer, depthBuffer, vec2(0.5f, 0.5f));
+        triangle(CanvasTriangle(v1, v2, v3), model.texture, tri.colour.toPackedInt(), wireframe, buffer, depthBuffer, vec2(0.5f, 0.5f));
         #endif
       }
     }
@@ -802,10 +818,11 @@ inline int scaleColour(int colour, float scale) {
   return (colour & 0xff000000) | (red << 16) | (green << 8) | blue;
 }
 
-void triangle(CanvasTriangle t, int colour, bool filled, uint32_t *buffer, float *depthBuff, vec2 offset)
+void triangle(CanvasTriangle t, Texture &tex, int colour, bool filled, uint32_t *buffer, float *depthBuff, vec2 offset)
 {
   if (filled)
   {
+    bool textured = (t.vertices[0].uv.x >= 0.0f);
     int x_min = glm::min(t.vertices[0].x, t.vertices[1].x);
     x_min = glm::min((float)x_min, t.vertices[2].x);
     int x_max = glm::max(t.vertices[0].x, t.vertices[1].x);
@@ -837,10 +854,18 @@ void triangle(CanvasTriangle t, int colour, bool filled, uint32_t *buffer, float
       for (int x = x_min; x <= x_max; x++) {
         if (w0 >= 0 && w1 >= 0 && w2 >= 0) {
           float depth = w0 * t.vertices[0].depth + w1 * t.vertices[1].depth + w2 * t.vertices[2].depth;
-          float brightness = w0 * t.vertices[0].brightness + w1 * t.vertices[1].brightness + w2 * t.vertices[2].brightness;
           if (depth < depthBuff[y * WIDTH + x]) {
             depthBuff[y * WIDTH + x] = depth;
-            buffer[y * WIDTH + x] = scaleColour(colour, brightness);
+            float brightness = w0 * t.vertices[0].brightness + w1 * t.vertices[1].brightness + w2 * t.vertices[2].brightness;
+            if (textured) {
+              float u = w0 * t.vertices[0].uv.x + w1 * t.vertices[1].uv.x + w2 * t.vertices[2].uv.x;
+              float v = w0 * t.vertices[0].uv.y + w1 * t.vertices[1].uv.y + w2 * t.vertices[2].uv.y;
+              u *= tex.width;
+              v *= tex.height;
+              buffer[y * WIDTH + x] = scaleColour(tex.data[(int)u + (int)v * tex.width], brightness);
+            }
+            else
+              buffer[y * WIDTH + x] = scaleColour(colour, brightness);
           }
         }
         w0 += w0_step_x;
