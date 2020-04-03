@@ -166,59 +166,57 @@ inline Vertex mixVertex(const Vertex &p, const Vertex &q, float a) {
 }
 
 // based on https://casual-effects.com/research/McGuire2011Clipping/McGuire-Clipping.pdf
-int clipTriangle(vector<Triangle>& tris, const vec4& normal) {
+int clipTriangle(list<Triangle>& tris, const vec4& normal) {
   Vertex temp;
-  list<int> toBeCulled;
+  list<Triangle>::iterator tri = tris.begin();
   int n = tris.size();
-  for (int i = 0; i < n; i++) {
+  for (int i = 0; (i < n) && tri != tris.end(); i++) {
     vector<float> distances;
-    distances.push_back(dot(tris[i].vertices[0].pos, normal));
-    distances.push_back(dot(tris[i].vertices[1].pos, normal));
-    distances.push_back(dot(tris[i].vertices[2].pos, normal));
+    distances.push_back(dot((*tri).vertices[0].pos, normal));
+    distances.push_back(dot((*tri).vertices[1].pos, normal));
+    distances.push_back(dot((*tri).vertices[2].pos, normal));
     if (distances[0] >= 0.0f && distances[1] >= 0.0f && distances[2] >= 0.0f) {
       continue;
     }
     if (distances[0] < 0.0f && distances[1] < 0.0f && distances[2] < 0.0f) {
-      toBeCulled.push_back(i);
+      tris.erase(tri);
     }
     bool nextInside;
     if (distances[1] >= 0.0f && distances[0] < 0.0f) {
       nextInside = (distances[2] >= 0.0f);
-      temp = tris[i].vertices[0];
-      tris[i].vertices[0] = tris[i].vertices[1];
-      tris[i].vertices[1] = tris[i].vertices[2];
-      tris[i].vertices[2] = temp;
+      temp = (*tri).vertices[0];
+      (*tri).vertices[0] = (*tri).vertices[1];
+      (*tri).vertices[1] = (*tri).vertices[2];
+      (*tri).vertices[2] = temp;
       rotate(distances.begin(),distances.begin()+1,distances.end());
     }
     else if (distances[2] >= 0.0f && distances[1] < 0.0f) {
       nextInside = (distances[0] >= 0.0f);
-      temp = tris[i].vertices[2];
-      tris[i].vertices[2] = tris[i].vertices[1];
-      tris[i].vertices[1] = tris[i].vertices[0];
-      tris[i].vertices[0] = temp;
+      temp = (*tri).vertices[2];
+      (*tri).vertices[2] = (*tri).vertices[1];
+      (*tri).vertices[1] = (*tri).vertices[0];
+      (*tri).vertices[0] = temp;
       rotate(distances.begin(),distances.begin()+2,distances.end());
     }
     else {
       nextInside = (distances[1] >= 0.0f);
     }
-    temp = mixVertex(tris[i].vertices[0], tris[i].vertices[2], (distances[0] / (distances[0] - distances[2])));
+    temp = mixVertex((*tri).vertices[0], (*tri).vertices[2], (distances[0] / (distances[0] - distances[2])));
     if (nextInside) {
-      tris[i].vertices[2] = mixVertex(tris[i].vertices[1], tris[i].vertices[2], (distances[1] / (distances[1] - distances[2])));
-      Triangle newTri = Triangle(tris[i].vertices[0], tris[i].vertices[2], temp, tris[i].colour, tris[i].normal);
+      (*tri).vertices[2] = mixVertex((*tri).vertices[1], (*tri).vertices[2], (distances[1] / (distances[1] - distances[2])));
+      Triangle newTri = Triangle((*tri).vertices[0], (*tri).vertices[2], temp, (*tri).colour, (*tri).normal);
       tris.push_back(newTri);
     }
     else {
-      tris[i].vertices[1] = mixVertex(tris[i].vertices[0], tris[i].vertices[1], (distances[0] / (distances[0] - distances[1])));
-      tris[i].vertices[2] = temp;
+      (*tri).vertices[1] = mixVertex((*tri).vertices[0], (*tri).vertices[1], (distances[0] / (distances[0] - distances[1])));
+      (*tri).vertices[2] = temp;
     }
-  }
-  for (auto i : toBeCulled) {
-    tris.erase(tris.begin() + i);
+    tri++;
   }
   return tris.size();
 }
 
-int clipToView(vector<Triangle>& tris) {
+int clipToView(list<Triangle>& tris) {
   const vec4 normals[6] = {vec4(1, 0, 0, 1), vec4(-1, 0, 0, 1), vec4(0, 1, 0, 1), vec4(0, -1, 0, 1), vec4(0, 0, 1, 1), vec4(0, 0, -1, 1)};
   for (auto n : normals) {
     int num = clipTriangle(tris, n);
@@ -262,7 +260,7 @@ void drawTriangles(Camera &cam, std::vector<Model *> models)
       tri.vertices[0].pos = MVP * tri.vertices[0].pos;
       tri.vertices[1].pos = MVP * tri.vertices[1].pos;
       tri.vertices[2].pos = MVP * tri.vertices[2].pos;
-      vector<Triangle> clippedTris;
+      list<Triangle> clippedTris;
       clippedTris.push_back(tri);
       clipToView(clippedTris);
       for (auto t : clippedTris) {
