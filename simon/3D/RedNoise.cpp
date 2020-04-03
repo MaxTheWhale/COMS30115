@@ -6,6 +6,7 @@
 #include <glm/glm.hpp>
 #include <unordered_map>
 #include <vector>
+#include <list>
 #include <chrono>
 #include <sys/time.h>
 #include "Camera.hpp"
@@ -123,7 +124,7 @@ class Triangle {
 };
 
 void draw();
-void line(vec4 &p, vec4 &q, int colour, uint32_t *buffer, vec2 &offset);
+void line(vec4 p, vec4 q, int colour, uint32_t *buffer, vec2 &offset);
 void triangle(Triangle &t, Texture &tex, int colour, bool filled, uint32_t *buffer, float *depthBuff, vec2 offset);
 int *loadPPM(string fileName, int &width, int &height);
 void savePPM(string fileName, DrawingWindow *window);
@@ -167,7 +168,7 @@ inline Vertex mixVertex(const Vertex &p, const Vertex &q, float a) {
 // based on https://casual-effects.com/research/McGuire2011Clipping/McGuire-Clipping.pdf
 int clipTriangle(vector<Triangle>& tris, const vec4& normal) {
   Vertex temp;
-  vector<int> toBeCulled;
+  list<int> toBeCulled;
   int n = tris.size();
   for (int i = 0; i < n; i++) {
     vector<float> distances;
@@ -530,16 +531,16 @@ void raytrace(Camera camera, std::vector<Model*> models, int softness) {
         }
 
         //adjust the totalled lighting values
-        shadowCount = clamp<float>(shadowCount, 0, 1);
-        brightnessCount = clamp<float>(brightnessCount, 0, 1);
-        angleCount = clamp<float>(angleCount, 0, 1);
-        specularCount = clamp<float>(specularCount, 0, 1);
+        shadowCount = glm::clamp<float>(shadowCount, 0, 1);
+        brightnessCount = glm::clamp<float>(brightnessCount, 0, 1);
+        angleCount = glm::clamp<float>(angleCount, 0, 1);
+        specularCount = glm::clamp<float>(specularCount, 0, 1);
 
         Colour c = addColours(intersection.intersectedTriangle.colour, transparentColour);
 
         //set the final pixels
         if(intersection.intersectedTriangle.name == "light") window.setPixelColour(i, j, c.toPackedInt());
-        else window.setPixelColour(i, j, darkenColour(c, clamp<float>(angleCount * (inShadow ? shadowCount : 1.0f) * brightnessCount, AMBIENCE, 1), inShadow || mirror ? 0 : specularCount));
+        else window.setPixelColour(i, j, darkenColour(c, glm::clamp<float>(angleCount * (inShadow ? shadowCount : 1.0f) * brightnessCount, AMBIENCE, 1), inShadow || mirror ? 0 : specularCount));
       } else {
         window.setPixelColour(i, j, 0);
       }
@@ -840,7 +841,7 @@ bool clipLine(vec4& p, vec4& q, int width, int height) {
   }
 }
 
-void line(vec4 &p, vec4 &q, int colour, uint32_t *buffer, vec2 &offset)
+void line(vec4 p, vec4 q, int colour, uint32_t *buffer, vec2 &offset)
 {
   if (!clipLine(p, q, WIDTH, HEIGHT)) return;
   float x_diff = p.x - q.x;
@@ -894,10 +895,10 @@ void triangle(Triangle &t, Texture &tex, int colour, bool filled, uint32_t *buff
     y_min = glm::min((float)y_min, t.vertices[2].pos.y);
     int y_max = glm::max(t.vertices[0].pos.y, t.vertices[1].pos.y);
     y_max = glm::max((float)y_max, t.vertices[2].pos.y);
-    x_min = clamp<int>(x_min, 0, WIDTH - 1);
-    x_max = clamp<int>(x_max, 0, WIDTH - 1);
-    y_min = clamp<int>(y_min, 0, HEIGHT - 1);
-    y_max = clamp<int>(y_max, 0, HEIGHT - 1);
+    x_min = glm::clamp<int>(x_min, 0, WIDTH - 1);
+    x_max = glm::clamp<int>(x_max, 0, WIDTH - 1);
+    y_min = glm::clamp<int>(y_min, 0, HEIGHT - 1);
+    y_max = glm::clamp<int>(y_max, 0, HEIGHT - 1);
     float area_inv = 1.0f / edgeFunction(t.vertices[0].pos.x, t.vertices[0].pos.y, t.vertices[1].pos.x, t.vertices[1].pos.y, t.vertices[2].pos.x, t.vertices[2].pos.y);
     float w0_step_x = (t.vertices[2].pos.y - t.vertices[1].pos.y) * area_inv;
     float w1_step_x = (t.vertices[0].pos.y - t.vertices[2].pos.y) * area_inv;
@@ -928,18 +929,27 @@ void triangle(Triangle &t, Texture &tex, int colour, bool filled, uint32_t *buff
             else {
               q0 = w0; q1 = w1; q2 = w2;
             }
-            float brightness = 1.0f;
+            float brightness = (q0 * t.vertices[0].brightness + q1 * t.vertices[1].brightness + q2 * t.vertices[2].brightness) / (q0 + q1 + q2);
             if (textured) {
               float u = (q0 * t.vertices[0].u + q1 * t.vertices[1].u + q2 * t.vertices[2].u) / (q0 + q1 + q2);
               float v = (q0 * t.vertices[0].v + q1 * t.vertices[1].v + q2 * t.vertices[2].v) / (q0 + q1 + q2);
-              u *= tex.width;
-              v *= tex.height;
+              u = mod(u, 1.0f);
+              v = mod(v, 1.0f);
               if (bilinear) {
-                int biColour = bilinearColour(tex.data[(int)u + (int)v * tex.width], tex.data[((int)u) + 1 + (int)v * tex.width], tex.data[(int)u + (((int)v) + 1) * tex.width], tex.data[((int)u) + 1 + (((int)v) + 1) * tex.width], vec2(u - (int)u, v - (int)v));
+                u *= tex.width - 1;
+                v *= tex.height - 1;
+                int tl = (int)u + (int)v * tex.width;
+                int tr = tl + 1;
+                int bl = tl + tex.width;
+                int br = bl + 1;
+                int biColour = bilinearColour(tex.data[tl], tex.data[tr], tex.data[bl], tex.data[br], vec2(mod(u, 1.0f), mod(v, 1.0f)));
                 buffer[y * WIDTH + x] = scaleColour(biColour, brightness);
               }
-              else
+              else {
+                u *= tex.width;
+                v *= tex.height;
                 buffer[y * WIDTH + x] = scaleColour(tex.data[(int)u + (int)v * tex.width], brightness);
+              }
             }
             else
               buffer[y * WIDTH + x] = scaleColour(colour, brightness);
