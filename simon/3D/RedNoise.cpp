@@ -1,5 +1,4 @@
 #include <ModelTriangle.h>
-#include <CanvasTriangle.h>
 #include <RayTriangleIntersection.h>
 #include <DrawingWindow.h>
 #include <Utils.h>
@@ -20,7 +19,7 @@ using namespace glm;
 #define WIDTH 640
 #define HEIGHT 480
 #define IMG_SIZE (WIDTH*HEIGHT)
-#define SSAA true
+#define SSAA false
 #define SSAA_SCALE 3
 #define SSAA_SAMPLES (SSAA_SCALE*SSAA_SCALE)
 #define MOUSE_SENSITIVITY 0.0015f
@@ -30,9 +29,102 @@ using namespace glm;
 enum CLIP_CODE {TOP = 1, RIGHT = 2, BOTTOM = 4, LEFT = 8};
 enum COLOUR_MASK {ALPHA = 0xff000000, RED = 0x00ff0000, GREEN = 0x0000ff00, BLUE = 0x000000ff};
 
+class Vertex {
+  public:
+    vec4 pos;
+    float brightness;
+    float u, v;
+    Vertex operator+=(const Vertex& rhs)
+    {
+      pos += rhs.pos;
+      brightness += rhs.brightness;
+      u += rhs.u;
+      v += rhs.v;
+      return *this;
+    }
+
+    friend Vertex operator+(Vertex lhs, const Vertex& rhs)
+    {
+      lhs += rhs;
+      return lhs;
+    }
+
+    Vertex operator-=(const Vertex& rhs)
+    {
+      pos -= rhs.pos;
+      brightness -= rhs.brightness;
+      u -= rhs.u;
+      v -= rhs.v;
+      return *this;
+    }
+
+    friend Vertex operator-(Vertex lhs, const Vertex& rhs)
+    {
+      lhs -= rhs;
+      return lhs;
+    }
+
+    Vertex operator*=(float rhs)
+    {
+      pos *= rhs;
+      brightness *= rhs;
+      u *= rhs;
+      v *= rhs;
+      return *this;
+    }
+
+    friend Vertex operator*(Vertex lhs, float rhs)
+    {
+      lhs *= rhs;
+      return lhs;
+    }
+
+    Vertex operator/=(float rhs)
+    {
+      pos /= rhs;
+      brightness /= rhs;
+      u /= rhs;
+      v /= rhs;
+      return *this;
+    }
+
+    friend Vertex operator/(Vertex lhs, float rhs)
+    {
+      lhs /= rhs;
+      return lhs;
+    }
+};
+
+class Triangle {
+  public:
+    Vertex vertices[3];
+    int colour;
+    vec4 normal;
+    Triangle(ModelTriangle &tri) {
+      for (int i = 0; i < 3; i++) {
+        vertices[i].pos.x = tri.vertices[i].x;
+        vertices[i].pos.y = tri.vertices[i].y;
+        vertices[i].pos.z = tri.vertices[i].z;
+        vertices[i].pos.w = tri.vertices[i].w;
+        vertices[i].u = tri.uvs[i].x;
+        vertices[i].v = tri.uvs[i].y;
+        vertices[i].brightness = tri.brightness[i];
+      }
+      normal = tri.normal;
+      colour = tri.colour.toPackedInt();
+    }
+    Triangle(const Vertex &v0, const Vertex &v1, const Vertex &v2, const int &tColour, const vec4 &tNormal) {
+      vertices[0] = v0;
+      vertices[1] = v1;
+      vertices[2] = v2;
+      colour = tColour;
+      normal = tNormal;
+    }
+};
+
 void draw();
-void line(CanvasPoint p, CanvasPoint q, int colour, uint32_t *buffer, vec2 offset);
-void triangle(CanvasTriangle t, Texture &tex, int colour, bool filled, uint32_t *buffer, float *depthBuff, vec2 offset);
+void line(vec4 &p, vec4 &q, int colour, uint32_t *buffer, vec2 &offset);
+void triangle(Triangle &t, Texture &tex, int colour, bool filled, uint32_t *buffer, float *depthBuff, vec2 offset);
 int *loadPPM(string fileName, int &width, int &height);
 void savePPM(string fileName, DrawingWindow *window);
 void skipHashWS(ifstream &f);
@@ -46,6 +138,8 @@ float depthBuffer[IMG_SIZE];
 uint32_t imageBuffer[IMG_SIZE];
 #endif
 bool wireframe;
+bool bilinear;
+bool perspective;
 vector<float> Interpolate(float a, float b, int n);
 vector<vec3> Interpolate(vec3 a, vec3 b, int n);
 vector<vec4> Interpolate(vec4 a, vec4 b, int n);
@@ -66,18 +160,20 @@ inline vec4 cross(const vec4& a, const vec4& b) {
   return vec4(a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x, 0);
 }
 
+inline Vertex mixVertex(const Vertex &p, const Vertex &q, float a) {
+  return p * (1.0f - a) + q * a;
+}
+
 // based on https://casual-effects.com/research/McGuire2011Clipping/McGuire-Clipping.pdf
-int clipTriangle(vector<ModelTriangle>& tris, const vec4& normal) {
-  vec4 temp;
-  float tempBright;
-  vec2 tempUV;
+int clipTriangle(vector<Triangle>& tris, const vec4& normal) {
+  Vertex temp;
   vector<int> toBeCulled;
   int n = tris.size();
   for (int i = 0; i < n; i++) {
     vector<float> distances;
-    distances.push_back(dot(tris[i].vertices[0], normal));
-    distances.push_back(dot(tris[i].vertices[1], normal));
-    distances.push_back(dot(tris[i].vertices[2], normal));
+    distances.push_back(dot(tris[i].vertices[0].pos, normal));
+    distances.push_back(dot(tris[i].vertices[1].pos, normal));
+    distances.push_back(dot(tris[i].vertices[2].pos, normal));
     if (distances[0] >= 0.0f && distances[1] >= 0.0f && distances[2] >= 0.0f) {
       continue;
     }
@@ -88,58 +184,31 @@ int clipTriangle(vector<ModelTriangle>& tris, const vec4& normal) {
     if (distances[1] >= 0.0f && distances[0] < 0.0f) {
       nextInside = (distances[2] >= 0.0f);
       temp = tris[i].vertices[0];
-      tempBright = tris[i].brightness[0];
-      tempUV = tris[i].uvs[0];
       tris[i].vertices[0] = tris[i].vertices[1];
-      tris[i].brightness[0] = tris[i].brightness[1];
-      tris[i].uvs[0] = tris[i].uvs[1];
       tris[i].vertices[1] = tris[i].vertices[2];
-      tris[i].brightness[1] = tris[i].brightness[2];
-      tris[i].uvs[1] = tris[i].uvs[2];
       tris[i].vertices[2] = temp;
-      tris[i].brightness[2] = tempBright;
-      tris[i].uvs[2] = tempUV;
       rotate(distances.begin(),distances.begin()+1,distances.end());
     }
     else if (distances[2] >= 0.0f && distances[1] < 0.0f) {
       nextInside = (distances[0] >= 0.0f);
       temp = tris[i].vertices[2];
-      tempBright = tris[i].brightness[2];
-      tempUV = tris[i].uvs[2];
       tris[i].vertices[2] = tris[i].vertices[1];
-      tris[i].brightness[2] = tris[i].brightness[1];
-      tris[i].uvs[2] = tris[i].uvs[1];
       tris[i].vertices[1] = tris[i].vertices[0];
-      tris[i].brightness[1] = tris[i].brightness[0];
-      tris[i].uvs[1] = tris[i].uvs[0];
       tris[i].vertices[0] = temp;
-      tris[i].brightness[0] = tempBright;
-      tris[i].uvs[0] = tempUV;
       rotate(distances.begin(),distances.begin()+2,distances.end());
     }
     else {
       nextInside = (distances[1] >= 0.0f);
     }
-    temp = mix(tris[i].vertices[0], tris[i].vertices[2], (distances[0] / (distances[0] - distances[2])));
-    tempBright = mix(tris[i].brightness[0], tris[i].brightness[2], (distances[0] / (distances[0] - distances[2])));
-    tempUV = mix(tris[i].uvs[0], tris[i].uvs[2], (distances[0] / (distances[0] - distances[2])));
+    temp = mixVertex(tris[i].vertices[0], tris[i].vertices[2], (distances[0] / (distances[0] - distances[2])));
     if (nextInside) {
-      tris[i].vertices[2] = mix(tris[i].vertices[1], tris[i].vertices[2], (distances[1] / (distances[1] - distances[2])));
-      tris[i].brightness[2] = mix(tris[i].brightness[1], tris[i].brightness[2], (distances[1] / (distances[1] - distances[2])));
-      tris[i].uvs[2] = mix(tris[i].uvs[1], tris[i].uvs[2], (distances[1] / (distances[1] - distances[2])));
-      ModelTriangle newTri = ModelTriangle(tris[i].vertices[0], tris[i].vertices[2], temp, tris[i].brightness[0], tris[i].brightness[2], tempBright, tris[i].colour, tris[i].normal);
-      newTri.uvs[0] = tris[i].uvs[0];
-      newTri.uvs[1] = tris[i].uvs[2];
-      newTri.uvs[2] = tempUV;
+      tris[i].vertices[2] = mixVertex(tris[i].vertices[1], tris[i].vertices[2], (distances[1] / (distances[1] - distances[2])));
+      Triangle newTri = Triangle(tris[i].vertices[0], tris[i].vertices[2], temp, tris[i].colour, tris[i].normal);
       tris.push_back(newTri);
     }
     else {
-      tris[i].vertices[1] = mix(tris[i].vertices[0], tris[i].vertices[1], (distances[0] / (distances[0] - distances[1])));
-      tris[i].brightness[1] = mix(tris[i].brightness[0], tris[i].brightness[1], (distances[0] / (distances[0] - distances[1])));
-      tris[i].uvs[1] = mix(tris[i].uvs[0], tris[i].uvs[1], (distances[0] / (distances[0] - distances[1])));
+      tris[i].vertices[1] = mixVertex(tris[i].vertices[0], tris[i].vertices[1], (distances[0] / (distances[0] - distances[1])));
       tris[i].vertices[2] = temp;
-      tris[i].brightness[2] = tempBright;
-      tris[i].uvs[2] = tempUV;
     }
   }
   for (auto i : toBeCulled) {
@@ -148,7 +217,7 @@ int clipTriangle(vector<ModelTriangle>& tris, const vec4& normal) {
   return tris.size();
 }
 
-int clipToView(vector<ModelTriangle>& tris) {
+int clipToView(vector<Triangle>& tris) {
   const vec4 normals[6] = {vec4(1, 0, 0, 1), vec4(-1, 0, 0, 1), vec4(0, 1, 0, 1), vec4(0, -1, 0, 1), vec4(0, 0, 1, 1), vec4(0, 0, -1, 1)};
   for (auto n : normals) {
     int num = clipTriangle(tris, n);
@@ -182,44 +251,33 @@ void drawTriangles(Camera &cam, std::vector<Model *> models)
     Model &model = *models[i];
     mat4 MVP = cam.projection * cam.worldToCamera() * model.transform;
     vec4 eye = vec4(cam.getPosition(), 0);
-    for (auto tri : model.tris)
+    for (auto& modelTri : model.tris)
     {
-      if (dot((model.transform * tri.vertices[0]) - eye, tri.normal) >= 0.0f) continue;
-      tri.brightness[0] = glm::max(dot(normalize(eye - (model.transform * tri.vertices[0])), tri.normal), 0.0f);
-      tri.brightness[1] = glm::max(dot(normalize(eye - (model.transform * tri.vertices[1])), tri.normal), 0.0f);
-      tri.brightness[2] = glm::max(dot(normalize(eye - (model.transform * tri.vertices[2])), tri.normal), 0.0f);
-      tri.vertices[0] = MVP * tri.vertices[0];
-      tri.vertices[1] = MVP * tri.vertices[1];
-      tri.vertices[2] = MVP * tri.vertices[2];
-      vector<ModelTriangle> clippedTris;
+      Triangle tri = Triangle(modelTri);
+      if (dot((model.transform * tri.vertices[0].pos) - eye, tri.normal) >= 0.0f) continue;
+      tri.vertices[0].brightness = glm::max(dot(normalize(eye - (model.transform * tri.vertices[0].pos)), tri.normal), 0.0f);
+      tri.vertices[1].brightness = glm::max(dot(normalize(eye - (model.transform * tri.vertices[1].pos)), tri.normal), 0.0f);
+      tri.vertices[2].brightness = glm::max(dot(normalize(eye - (model.transform * tri.vertices[2].pos)), tri.normal), 0.0f);
+      tri.vertices[0].pos = MVP * tri.vertices[0].pos;
+      tri.vertices[1].pos = MVP * tri.vertices[1].pos;
+      tri.vertices[2].pos = MVP * tri.vertices[2].pos;
+      vector<Triangle> clippedTris;
       clippedTris.push_back(tri);
       clipToView(clippedTris);
-
       for (auto t : clippedTris) {
-        t.vertices[0] /= t.vertices[0].w;
-        t.vertices[1] /= t.vertices[1].w;
-        t.vertices[2] /= t.vertices[2].w;
-        CanvasPoint v1 = CanvasPoint(
-          (t.vertices[0].x + 1.0f) * 0.5f * WIDTH,
-          (1 - (t.vertices[0].y + 1.0f) * 0.5f) * HEIGHT,
-          ((cam.far - cam.near) / 2.0f) * t.vertices[0].z + ((cam.far + cam.near) / 2.0f),
-          t.brightness[0], t.uvs[0]);
-        CanvasPoint v2 = CanvasPoint(
-          (t.vertices[1].x + 1.0f) * 0.5f * WIDTH,
-          (1 - (t.vertices[1].y + 1.0f) * 0.5f) * HEIGHT,
-          ((cam.far - cam.near) / 2.0f) * t.vertices[1].z + ((cam.far + cam.near) / 2.0f),
-          t.brightness[1], t.uvs[1]);
-        CanvasPoint v3 = CanvasPoint(
-          (t.vertices[2].x + 1.0f) * 0.5f * WIDTH,
-          (1 - (t.vertices[2].y + 1.0f) * 0.5f) * HEIGHT,
-          ((cam.far - cam.near) / 2.0f) * t.vertices[2].z + ((cam.far + cam.near) / 2.0f),
-          t.brightness[2], t.uvs[2]);
+        for (int v = 0; v < 3; v++) {
+          t.vertices[v].pos.w = 1.0f / t.vertices[v].pos.w;
+          t.vertices[v].pos *= t.vertices[v].pos.w;
+          t.vertices[v].pos.x = (t.vertices[v].pos.x + 1.0f) * 0.5f * WIDTH;
+          t.vertices[v].pos.y = (1 - (t.vertices[v].pos.y + 1.0f) * 0.5f) * HEIGHT;
+          t.vertices[v].pos.z = ((cam.far - cam.near) / 2.0f) * t.vertices[v].pos.z + ((cam.far + cam.near) / 2.0f);
+        }
         #if SSAA
         for (int s = 0; s < SSAA_SAMPLES; s++) {
-          triangle(CanvasTriangle(v1, v2, v3), model.texture, tri.colour.toPackedInt(), wireframe, buffer + (IMG_SIZE * s), depthBuffer + (IMG_SIZE * s), offsets[s]);
+          triangle(t, model.texture, tri.colour, wireframe, buffer + (IMG_SIZE * s), depthBuffer + (IMG_SIZE * s), offsets[s]);
         }
         #else
-        triangle(CanvasTriangle(v1, v2, v3), model.texture, tri.colour.toPackedInt(), wireframe, buffer, depthBuffer, vec2(0.5f, 0.5f));
+        triangle(t, model.texture, tri.colour, wireframe, buffer, depthBuffer, vec2(0.5f, 0.5f));
         #endif
       }
     }
@@ -316,10 +374,11 @@ void raytrace(Camera camera, std::vector<Model*> models, int softness) {
   float shadow = 0.1f / softness;
 
   //idk what this does
+  Model model = Model(*models[0]);
   for (unsigned int i = 1; i < models.size(); i++) {
     for (auto tri : (*models[i]).tris) {
       //if (dot(((*models[i]).transform * tri.vertices[0]) - vec4(camera.getPosition(), 0), tri.normal) >= 0.0f) continue;
-      (*models[0])
+      model
           .tris.push_back(
               ModelTriangle((*models[i]).transform * tri.vertices[0],
                             (*models[i]).transform * tri.vertices[1],
@@ -327,7 +386,6 @@ void raytrace(Camera camera, std::vector<Model*> models, int softness) {
                             tri.colour, tri.normal));
     }
   }
-  Model &model = (*models[0]);
 
   //gets all the triangles that are lights in the scene
   vector<ModelTriangle> lights = getLights(model);
@@ -510,6 +568,9 @@ int main(int argc, char *argv[])
   hs_logo.scale(vec3(0.005f, 0.005f, 0.005f));
   hs_logo.move(vec3(-1.1f, 1.21f, -1.8f));
   renderQueue.push_back(&hs_logo);
+
+  Model checkerboard = Model("checker");
+  renderQueue.push_back(&checkerboard);
   // Model cornell2 = Model("cornell-box");
   // // cornell2.move(glm::vec3(0,1,0));
   // cornell2.rotate(glm::vec3(0,1,0));
@@ -660,6 +721,14 @@ void handleEvent(SDL_Event event, Camera &cam)
       softShadows = !softShadows;
       cout << "S = " << softShadows << endl;
     }
+    else if (event.key.keysym.sym == SDLK_b) {
+      cout << "B" << endl;
+      bilinear = !bilinear;
+    }
+    else if (event.key.keysym.sym == SDLK_p) {
+      cout << "P" << endl;
+      perspective = !perspective;
+    }
     cout << cam.getPosition() << '\n';
   }
 }
@@ -724,28 +793,8 @@ vector<vec4> Interpolate(vec4 a, vec4 b, int n)
   return result;
 }
 
-vector<CanvasPoint> Interpolate(CanvasPoint a, CanvasPoint b, int n)
-{
-  vector<CanvasPoint> result = vector<CanvasPoint>();
-  if (n == 1)
-  {
-    result.push_back((a + b) / 2.0f);
-    return result;
-  }
-  else if (n > 1)
-  {
-    CanvasPoint step = (b - a) / (n - 1.0f);
-    for (int i = 0; i < n; ++i)
-    {
-      result.push_back(a);
-      a += step;
-    }
-  }
-  return result;
-}
-
 // Line clipping based on https://www.geeksforgeeks.org/line-clipping-set-1-cohen-sutherland-algorithm/
-int clipCode(CanvasPoint& p, int width, int height) {
+int clipCode(vec4& p, int width, int height) {
   int code = 0;
   if (p.x < 0.0f) code |= LEFT;
   if (p.y < 0.0f) code |= TOP;
@@ -754,7 +803,7 @@ int clipCode(CanvasPoint& p, int width, int height) {
   return code;
 }
 
-bool clipLine(CanvasPoint& p, CanvasPoint& q, int width, int height) {
+bool clipLine(vec4& p, vec4& q, int width, int height) {
   int p_code = clipCode(p, width, height);
   int q_code = clipCode(q, width, height);
   while (true) {
@@ -791,7 +840,7 @@ bool clipLine(CanvasPoint& p, CanvasPoint& q, int width, int height) {
   }
 }
 
-void line(CanvasPoint p, CanvasPoint q, int colour, uint32_t *buffer, vec2 offset)
+void line(vec4 &p, vec4 &q, int colour, uint32_t *buffer, vec2 &offset)
 {
   if (!clipLine(p, q, WIDTH, HEIGHT)) return;
   float x_diff = p.x - q.x;
@@ -805,8 +854,8 @@ void line(CanvasPoint p, CanvasPoint q, int colour, uint32_t *buffer, vec2 offse
   }
 }
 
-inline float edgeFunction(const CanvasPoint& v0, const CanvasPoint& v1, const CanvasPoint& p) {
-  return (p.x - v0.x) * (v1.y - v0.y) - (p.y - v0.y) * (v1.x - v0.x);
+inline float edgeFunction(const float v0_x, const float v0_y, const float v1_x, const float v1_y, const float p_x, const float p_y) {
+  return (p_x - v0_x) * (v1_y - v0_y) - (p_y - v0_y) * (v1_x - v0_x);
 }
 
 inline int scaleColour(int colour, float scale) {
@@ -832,34 +881,34 @@ inline int bilinearColour(int tl, int tr, int bl, int br, vec2 pos) {
   return ALPHA | (tl + bl + tr + br);
 }
 
-void triangle(CanvasTriangle t, Texture &tex, int colour, bool filled, uint32_t *buffer, float *depthBuff, vec2 offset)
+void triangle(Triangle &t, Texture &tex, int colour, bool filled, uint32_t *buffer, float *depthBuff, vec2 offset)
 {
   if (filled)
   {
-    bool textured = (t.vertices[0].uv.x >= 0.0f);
-    int x_min = glm::min(t.vertices[0].x, t.vertices[1].x);
-    x_min = glm::min((float)x_min, t.vertices[2].x);
-    int x_max = glm::max(t.vertices[0].x, t.vertices[1].x);
-    x_max = glm::max((float)x_max, t.vertices[2].x);
-    int y_min = glm::min(t.vertices[0].y, t.vertices[1].y);
-    y_min = glm::min((float)y_min, t.vertices[2].y);
-    int y_max = glm::max(t.vertices[0].y, t.vertices[1].y);
-    y_max = glm::max((float)y_max, t.vertices[2].y);
+    bool textured = (t.vertices[0].u >= 0.0f);
+    int x_min = glm::min(t.vertices[0].pos.x, t.vertices[1].pos.x);
+    x_min = glm::min((float)x_min, t.vertices[2].pos.x);
+    int x_max = glm::max(t.vertices[0].pos.x, t.vertices[1].pos.x);
+    x_max = glm::max((float)x_max, t.vertices[2].pos.x);
+    int y_min = glm::min(t.vertices[0].pos.y, t.vertices[1].pos.y);
+    y_min = glm::min((float)y_min, t.vertices[2].pos.y);
+    int y_max = glm::max(t.vertices[0].pos.y, t.vertices[1].pos.y);
+    y_max = glm::max((float)y_max, t.vertices[2].pos.y);
     x_min = clamp<int>(x_min, 0, WIDTH - 1);
     x_max = clamp<int>(x_max, 0, WIDTH - 1);
     y_min = clamp<int>(y_min, 0, HEIGHT - 1);
     y_max = clamp<int>(y_max, 0, HEIGHT - 1);
-    float area_inv = 1.0f / edgeFunction(t.vertices[0], t.vertices[1], t.vertices[2]);
-    float w0_step_x = (t.vertices[2].y - t.vertices[1].y) * area_inv;
-    float w1_step_x = (t.vertices[0].y - t.vertices[2].y) * area_inv;
-    float w2_step_x = (t.vertices[1].y - t.vertices[0].y) * area_inv;
-    float w0_step_y = (t.vertices[1].x - t.vertices[2].x) * area_inv;
-    float w1_step_y = (t.vertices[2].x - t.vertices[0].x) * area_inv;
-    float w2_step_y = (t.vertices[0].x - t.vertices[1].x) * area_inv;
-    CanvasPoint p = CanvasPoint(x_min + offset.x, y_min + offset.y);
-    float w0_line = edgeFunction(t.vertices[1], t.vertices[2], p) * area_inv;
-    float w1_line = edgeFunction(t.vertices[2], t.vertices[0], p) * area_inv;
-    float w2_line = edgeFunction(t.vertices[0], t.vertices[1], p) * area_inv;
+    float area_inv = 1.0f / edgeFunction(t.vertices[0].pos.x, t.vertices[0].pos.y, t.vertices[1].pos.x, t.vertices[1].pos.y, t.vertices[2].pos.x, t.vertices[2].pos.y);
+    float w0_step_x = (t.vertices[2].pos.y - t.vertices[1].pos.y) * area_inv;
+    float w1_step_x = (t.vertices[0].pos.y - t.vertices[2].pos.y) * area_inv;
+    float w2_step_x = (t.vertices[1].pos.y - t.vertices[0].pos.y) * area_inv;
+    float w0_step_y = (t.vertices[1].pos.x - t.vertices[2].pos.x) * area_inv;
+    float w1_step_y = (t.vertices[2].pos.x - t.vertices[0].pos.x) * area_inv;
+    float w2_step_y = (t.vertices[0].pos.x - t.vertices[1].pos.x) * area_inv;
+    vec2 p = vec2(x_min + offset.x, y_min + offset.y);
+    float w0_line = edgeFunction(t.vertices[1].pos.x, t.vertices[1].pos.y, t.vertices[2].pos.x, t.vertices[2].pos.y, p.x, p.y) * area_inv;
+    float w1_line = edgeFunction(t.vertices[2].pos.x, t.vertices[2].pos.y, t.vertices[0].pos.x, t.vertices[0].pos.y, p.x, p.y) * area_inv;
+    float w2_line = edgeFunction(t.vertices[0].pos.x, t.vertices[0].pos.y, t.vertices[1].pos.x, t.vertices[1].pos.y, p.x, p.y) * area_inv;
     float w0, w1, w2;
     for (int y = y_min; y <= y_max; y++) {
       w0 = w0_line;
@@ -867,17 +916,30 @@ void triangle(CanvasTriangle t, Texture &tex, int colour, bool filled, uint32_t 
       w2 = w2_line;
       for (int x = x_min; x <= x_max; x++) {
         if (w0 >= 0 && w1 >= 0 && w2 >= 0) {
-          float depth = w0 * t.vertices[0].depth + w1 * t.vertices[1].depth + w2 * t.vertices[2].depth;
+          float depth = w0 * t.vertices[0].pos.z + w1 * t.vertices[1].pos.z + w2 * t.vertices[2].pos.z;
           if (depth < depthBuff[y * WIDTH + x]) {
             depthBuff[y * WIDTH + x] = depth;
-            float brightness = w0 * t.vertices[0].brightness + w1 * t.vertices[1].brightness + w2 * t.vertices[2].brightness;
+            float q0, q1, q2;
+            if (perspective) {
+            q0 = w0 * t.vertices[0].pos.w;
+            q1 = w1 * t.vertices[1].pos.w;
+            q2 = w2 * t.vertices[2].pos.w;
+            }
+            else {
+              q0 = w0; q1 = w1; q2 = w2;
+            }
+            float brightness = 1.0f;
             if (textured) {
-              float u = w0 * t.vertices[0].uv.x + w1 * t.vertices[1].uv.x + w2 * t.vertices[2].uv.x;
-              float v = w0 * t.vertices[0].uv.y + w1 * t.vertices[1].uv.y + w2 * t.vertices[2].uv.y;
+              float u = (q0 * t.vertices[0].u + q1 * t.vertices[1].u + q2 * t.vertices[2].u) / (q0 + q1 + q2);
+              float v = (q0 * t.vertices[0].v + q1 * t.vertices[1].v + q2 * t.vertices[2].v) / (q0 + q1 + q2);
               u *= tex.width;
               v *= tex.height;
-              int biColour = bilinearColour(tex.data[(int)u + (int)v * tex.width], tex.data[((int)u) + 1 + (int)v * tex.width], tex.data[(int)u + (((int)v) + 1) * tex.width], tex.data[((int)u) + 1 + (((int)v) + 1) * tex.width], vec2(u - (int)u, v - (int)v));
-              buffer[y * WIDTH + x] = scaleColour(biColour, brightness);
+              if (bilinear) {
+                int biColour = bilinearColour(tex.data[(int)u + (int)v * tex.width], tex.data[((int)u) + 1 + (int)v * tex.width], tex.data[(int)u + (((int)v) + 1) * tex.width], tex.data[((int)u) + 1 + (((int)v) + 1) * tex.width], vec2(u - (int)u, v - (int)v));
+                buffer[y * WIDTH + x] = scaleColour(biColour, brightness);
+              }
+              else
+                buffer[y * WIDTH + x] = scaleColour(tex.data[(int)u + (int)v * tex.width], brightness);
             }
             else
               buffer[y * WIDTH + x] = scaleColour(colour, brightness);
@@ -894,9 +956,9 @@ void triangle(CanvasTriangle t, Texture &tex, int colour, bool filled, uint32_t 
   }
   else
   {
-    line(t.vertices[0], t.vertices[1], colour, buffer, offset);
-    line(t.vertices[1], t.vertices[2], colour, buffer, offset);
-    line(t.vertices[2], t.vertices[0], colour, buffer, offset);
+    line(t.vertices[0].pos, t.vertices[1].pos, colour, buffer, offset);
+    line(t.vertices[1].pos, t.vertices[2].pos, colour, buffer, offset);
+    line(t.vertices[2].pos, t.vertices[0].pos, colour, buffer, offset);
   }
 }
 

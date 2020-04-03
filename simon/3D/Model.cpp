@@ -36,7 +36,8 @@ vector<ModelTriangle> Model::loadOBJ(string fileName,
       if (s == "usemtl")
       {
         f >> s;
-        colour = palette[s];
+        if (s.find(".mtl") == s.npos)
+          colour = palette[s];
       }
       if (s == "v")
       {

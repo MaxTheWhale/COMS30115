@@ -8,11 +8,9 @@ class CanvasPoint
     float y;
     float depth;
     float brightness;
-    glm::vec2 uv;
 
     CanvasPoint()
     {
-        uv = glm::vec2(-1,-1);
     }
 
     CanvasPoint(float xPos, float yPos)
@@ -21,7 +19,6 @@ class CanvasPoint
       y = yPos;
       depth = 0.0;
       brightness = 1.0;
-      uv = glm::vec2(-1,-1);
     }
 
     CanvasPoint(float xPos, float yPos, float pointDepth)
@@ -30,7 +27,6 @@ class CanvasPoint
       y = yPos;
       depth = pointDepth;
       brightness = 1.0;
-      uv = glm::vec2(-1,-1);
     }
 
     CanvasPoint(float xPos, float yPos, float pointDepth, float pointBrightness)
@@ -39,16 +35,6 @@ class CanvasPoint
       y = yPos;
       depth = pointDepth;
       brightness = pointBrightness;
-      uv = glm::vec2(-1,-1);
-    }
-
-    CanvasPoint(float xPos, float yPos, float pointDepth, float pointBrightness, glm::vec2 uvCoord)
-    {
-      x = xPos;
-      y = yPos;
-      depth = pointDepth;
-      brightness = pointBrightness;
-      uv = uvCoord;
     }
 
     CanvasPoint operator+=(const CanvasPoint& rhs)
@@ -57,7 +43,6 @@ class CanvasPoint
       y += rhs.y;
       depth += rhs.depth;
       brightness += rhs.brightness;
-      uv += rhs.uv;
       return *this;
     }
 
@@ -73,7 +58,6 @@ class CanvasPoint
       y -= rhs.y;
       depth -= rhs.depth;
       brightness -= rhs.brightness;
-      uv -= rhs.uv;
       return *this;
     }
 
@@ -89,7 +73,6 @@ class CanvasPoint
       y *= rhs;
       depth *= rhs;
       brightness *= rhs;
-      uv *= rhs;
       return *this;
     }
 
@@ -105,7 +88,6 @@ class CanvasPoint
       y /= rhs;
       depth /= rhs;
       brightness /= rhs;
-      uv /= rhs;
       return *this;
     }
 
