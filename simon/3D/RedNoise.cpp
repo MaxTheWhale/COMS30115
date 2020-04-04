@@ -20,7 +20,7 @@ using namespace glm;
 #define WIDTH 640
 #define HEIGHT 480
 #define IMG_SIZE (WIDTH*HEIGHT)
-#define SSAA false
+#define SSAA true
 #define SSAA_SCALE 3
 #define SSAA_SAMPLES (SSAA_SCALE*SSAA_SCALE)
 #define MOUSE_SENSITIVITY 0.0015f
@@ -253,10 +253,10 @@ void drawTriangles(Camera &cam, std::vector<Model *> models)
     for (auto& modelTri : model.tris)
     {
       Triangle tri = Triangle(modelTri);
-      if (dot((model.transform * tri.vertices[0].pos) - eye, tri.normal) >= 0.0f) continue;
-      tri.vertices[0].brightness = glm::max(dot(normalize(eye - (model.transform * tri.vertices[0].pos)), tri.normal), 0.0f);
-      tri.vertices[1].brightness = glm::max(dot(normalize(eye - (model.transform * tri.vertices[1].pos)), tri.normal), 0.0f);
-      tri.vertices[2].brightness = glm::max(dot(normalize(eye - (model.transform * tri.vertices[2].pos)), tri.normal), 0.0f);
+      if (dot((model.transform * tri.vertices[0].pos) - eye, model.transform * tri.normal) >= 0.0f) continue;
+      tri.vertices[0].brightness = glm::max(dot(normalize(eye - (model.transform * tri.vertices[0].pos)), normalize(model.transform * tri.normal)), 0.0f);
+      tri.vertices[1].brightness = glm::max(dot(normalize(eye - (model.transform * tri.vertices[1].pos)), normalize(model.transform * tri.normal)), 0.0f);
+      tri.vertices[2].brightness = glm::max(dot(normalize(eye - (model.transform * tri.vertices[2].pos)), normalize(model.transform * tri.normal)), 0.0f);
       tri.vertices[0].pos = MVP * tri.vertices[0].pos;
       tri.vertices[1].pos = MVP * tri.vertices[1].pos;
       tri.vertices[2].pos = MVP * tri.vertices[2].pos;
@@ -266,7 +266,9 @@ void drawTriangles(Camera &cam, std::vector<Model *> models)
       for (auto t : clippedTris) {
         for (int v = 0; v < 3; v++) {
           t.vertices[v].pos.w = 1.0f / t.vertices[v].pos.w;
-          t.vertices[v].pos *= t.vertices[v].pos.w;
+          t.vertices[v].pos.x *= t.vertices[v].pos.w;
+          t.vertices[v].pos.y *= t.vertices[v].pos.w;
+          t.vertices[v].pos.z *= t.vertices[v].pos.w;
           t.vertices[v].pos.x = (t.vertices[v].pos.x + 1.0f) * 0.5f * WIDTH;
           t.vertices[v].pos.y = (1 - (t.vertices[v].pos.y + 1.0f) * 0.5f) * HEIGHT;
           t.vertices[v].pos.z = ((cam.far - cam.near) / 2.0f) * t.vertices[v].pos.z + ((cam.far + cam.near) / 2.0f);
@@ -568,8 +570,6 @@ int main(int argc, char *argv[])
   hs_logo.move(vec3(-1.1f, 1.21f, -1.8f));
   renderQueue.push_back(&hs_logo);
 
-  Model checkerboard = Model("checker");
-  renderQueue.push_back(&checkerboard);
   // Model cornell2 = Model("cornell-box");
   // // cornell2.move(glm::vec3(0,1,0));
   // cornell2.rotate(glm::vec3(0,1,0));
@@ -920,9 +920,9 @@ void triangle(Triangle &t, Texture &tex, int colour, bool filled, uint32_t *buff
             depthBuff[y * WIDTH + x] = depth;
             float q0, q1, q2;
             if (perspective) {
-            q0 = w0 * t.vertices[0].pos.w;
-            q1 = w1 * t.vertices[1].pos.w;
-            q2 = w2 * t.vertices[2].pos.w;
+              q0 = w0 * t.vertices[0].pos.w;
+              q1 = w1 * t.vertices[1].pos.w;
+              q2 = w2 * t.vertices[2].pos.w;
             }
             else {
               q0 = w0; q1 = w1; q2 = w2;
