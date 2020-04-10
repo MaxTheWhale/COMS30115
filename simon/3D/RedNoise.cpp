@@ -425,23 +425,21 @@ void raytrace(Camera camera, std::vector<Model*> models) {
 
       RayTriangleIntersection intersection = findClosestIntersection(camera, model, rayDirection);
 
-      // Colour colour = Colour(255, 0, 0);
+      Colour colour = Colour(0, 0, 0);
 
-      // if(intersection.intersectedTriangle.name != "") {
-      //   colour = intersection.intersectedTriangle.material.diffuse;
+      if(intersection.intersectedTriangle.name != "") {
+        colour = intersection.intersectedTriangle.material.diffuse;
 
-      //   // vec4 shadowRayDirection = light.centre - intersection.intersectionPoint;
-      //   // bool isInShadow = inShadow(model, shadowRayDirection, intersection);
+        vec4 shadowRayDirection = light.centre - intersection.intersectionPoint;
+        bool isInShadow = inShadow(model, shadowRayDirection, intersection);
 
-      //   // if(isInShadow) colour = colour * light.shadow;
+        if(isInShadow) colour = colour * light.shadow;
 
-      //   window.setPixelColour(i, j, colour.toPackedInt());
+        window.setPixelColour(i, j, colour.toPackedInt());
         
-      // } else {
-      //   window.setPixelColour(i, j, colour.toPackedInt());
-      // }
-      
-      window.setPixelColour(i, j, Colour(255, 0, 0).toPackedInt());
+      } else {
+        window.setPixelColour(i, j, colour.toPackedInt());
+      }
     }
   }
   cout << "Finished one frame!" << endl;
