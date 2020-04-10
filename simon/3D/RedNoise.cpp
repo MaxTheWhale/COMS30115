@@ -427,7 +427,9 @@ void raytrace(Camera camera, std::vector<Model*> models) {
 
       Colour colour = Colour(0, 0, 0);
 
-      if(intersection.intersectedTriangle.name != "") {
+      if(intersection.intersectedTriangle.name == mainLight.name) {
+        window.setPixelColour(i, j, intersection.intersectedTriangle.material.diffuse.toPackedInt());
+      } else if(intersection.intersectedTriangle.name != "") {
         colour = intersection.intersectedTriangle.material.diffuse;
 
         vec4 shadowRayDirection = mainLight.centre - intersection.intersectionPoint;
