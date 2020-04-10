@@ -1,6 +1,7 @@
 #include "Model.hpp"
 #include <Utils.h>
 #include <fstream>
+#include "Material.h"
 
 using namespace std;
 
@@ -10,12 +11,12 @@ Model::Model(string filename) {
 }
 
 vector<ModelTriangle> Model::loadOBJ(string fileName,
-                              unordered_map<string, Colour> palette)
+                              unordered_map<string, Material> palette)
 {
   ifstream f;
   string s;
   string name = "";
-  Colour colour = Colour(255, 255, 255);
+  Material material = Material("missing", Colour(0, 0, 0), Colour(255, 255, 255), Colour(0, 0, 0));
   vector<glm::vec3> vertices;
   vector<glm::vec2> uvs;
   vector<ModelTriangle> faces;
@@ -37,7 +38,7 @@ vector<ModelTriangle> Model::loadOBJ(string fileName,
       {
         f >> s;
         if (s.find(".mtl") == s.npos)
-          colour = palette[s];
+          material = palette[s];
       }
       if (s == "v")
       {
@@ -61,7 +62,7 @@ vector<ModelTriangle> Model::loadOBJ(string fileName,
         ModelTriangle tri = ModelTriangle(vertices[stoi(as[0]) - 1],
                                       vertices[stoi(bs[0]) - 1],
                                       vertices[stoi(cs[0]) - 1],
-                                      colour, name);
+                                      material, name);
         if (as[1] != "" && bs[1] != "" && cs[1] != "") {
           tri.uvs[0] = uvs[stoi(as[1]) - 1];
           tri.uvs[1] = uvs[stoi(bs[1]) - 1];
@@ -120,11 +121,12 @@ int *loadPPM(string fileName, int &width, int &height)
   return buff;
 }
 
-unordered_map<string, Colour> Model::loadMTL(string fileName, int*& data, int& width, int& height) {
-  unordered_map<string, Colour> palette;
+unordered_map<string, Material> Model::loadMTL(string fileName, int*& data, int& width, int& height) {
+  unordered_map<string, Material> palette;
 
   ifstream f;
   string s;
+  string key;
   f.open(fileName, ios::in);
   if (!f.good()) {
     return palette;
@@ -134,13 +136,33 @@ unordered_map<string, Colour> Model::loadMTL(string fileName, int*& data, int& w
     f >> s;
     if (s == "newmtl")
     {
-      string key, r, g, b;
       f >> key;
-      f >> s;
+      palette[key] = Material(key);
+    }
+    if (s == "Ka") {
+      string r, g, b;
       f >> r;
       f >> g;
       f >> b;
-      palette[key] = Colour(key, stof(r) * 255, stof(g) * 255, stof(b) * 255);
+      palette[key].ambient = Colour(key, stof(r) * 255, stof(g) * 255, stof(b) * 255);
+    }
+    if (s == "Kd") {
+      string r, g, b;
+      f >> r;
+      f >> g;
+      f >> b;
+      palette[key].diffuse = Colour(key, stof(r) * 255, stof(g) * 255, stof(b) * 255);
+    }
+    if (s == "Ks") {
+      string r, g, b;
+      f >> r;
+      f >> g;
+      f >> b;
+      palette[key].specular = Colour(key, stof(r) * 255, stof(g) * 255, stof(b) * 255);
+    }
+    if (s == "Ns") {
+      f >> s;
+      palette[key].highlights = stoi(s);
     }
     if (s == "map_Kd") {
       string texture_file;

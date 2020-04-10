@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.7)
 set(CMAKE_CXX_STANDARD 11)
-set(SOURCE_FILES libs/sdw/Colour.cpp libs/sdw/Utils.cpp libs/sdw/DrawingWindow.cpp libs/sdw/ModelTriangle.cpp Model.cpp Transformable.cpp Camera.cpp Animatable.cpp Movement.cpp Times.cpp VectorOutput.cpp Rigidbody.cpp Updatable.hpp RedNoise.cpp)
+set(SOURCE_FILES libs/sdw/Colour.cpp libs/sdw/Utils.cpp libs/sdw/DrawingWindow.cpp libs/sdw/ModelTriangle.cpp Model.cpp Material.h Light.h Transformable.cpp Camera.cpp Animatable.cpp Movement.cpp Times.cpp VectorOutput.cpp Rigidbody.cpp Updatable.hpp RedNoise.cpp)
 
 IF(WIN32)
     set(CMAKE_EXE_LINKER_FLAGS -mconsole)
