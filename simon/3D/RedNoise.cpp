@@ -430,10 +430,19 @@ void raytrace(Camera camera, std::vector<Model*> models) {
       if(intersection.intersectedTriangle.name != "") {
         colour = intersection.intersectedTriangle.material.diffuse;
 
-        vec4 shadowRayDirection = light.centre - intersection.intersectionPoint;
+        vec4 shadowRayDirection = mainLight.centre - intersection.intersectionPoint;
         bool isInShadow = inShadow(model, shadowRayDirection, intersection);
 
-        if(isInShadow) colour = colour * light.shadow;
+        if(isInShadow) colour = colour * mainLight.shadow;
+        else {
+          //calculate the angleOfIncidence between 0 and 1
+          float angleOfIncidence = glm::dot(glm::normalize(shadowRayDirection), intersection.intersectedTriangle.normal);
+          colour = colour * clamp<float>(angleOfIncidence, mainLight.shadow, 1);
+
+          //adjust brightness for proximity lighting
+          float brightness = mainLight.intensity/pow(vectorLength(shadowRayDirection),2);
+          colour = colour * clamp<float>(brightness, mainLight.shadow, 1);
+        }
 
         window.setPixelColour(i, j, colour.toPackedInt());
         
