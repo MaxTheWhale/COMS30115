@@ -445,7 +445,6 @@ void raytrace(Camera camera, std::vector<Model*> models) {
 
   Light mainLight = Light("light", lights);
   mainLight.calculateCentre();
-  mainLight.centre.y -= 0.1f;
 
   //loop through each pixel in image plane
   for(int j = 0; j < HEIGHT; j++) {
