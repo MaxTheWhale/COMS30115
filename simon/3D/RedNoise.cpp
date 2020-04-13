@@ -177,10 +177,12 @@ int clipTriangle(list<Triangle>& tris, const vec4& normal) {
     distances.push_back(dot((*tri).vertices[1].pos, normal));
     distances.push_back(dot((*tri).vertices[2].pos, normal));
     if (distances[0] >= 0.0f && distances[1] >= 0.0f && distances[2] >= 0.0f) {
+      tri++;
       continue;
     }
     if (distances[0] < 0.0f && distances[1] < 0.0f && distances[2] < 0.0f) {
-      tris.erase(tri);
+      tri = tris.erase(tri);
+      continue;
     }
     bool nextInside;
     if (distances[1] >= 0.0f && distances[0] < 0.0f) {
