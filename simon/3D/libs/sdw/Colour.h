@@ -34,12 +34,19 @@ class Colour
     Colour operator * (float x)
     {
       Colour temp = Colour();
-      temp.red = red * x;
-      glm::clamp<int>(temp.red, 0, 255);
-      temp.green = green * x;
-      glm::clamp<int>(temp.green, 0, 255);
-      temp.blue = blue * x;
-      glm::clamp<int>(temp.blue, 0, 255);
+      temp.red = glm::clamp<int>(red * x, 0, 255);
+      temp.green = glm::clamp<int>(green * x, 0, 255);
+      temp.blue = glm::clamp<int>(blue * x, 0, 255);
+
+      return temp;
+    }
+
+    Colour operator + (float x)
+    {
+      Colour temp = Colour();
+      temp.red = glm::clamp<int>(red + x, 0, 255);
+      temp.green = glm::clamp<int>(green + x, 0, 255);
+      temp.blue = glm::clamp<int>(blue + x, 0, 255);
 
       return temp;
     }
