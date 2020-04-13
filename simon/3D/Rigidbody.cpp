@@ -138,6 +138,8 @@ bool Rigidbody::collide(Rigidbody other) {
         for (unsigned int j = 0; j < other.model->tris.size(); j++) {
             if (intersection(model->tris[i], other.model->tris[j], model->transform, other.model->transform)) {
                 std::cout << "collision detected" << std::endl;
+                vec4 normal = other.model->tris[j].normal * other.model->transform;
+                velocity[3] += dot(normal, velocity[3]) * 1.8;
                 return true;
             }
             // else {
