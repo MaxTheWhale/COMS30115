@@ -666,11 +666,11 @@ int main(int argc, char *argv[])
   // cornellRB2.hasGravity = false;
   // updateQueue.push_back(&cornellRB2);
 
-  // Model sphere = Model("blob");
-  // sphere.setPosition(vec3(0,5.5f,-3));
-  // renderQueue.push_back(&sphere);
-  // Rigidbody sphereRB = Rigidbody(&sphere);
-  // updateQueue.push_back(&sphereRB);
+  Model sphere = Model("blob");
+  sphere.setPosition(vec3(0,10.0f,-3));
+  renderQueue.push_back(&sphere);
+  Rigidbody sphereRB = Rigidbody(&sphere);
+  updateQueue.push_back(&sphereRB);
 
   // Model tri1 = Model("triangle");
   // renderQueue.push_back(&tri1);
