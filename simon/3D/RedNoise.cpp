@@ -34,6 +34,7 @@ enum COLOUR_MASK {ALPHA = 0xff000000, RED = 0x00ff0000, GREEN = 0x0000ff00, BLUE
 class Vertex {
   public:
     vec4 pos;
+    vec4 pos_3d;
     float brightness;
     float u, v;
     Vertex operator+=(const Vertex& rhs)
@@ -1112,9 +1113,9 @@ void savePPM(string fileName, DrawingWindow *window)
     for (int x = 0; x < window->width; x++)
     {
       uint32_t value = window->getPixelColour(x, y);
-      buffer[x * 3] = value & 0xff;
+      buffer[x * 3 + 2] = value & 0xff;
       buffer[x * 3 + 1] = (value & 0xff00) >> 8;
-      buffer[x * 3 + 2] = (value & 0xff0000) >> 16;
+      buffer[x * 3] = (value & 0xff0000) >> 16;
     }
     f.write((char *)buffer, window->width * 3);
   }
