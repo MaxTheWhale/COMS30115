@@ -416,10 +416,10 @@ int main(int argc, char *argv[])
   cornellRB.hasGravity = false;
   updateQueue.push_back(&cornellRB);
 
-  Model hs_logo = Model("HackspaceLogo/logo");
-  hs_logo.scale(vec3(0.005f, 0.005f, 0.005f));
-  hs_logo.move(vec3(-1.1f, 1.21f, -1.8f));
-  renderQueue.push_back(&hs_logo);
+  // Model hs_logo = Model("HackspaceLogo/logo");
+  // hs_logo.scale(vec3(0.005f, 0.005f, 0.005f));
+  // hs_logo.move(vec3(-1.1f, 1.21f, -1.8f));
+  // renderQueue.push_back(&hs_logo);
   // Model cornell2 = Model("cornell-box");
   // // cornell2.move(glm::vec3(0,1,0));
   // cornell2.rotate(glm::vec3(0,1,0));
@@ -429,7 +429,7 @@ int main(int argc, char *argv[])
   // updateQueue.push_back(&cornellRB2);
 
   Model sphere = Model("blob");
-  sphere.setPosition(vec3(0,5.5f,-3));
+  sphere.setPosition(vec3(0,10.0f,-3));
   renderQueue.push_back(&sphere);
   Rigidbody sphereRB = Rigidbody(&sphere);
   updateQueue.push_back(&sphereRB);

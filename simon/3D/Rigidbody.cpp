@@ -84,13 +84,13 @@ float calcInterval(vec3 D, const vec3 Va, const vec3 Vb, float da, float db) {
 bool intersection(ModelTriangle localTri, ModelTriangle otherTri, mat4 localTransform, mat4 otherTransform) {
     vec3 verts1[3];
     vec3 verts2[3];
-    //cout << "verts1 = ";
+    // cout << "verts1 = ";
     for (int i = 0; i < 3; i++) {
         verts1[i] = toVec3(localTransform * localTri.vertices[i]);
-        //cout << verts1[i] << ", ";
+        // cout << verts1[i] << ", ";
         verts2[i] = toVec3(otherTransform * otherTri.vertices[i]);
     }
-    //cout << endl << "verts2 = ";
+    // cout << endl << "verts2 = ";
     // for (int i = 0; i < 3; i++) {
     //     cout << verts2[i] << ", ";
     // }
@@ -105,8 +105,8 @@ bool intersection(ModelTriangle localTri, ModelTriangle otherTri, mat4 localTran
     float dist1[3];
     float dist2[3];
     for(int i = 0; i < 3; i++) {
-        float value1 = dot(n2, verts1[i] + d2);
-        float value2 = dot(n1, verts2[i] + d1);
+        float value1 = dot(n2, verts1[i]) + d2;
+        float value2 = dot(n1, verts2[i]) + d1;
         dist1[i] = value1;
         dist2[i] = value2;
     }
@@ -136,7 +136,7 @@ bool Rigidbody::collide(Rigidbody other) {
     for (unsigned int i = 0; i < model->tris.size(); i++) {
         for (unsigned int j = 0; j < other.model->tris.size(); j++) {
             if (intersection(model->tris[i], other.model->tris[j], model->transform, other.model->transform)) {
-                //std::cout << "collision detected" << std::endl;
+                std::cout << "collision detected" << std::endl;
                 return true;
             }
             // else {
