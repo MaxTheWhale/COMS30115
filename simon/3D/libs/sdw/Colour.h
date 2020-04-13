@@ -44,6 +44,19 @@ class Colour
       return temp;
     }
 
+    Colour operator + (float x)
+    {
+      Colour temp = Colour();
+      temp.red = red + x;
+      glm::clamp<int>(temp.red, 0, 255);
+      temp.green = green + x;
+      glm::clamp<int>(temp.green, 0, 255);
+      temp.blue = blue + x;
+      glm::clamp<int>(temp.blue, 0, 255);
+
+      return temp;
+    }
+
     int toPackedInt() {
       return (0xff000000) | ((red & 0xff) << 16) | ((green & 0xff) << 8) | (blue & 0xff);
     }
