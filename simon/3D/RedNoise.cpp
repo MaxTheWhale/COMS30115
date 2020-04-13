@@ -493,6 +493,7 @@ void raytrace(Camera camera, std::vector<Model*> models) {
       }
     }
   }
+  savePPM("window.ppm", &window);
   cout << "Finished one frame!" << endl;
 }
 
