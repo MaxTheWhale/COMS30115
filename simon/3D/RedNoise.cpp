@@ -481,10 +481,12 @@ void raytrace(Camera camera, std::vector<Model*> models) {
           float brightness = mainLight.intensity/pow(vectorLength(shadowRayDirection),2);
           colour = colour * clamp<float>(brightness, mainLight.shadow, 1);
 
-          //TODO: make the colour of the highlights match the specular material colour
-          vec4 reflection = glm::normalize((-shadowRayDirection) - 2.0f * (glm::dot((-shadowRayDirection), intersection.intersectedTriangle.normal) * intersection.intersectedTriangle.normal));
-          float specular = pow(glm::dot(glm::normalize((-rayDirection)), reflection), intersection.intersectedTriangle.material.highlights);
-          colour = colour + (clamp<float>(specular, mainLight.shadow, 1) * 255);
+          if(intersection.intersectedTriangle.material.highlights > 0) {
+            //TODO: make the colour of the highlights match the specular material colour
+            vec4 reflection = glm::normalize((-shadowRayDirection) - 2.0f * (glm::dot((-shadowRayDirection), intersection.intersectedTriangle.normal) * intersection.intersectedTriangle.normal));
+            float specular = pow(glm::dot(glm::normalize((-rayDirection)), reflection), intersection.intersectedTriangle.material.highlights);
+            colour = colour + (clamp<float>(specular, 0, 1) * 255);
+          }
         }
 
         window.setPixelColour(i, j, colour.toPackedInt());
