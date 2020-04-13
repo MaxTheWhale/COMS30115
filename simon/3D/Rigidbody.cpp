@@ -130,6 +130,7 @@ bool intersection(ModelTriangle localTri, ModelTriangle otherTri, mat4 localTran
 }
 
 bool Rigidbody::collide(Rigidbody other) {
+    // return false;
     if (!collisionEnabled || !other.collisionEnabled) {
         return false;
     }
