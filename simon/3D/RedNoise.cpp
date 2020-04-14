@@ -22,7 +22,7 @@ using namespace glm;
 #define HEIGHT 480
 #define IMG_SIZE (WIDTH*HEIGHT)
 #define SSAA true
-#define SSAA_SCALE 2
+#define SSAA_SCALE 3
 #define SSAA_SAMPLES (SSAA_SCALE*SSAA_SCALE)
 #define MOUSE_SENSITIVITY 0.0015f
 #define AMBIENCE 0.1f
@@ -290,6 +290,7 @@ void drawTriangles(Camera &cam, std::vector<Model *> models)
           t.vertices[v].pos.z = ((cam.far - cam.near) / 2.0f) * t.vertices[v].pos.z + ((cam.far + cam.near) / 2.0f);
         }
         #if SSAA
+        #pragma omp parallel for
         for (int s = 0; s < SSAA_SAMPLES; s++) {
           triangle(t, model.texture, tri.colour, wireframe, buffer + (IMG_SIZE * s), depthBuffer + (IMG_SIZE * s), offsets[s]);
         }
@@ -460,6 +461,7 @@ void raytrace(Camera camera, std::vector<Model*> models) {
   mainLight.calculateCentre();
 
   //loop through each pixel in image plane
+  #pragma omp parallel for
   for(int j = 0; j < HEIGHT; j++) {
     for(int i = 0; i < WIDTH; i++) {
       float angle = tanf(0.5f * glm::radians(camera.fov)); // just fov*0.5 converted to radians
@@ -1067,6 +1069,11 @@ void triangle(Triangle &t, Texture &tex, int colour, bool filled, uint32_t *buff
     float w1_line = edgeFunction(t.vertices[2].pos.x, t.vertices[2].pos.y, t.vertices[0].pos.x, t.vertices[0].pos.y, p.x, p.y) * area_inv;
     float w2_line = edgeFunction(t.vertices[0].pos.x, t.vertices[0].pos.y, t.vertices[1].pos.x, t.vertices[1].pos.y, p.x, p.y) * area_inv;
     float w0, w1, w2;
+    // 3x SSAA, no changes                      33-34 fps
+    // 3x SSAA, edgeFunction every line         33-34 fps
+    // 3x SSAA, edgeFunction every pixel        26 fps
+    // 3x SSAA, edgeFunction every line w/ OMP  30 fps (oh no)
+    // 3x SSAA, OMP for each sample             90-91 fps (yay)
     for (int y = y_min; y <= y_max; y++) {
       w0 = w0_line;
       w1 = w1_line;
