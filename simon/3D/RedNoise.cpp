@@ -436,28 +436,69 @@ bool inShadow(Model model, vec4 shadowRayDirection, RayTriangleIntersection inte
   return false;
 }
 
+vec4 refract(vec4 I, vec4 N, float ior) {
+  vec4 refractedRay;
+
+  float cosi = clamp<float>(glm::dot(I, N), -1.0f, 1.0f);
+  float etai = 1.0f, etat = ior;
+  vec4 n = N;
+  if (cosi < 0) {
+    cosi = -cosi;
+  } else {
+    std::swap(etai, etat);
+    n = -N;
+  }
+  float eta = etai / etat;
+  float k = 1 - eta * eta * (1 - cosi * cosi);
+  return k < 0 ? vec4(0, 0, 0, 0) : eta * I + (eta * cosi - sqrtf(k)) * n;
+}
+
 Colour getPixelColour(RayTriangleIntersection intersection, Light mainLight, vec4 rayDirection, Model model, int depth) {
   Colour colour = Colour(0, 0, 0);
 
       if(intersection.intersectedTriangle.material.dissolve < 1) {
         vec4 refractedRay;
+        float kr;
 
         float cosi = clamp<float>(glm::dot(rayDirection, intersection.intersectedTriangle.normal), -1.0f, 1.0f);
         float etai = 1.0f, etat = 1.5f;
-        vec4 n = intersection.intersectedTriangle.normal;
-        if (cosi < 0) {
-          cosi = -cosi;
-        } else {
+
+        if(cosi > 0) {
           std::swap(etai, etat);
-          n = -intersection.intersectedTriangle.normal;
         }
-        float eta = etai / etat;
-        float k = 1 - eta * eta * (1 - cosi * cosi);
-        refractedRay = k < 0 ? vec4(0, 0, 0, 0) : eta * rayDirection + (eta * cosi - sqrtf(k)) * n;
 
-        RayTriangleIntersection refractIntersection = findClosestIntersection(intersection.intersectionPoint + (intersection.intersectedTriangle.normal * 0.1f), model, refractedRay);
+        float sint = etai / etat * sqrtf(std::max(0.0f, 1 - cosi * cosi));
 
-        return getPixelColour(refractIntersection, mainLight, rayDirection, model, depth);
+        if (sint >= 1) {
+          kr = 1.0f;
+        } else {
+          float cost = sqrtf(std::max(0.0f, 1 - sint * sint));
+          cosi = fabsf(cosi);
+          float Rs = ((etat * cosi) - (etai * cost)) / ((etat * cosi) + (etai * cost));
+          float Rp = ((etai * cosi) - (etat * cost)) / ((etai * cosi) + (etat * cost));
+          kr = (Rs * Rs + Rp * Rp) / 2;
+        }
+
+        Colour refractionColour = intersection.intersectedTriangle.material.diffuse;
+        if (kr < 1) {
+          vec4 refractionDirection = refract(rayDirection, intersection.intersectedTriangle.normal, 1.5f);
+          RayTriangleIntersection refractIntersection = findClosestIntersection(intersection.intersectionPoint + (intersection.intersectedTriangle.normal * 0.1f), model, refractionDirection);
+          refractionColour = getPixelColour(refractIntersection, mainLight, rayDirection, model, depth);
+        }
+
+        Colour reflectedColour = intersection.intersectedTriangle.material.diffuse;
+        if(depth < 2) {
+          vec4 mirrorRayDirection = glm::normalize(rayDirection - 2.0f * (glm::dot(rayDirection, intersection.intersectedTriangle.normal) * intersection.intersectedTriangle.normal));
+          mirrorRayDirection.w = 0;
+
+          RayTriangleIntersection mirrorIntersection = findClosestIntersection(intersection.intersectionPoint + (intersection.intersectedTriangle.normal * 0.1f), model, mirrorRayDirection);
+          
+          reflectedColour = getPixelColour(mirrorIntersection, mainLight, rayDirection, model, depth + 1) + (intersection.intersectedTriangle.material.specular * 0.8f);
+        } else {
+          reflectedColour = intersection.intersectedTriangle.material.specular;
+        }       
+
+        return reflectedColour * kr + refractionColour * (1 - kr);
       }
 
       if(intersection.intersectedTriangle.material.specular.red >= 0) {
