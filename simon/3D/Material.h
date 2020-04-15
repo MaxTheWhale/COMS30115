@@ -7,11 +7,12 @@ class Material
 {
   public:
     std::string name;
-    Colour ambient = Colour();
-    Colour diffuse = Colour();
-    Colour specular = Colour();
+    Colour ambient = Colour(-1, -1, -1);
+    Colour diffuse = Colour(-1, -1, -1);
+    Colour specular = Colour(-1, -1, -1);
     int highlights = 0;
     int illum = 1;
+    int dissolve = 1;
 
     Material()
     {

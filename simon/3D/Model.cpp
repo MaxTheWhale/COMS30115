@@ -176,6 +176,10 @@ unordered_map<string, Material> Model::loadMTL(string fileName, int*& data, int&
       f >> illum;
       palette[key].illum = (int)illum;
     }
+    if (s == "d") {
+      f >> s;
+      palette[key].dissolve = stoi(s);
+    }
     if (s == "map_Kd") {
       string texture_file;
       f >> texture_file;

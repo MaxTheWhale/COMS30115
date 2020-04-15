@@ -386,7 +386,7 @@ vector<vec4> getLightPoints(vector<ModelTriangle> lights) {
   return result;
 }
 
-RayTriangleIntersection findClosestIntersection(Camera camera, Model model, vec4 rayDirection) {
+RayTriangleIntersection findClosestIntersection(vec4 start, Model model, vec4 rayDirection) {
   RayTriangleIntersection intersection = RayTriangleIntersection();
   float minDistance = std::numeric_limits<float>::infinity();
 
@@ -394,7 +394,7 @@ RayTriangleIntersection findClosestIntersection(Camera camera, Model model, vec4
   for(ModelTriangle triangle : model.tris) {
     vec4 e0 = triangle.vertices[1] - triangle.vertices[0];
     vec4 e1 = triangle.vertices[2] - triangle.vertices[0];
-    vec4 SPVector = camera.transform[3] - triangle.vertices[0];
+    vec4 SPVector = start - triangle.vertices[0];
     mat4 DEMatrix(-rayDirection, e0, e1, vec4(1, 1, 1, 1));
     vec4 possibleSolution = glm::inverse(DEMatrix) * SPVector;
 
@@ -402,8 +402,8 @@ RayTriangleIntersection findClosestIntersection(Camera camera, Model model, vec4
     if (possibleSolution.y >= 0 && possibleSolution.y <= 1 &&
       possibleSolution.z >= 0 && possibleSolution.z <= 1 &&
       possibleSolution.y + possibleSolution.z <= 1) {
-      if (possibleSolution.x < minDistance) {
-        intersection = RayTriangleIntersection(camera.transform[3] + (possibleSolution.x * rayDirection) , possibleSolution.x, triangle);
+      if (possibleSolution.x < minDistance && possibleSolution.x > 0) {
+        intersection = RayTriangleIntersection(start + (possibleSolution.x * rayDirection) , possibleSolution.x, triangle);
         intersection.intersectionPoint.w = 1;
         minDistance = possibleSolution.x;
       }
@@ -434,6 +434,119 @@ bool inShadow(Model model, vec4 shadowRayDirection, RayTriangleIntersection inte
   }
 
   return false;
+}
+
+vec4 refract(vec4 I, vec4 N, float ior) {
+  vec4 refractedRay;
+
+  float cosi = clamp<float>(glm::dot(I, N), -1.0f, 1.0f);
+  float etai = 1.0f, etat = ior;
+  vec4 n = N;
+  if (cosi < 0) {
+    cosi = -cosi;
+  } else {
+    std::swap(etai, etat);
+    n = -N;
+  }
+  float eta = etai / etat;
+  float k = 1 - eta * eta * (1 - cosi * cosi);
+  return k < 0 ? vec4(0, 0, 0, 0) : eta * I + (eta * cosi - sqrtf(k)) * n;
+}
+
+Colour getPixelColour(RayTriangleIntersection intersection, Light mainLight, vec4 rayDirection, Model model, int depth) {
+  Colour colour = Colour(0, 0, 0);
+
+      if(intersection.intersectedTriangle.material.dissolve < 1) {
+        vec4 refractedRay;
+        float kr;
+
+        float cosi = clamp<float>(glm::dot(rayDirection, intersection.intersectedTriangle.normal), -1.0f, 1.0f);
+        float etai = 1.0f, etat = 1.5f;
+
+        if(cosi > 0) {
+          std::swap(etai, etat);
+        }
+
+        float sint = etai / etat * sqrtf(std::max(0.0f, 1 - cosi * cosi));
+
+        if (sint >= 1) {
+          kr = 1.0f;
+        } else {
+          float cost = sqrtf(std::max(0.0f, 1 - sint * sint));
+          cosi = fabsf(cosi);
+          float Rs = ((etat * cosi) - (etai * cost)) / ((etat * cosi) + (etai * cost));
+          float Rp = ((etai * cosi) - (etat * cost)) / ((etai * cosi) + (etat * cost));
+          kr = (Rs * Rs + Rp * Rp) / 2;
+        }
+
+        bool outside = glm::dot(rayDirection, intersection.intersectedTriangle.normal) < 0;
+        float bias = 1e-4;
+
+        Colour refractionColour = intersection.intersectedTriangle.material.diffuse;
+        if (kr < 1) {
+          vec4 refractionDirection = refract(rayDirection, intersection.intersectedTriangle.normal, 1.5f);
+          RayTriangleIntersection refractIntersection = findClosestIntersection(outside ? intersection.intersectionPoint - (intersection.intersectedTriangle.normal * bias) : intersection.intersectionPoint + (intersection.intersectedTriangle.normal * bias), model, refractionDirection);
+          refractionColour = getPixelColour(refractIntersection, mainLight, rayDirection, model, depth);
+        }
+
+        Colour reflectedColour = intersection.intersectedTriangle.material.diffuse;
+        if(depth < 2) {
+          vec4 mirrorRayDirection = glm::normalize(rayDirection - 2.0f * (glm::dot(rayDirection, intersection.intersectedTriangle.normal) * intersection.intersectedTriangle.normal));
+          mirrorRayDirection.w = 0;
+
+          RayTriangleIntersection mirrorIntersection = findClosestIntersection(outside ? intersection.intersectionPoint - (intersection.intersectedTriangle.normal * bias) : intersection.intersectionPoint + (intersection.intersectedTriangle.normal * bias), model, mirrorRayDirection);
+          
+          reflectedColour = getPixelColour(mirrorIntersection, mainLight, rayDirection, model, depth + 1) + (intersection.intersectedTriangle.material.specular * 0.8f);
+        } else {
+          reflectedColour = intersection.intersectedTriangle.material.specular;
+        }       
+
+        return reflectedColour * kr + refractionColour * (1 - kr);
+      }
+
+      if(intersection.intersectedTriangle.material.specular.red >= 0) {
+        if(depth < 2) {
+          vec4 mirrorRayDirection = glm::normalize(rayDirection - 2.0f * (glm::dot(rayDirection, intersection.intersectedTriangle.normal) * intersection.intersectedTriangle.normal));
+          mirrorRayDirection.w = 0;
+
+          RayTriangleIntersection mirrorIntersection = findClosestIntersection(intersection.intersectionPoint + (intersection.intersectedTriangle.normal * 0.1f), model, mirrorRayDirection);
+          
+          return getPixelColour(mirrorIntersection, mainLight, rayDirection, model, depth + 1) + (intersection.intersectedTriangle.material.specular * 0.8f);
+        } else {
+          return intersection.intersectedTriangle.material.specular;
+        }
+      }
+
+      if(intersection.intersectedTriangle.name == mainLight.name) {
+        return intersection.intersectedTriangle.material.diffuse;
+      } else if(intersection.intersectedTriangle.name != "") {
+        colour = intersection.intersectedTriangle.material.diffuse;
+
+        vec4 shadowRayDirection = mainLight.centre - intersection.intersectionPoint;
+        bool isInShadow = inShadow(model, shadowRayDirection, intersection);
+
+        if(isInShadow) colour = colour * mainLight.shadow;
+        else {
+          //calculate the angleOfIncidence between 0 and 1
+          float angleOfIncidence = glm::dot(glm::normalize(shadowRayDirection), intersection.intersectedTriangle.normal);
+          colour = colour * clamp<float>(angleOfIncidence, mainLight.shadow, 1);
+
+          //adjust brightness for proximity lighting
+          float brightness = mainLight.intensity/pow(vectorLength(shadowRayDirection),2);
+          colour = colour * clamp<float>(brightness, mainLight.shadow, 1);
+
+          if(intersection.intersectedTriangle.material.highlights > 0) {
+            //TODO: make the colour of the highlights match the specular material colour
+            vec4 reflection = glm::normalize((-shadowRayDirection) - 2.0f * (glm::dot((-shadowRayDirection), intersection.intersectedTriangle.normal) * intersection.intersectedTriangle.normal));
+            float specular = pow(glm::dot(glm::normalize((-rayDirection)), reflection), intersection.intersectedTriangle.material.highlights);
+            colour = colour + (clamp<float>(specular, 0, 1) * 255);
+          }
+        }
+
+        return colour; 
+      }
+
+      return colour;
 }
 
 void raytrace(Camera camera, std::vector<Model*> models) {
@@ -473,41 +586,9 @@ void raytrace(Camera camera, std::vector<Model*> models) {
       // the main camera ray
       vec4 rayDirection = camera.transform * vec4(x, y, -1, 0);
 
-      RayTriangleIntersection intersection = findClosestIntersection(camera, model, rayDirection);
+      RayTriangleIntersection intersection = findClosestIntersection(camera.transform[3], model, rayDirection);
 
-      Colour colour = Colour(0, 0, 0);
-
-      if(intersection.intersectedTriangle.name == mainLight.name) {
-        window.setPixelColour(i, j, intersection.intersectedTriangle.material.diffuse.toPackedInt());
-      } else if(intersection.intersectedTriangle.name != "") {
-        colour = intersection.intersectedTriangle.material.diffuse;
-
-        vec4 shadowRayDirection = mainLight.centre - intersection.intersectionPoint;
-        bool isInShadow = inShadow(model, shadowRayDirection, intersection);
-
-        if(isInShadow) colour = colour * mainLight.shadow;
-        else {
-          //calculate the angleOfIncidence between 0 and 1
-          float angleOfIncidence = glm::dot(glm::normalize(shadowRayDirection), intersection.intersectedTriangle.normal);
-          colour = colour * clamp<float>(angleOfIncidence, mainLight.shadow, 1);
-
-          //adjust brightness for proximity lighting
-          float brightness = mainLight.intensity/pow(vectorLength(shadowRayDirection),2);
-          colour = colour * clamp<float>(brightness, mainLight.shadow, 1);
-
-          if(intersection.intersectedTriangle.material.highlights > 0) {
-            //TODO: make the colour of the highlights match the specular material colour
-            vec4 reflection = glm::normalize((-shadowRayDirection) - 2.0f * (glm::dot((-shadowRayDirection), intersection.intersectedTriangle.normal) * intersection.intersectedTriangle.normal));
-            float specular = pow(glm::dot(glm::normalize((-rayDirection)), reflection), intersection.intersectedTriangle.material.highlights);
-            colour = colour + (clamp<float>(specular, 0, 1) * 255);
-          }
-        }
-
-        window.setPixelColour(i, j, colour.toPackedInt());
-        
-      } else {
-        window.setPixelColour(i, j, colour.toPackedInt());
-      }
+      window.setPixelColour(i, j, getPixelColour(intersection, mainLight, rayDirection, model, 0).toPackedInt());  
     }
   }
   savePPM("window.ppm", &window);
@@ -710,10 +791,10 @@ int main(int argc, char *argv[])
   cornellRB.hasGravity = false;
   updateQueue.push_back(&cornellRB);
 
-  Model hs_logo = Model("HackspaceLogo/logo");
-  hs_logo.scale(vec3(0.005f, 0.005f, 0.005f));
-  hs_logo.move(vec3(-1.1f, 1.21f, -1.8f));
-  renderQueue.push_back(&hs_logo);
+  // Model hs_logo = Model("HackspaceLogo/logo");
+  // hs_logo.scale(vec3(0.005f, 0.005f, 0.005f));
+  // hs_logo.move(vec3(-1.1f, 1.21f, -1.8f));
+  // renderQueue.push_back(&hs_logo);
 
   // Model cornell2 = Model("cornell-box");
   // // cornell2.move(glm::vec3(0,1,0));
