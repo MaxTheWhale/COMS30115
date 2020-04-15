@@ -28,6 +28,10 @@ using namespace glm;
 #define AMBIENCE 0.1f
 #define ASPECT_RATIO WIDTH/(float)HEIGHT
 
+#ifndef M_PIf
+#define M_PIf 3.14159265358979323846f
+#endif
+
 enum CLIP_CODE {TOP = 1, RIGHT = 2, BOTTOM = 4, LEFT = 8};
 enum COLOUR_MASK {ALPHA = 0xff000000, RED = 0x00ff0000, GREEN = 0x0000ff00, BLUE = 0x000000ff};
 
@@ -40,6 +44,7 @@ class Vertex {
     Vertex operator+=(const Vertex& rhs)
     {
       pos += rhs.pos;
+      pos_3d += rhs.pos_3d;
       brightness += rhs.brightness;
       u += rhs.u;
       v += rhs.v;
@@ -55,6 +60,7 @@ class Vertex {
     Vertex operator-=(const Vertex& rhs)
     {
       pos -= rhs.pos;
+      pos_3d -= rhs.pos_3d;
       brightness -= rhs.brightness;
       u -= rhs.u;
       v -= rhs.v;
@@ -70,6 +76,7 @@ class Vertex {
     Vertex operator*=(float rhs)
     {
       pos *= rhs;
+      pos_3d *= rhs;
       brightness *= rhs;
       u *= rhs;
       v *= rhs;
@@ -85,6 +92,7 @@ class Vertex {
     Vertex operator/=(float rhs)
     {
       pos /= rhs;
+      pos_3d /= rhs;
       brightness /= rhs;
       u /= rhs;
       v /= rhs;
@@ -141,8 +149,8 @@ float depthBuffer[IMG_SIZE];
 uint32_t imageBuffer[IMG_SIZE];
 #endif
 bool wireframe;
-bool bilinear;
-bool perspective;
+bool bilinear = true;
+bool perspective = true;
 vector<float> Interpolate(float a, float b, int n);
 vector<vec3> Interpolate(vec3 a, vec3 b, int n);
 vector<vec4> Interpolate(vec4 a, vec4 b, int n);
@@ -252,18 +260,22 @@ void drawTriangles(Camera &cam, std::vector<Model *> models)
   for (unsigned int i = 0; i < models.size(); i++)
   {
     Model &model = *models[i];
-    mat4 MVP = cam.projection * cam.worldToCamera() * model.transform;
+    mat4 viewProjection = cam.projection * cam.worldToCamera();
     vec4 eye = vec4(cam.getPosition(), 0);
     for (auto& modelTri : model.tris)
     {
       Triangle tri = Triangle(modelTri);
-      if (dot((model.transform * tri.vertices[0].pos) - eye, model.transform * tri.normal) >= 0.0f) continue;
-      tri.vertices[0].brightness = glm::max(dot(normalize(eye - (model.transform * tri.vertices[0].pos)), normalize(model.transform * tri.normal)), 0.0f);
-      tri.vertices[1].brightness = glm::max(dot(normalize(eye - (model.transform * tri.vertices[1].pos)), normalize(model.transform * tri.normal)), 0.0f);
-      tri.vertices[2].brightness = glm::max(dot(normalize(eye - (model.transform * tri.vertices[2].pos)), normalize(model.transform * tri.normal)), 0.0f);
-      tri.vertices[0].pos = MVP * tri.vertices[0].pos;
-      tri.vertices[1].pos = MVP * tri.vertices[1].pos;
-      tri.vertices[2].pos = MVP * tri.vertices[2].pos;
+      tri.normal = normalize(model.transform * tri.normal);
+      tri.vertices[0].pos_3d = model.transform * tri.vertices[0].pos;
+      tri.vertices[1].pos_3d = model.transform * tri.vertices[1].pos;
+      tri.vertices[2].pos_3d = model.transform * tri.vertices[2].pos;
+      if (dot(tri.vertices[0].pos_3d - eye, tri.normal) >= 0.0f) continue;
+      tri.vertices[0].brightness = glm::max(dot(normalize(eye - tri.vertices[0].pos_3d), tri.normal), 0.0f);
+      tri.vertices[1].brightness = glm::max(dot(normalize(eye - tri.vertices[1].pos_3d), tri.normal), 0.0f);
+      tri.vertices[2].brightness = glm::max(dot(normalize(eye - tri.vertices[2].pos_3d), tri.normal), 0.0f);
+      tri.vertices[0].pos = viewProjection * tri.vertices[0].pos_3d;
+      tri.vertices[1].pos = viewProjection * tri.vertices[1].pos_3d;
+      tri.vertices[2].pos = viewProjection * tri.vertices[2].pos_3d;
       list<Triangle> clippedTris;
       clippedTris.push_back(tri);
       clipToView(clippedTris);
@@ -278,6 +290,7 @@ void drawTriangles(Camera &cam, std::vector<Model *> models)
           t.vertices[v].pos.z = ((cam.far - cam.near) / 2.0f) * t.vertices[v].pos.z + ((cam.far + cam.near) / 2.0f);
         }
         #if SSAA
+        #pragma omp parallel for
         for (int s = 0; s < SSAA_SAMPLES; s++) {
           triangle(t, model.texture, tri.colour, wireframe, buffer + (IMG_SIZE * s), depthBuffer + (IMG_SIZE * s), offsets[s]);
         }
@@ -517,6 +530,7 @@ void raytrace(Camera camera, std::vector<Model*> models) {
   mainLight.calculateCentre();
 
   //loop through each pixel in image plane
+  #pragma omp parallel for
   for(int j = 0; j < HEIGHT; j++) {
     for(int i = 0; i < WIDTH; i++) {
       float angle = tanf(0.5f * glm::radians(camera.fov)); // just fov*0.5 converted to radians
@@ -1036,6 +1050,16 @@ inline int scaleColour(int colour, float scale) {
   return (colour & ALPHA) | (red << 16) | (green << 8) | blue;
 }
 
+inline int scaleColour(int colour, vec3 scale) {
+  unsigned char red = (colour & RED) >> 16;
+  red *= scale.r;
+  unsigned char green = (colour & GREEN) >> 8;
+  green *= scale.g;
+  unsigned char blue = (colour & BLUE);
+  blue *= scale.b;
+  return (colour & ALPHA) | (red << 16) | (green << 8) | blue;
+}
+
 inline int bilinearColour(int tl, int tr, int bl, int br, vec2 pos) {
   float xy = pos.x * pos.y;
   float a0 = xy - pos.x - pos.y + 1.0f;
@@ -1051,6 +1075,10 @@ inline int bilinearColour(int tl, int tr, int bl, int br, vec2 pos) {
 
 void triangle(Triangle &t, Texture &tex, int colour, bool filled, uint32_t *buffer, float *depthBuff, vec2 offset)
 {
+  vec4 light_pos = vec4(-0.234f, 5.2f, -3.043f, 1.0f);
+  vec3 light_power = vec3(200.0f, 200.0f, 200.0f);
+  vec3 reflectivity = vec3((t.colour & RED) / (float)RED, (t.colour & GREEN) / (float)GREEN, (t.colour & BLUE) / (float)BLUE);
+  vec3 ambience = vec3(0.2f, 0.2f, 0.2f);
   if (filled)
   {
     bool textured = (t.vertices[0].u >= 0.0f);
@@ -1078,6 +1106,11 @@ void triangle(Triangle &t, Texture &tex, int colour, bool filled, uint32_t *buff
     float w1_line = edgeFunction(t.vertices[2].pos.x, t.vertices[2].pos.y, t.vertices[0].pos.x, t.vertices[0].pos.y, p.x, p.y) * area_inv;
     float w2_line = edgeFunction(t.vertices[0].pos.x, t.vertices[0].pos.y, t.vertices[1].pos.x, t.vertices[1].pos.y, p.x, p.y) * area_inv;
     float w0, w1, w2;
+    // 3x SSAA, no changes                      33-34 fps
+    // 3x SSAA, edgeFunction every line         33-34 fps
+    // 3x SSAA, edgeFunction every pixel        26 fps
+    // 3x SSAA, edgeFunction every line w/ OMP  30 fps (oh no)
+    // 3x SSAA, OMP for each sample             90-91 fps (yay)
     for (int y = y_min; y <= y_max; y++) {
       w0 = w0_line;
       w1 = w1_line;
@@ -1096,7 +1129,10 @@ void triangle(Triangle &t, Texture &tex, int colour, bool filled, uint32_t *buff
             else {
               q0 = w0; q1 = w1; q2 = w2;
             }
-            float brightness = (q0 * t.vertices[0].brightness + q1 * t.vertices[1].brightness + q2 * t.vertices[2].brightness) / (q0 + q1 + q2);
+            vec4 pos_3d = (q0 * t.vertices[0].pos_3d + q1 * t.vertices[1].pos_3d + q2 * t.vertices[2].pos_3d) / (q0 + q1 + q2);
+            float radius = distance(light_pos, pos_3d);
+            vec3 directLight = light_power * glm::max(dot(normalize(light_pos - pos_3d), t.normal), 0.0f) / (radius * radius * 4.0f * M_PIf);
+            vec3 reflectedLight = glm::min(reflectivity * (directLight + ambience), 1.0f);
             if (textured) {
               float u = (q0 * t.vertices[0].u + q1 * t.vertices[1].u + q2 * t.vertices[2].u) / (q0 + q1 + q2);
               float v = (q0 * t.vertices[0].v + q1 * t.vertices[1].v + q2 * t.vertices[2].v) / (q0 + q1 + q2);
@@ -1110,16 +1146,16 @@ void triangle(Triangle &t, Texture &tex, int colour, bool filled, uint32_t *buff
                 int bl = tl + tex.width;
                 int br = bl + 1;
                 int biColour = bilinearColour(tex.data[tl], tex.data[tr], tex.data[bl], tex.data[br], vec2(mod(u, 1.0f), mod(v, 1.0f)));
-                buffer[y * WIDTH + x] = scaleColour(biColour, brightness);
+                buffer[y * WIDTH + x] = scaleColour(biColour, reflectedLight);
               }
               else {
                 u *= tex.width;
                 v *= tex.height;
-                buffer[y * WIDTH + x] = scaleColour(tex.data[(int)u + (int)v * tex.width], brightness);
+                buffer[y * WIDTH + x] = scaleColour(tex.data[(int)u + (int)v * tex.width], reflectedLight);
               }
             }
             else
-              buffer[y * WIDTH + x] = scaleColour(colour, brightness);
+              buffer[y * WIDTH + x] = scaleColour(colour, reflectedLight);
           }
         }
         w0 += w0_step_x;
