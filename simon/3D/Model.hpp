@@ -9,6 +9,7 @@
 
 struct Texture {
   int* data;
+  glm::vec3* dataVec;
   int width, height;
 };
 

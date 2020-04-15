@@ -8,6 +8,12 @@ using namespace std;
 Model::Model(string filename) {
     palette = loadMTL(filename + ".mtl", texture.data, texture.width, texture.height);
     tris = loadOBJ(filename + ".obj", palette);
+    texture.dataVec = new glm::vec3[texture.width * texture.height];
+    for (int i = 0; i < texture.width * texture.height; i++) {
+      texture.dataVec[i].r = ((texture.data[i] & 0xff0000) >> 16) / 255.0f;
+      texture.dataVec[i].g = ((texture.data[i] & 0x00ff00) >> 8) / 255.0f;
+      texture.dataVec[i].b = (texture.data[i] & 0x0000ff) / 255.0f;
+    }
 }
 
 vector<ModelTriangle> Model::loadOBJ(string fileName,
@@ -161,8 +167,14 @@ unordered_map<string, Material> Model::loadMTL(string fileName, int*& data, int&
       palette[key].specular = Colour(key, stof(r) * 255, stof(g) * 255, stof(b) * 255);
     }
     if (s == "Ns") {
-      f >> s;
-      palette[key].highlights = stoi(s);
+      int Ns;
+      f >> Ns;
+      palette[key].highlights = Ns;
+    }
+    if (s == "illum") {
+      float illum;
+      f >> illum;
+      palette[key].illum = (int)illum;
     }
     if (s == "map_Kd") {
       string texture_file;

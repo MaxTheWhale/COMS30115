@@ -109,7 +109,7 @@ class Vertex {
 class Triangle {
   public:
     Vertex vertices[3];
-    int colour;
+    Material mat;
     vec4 normal;
     Triangle(ModelTriangle &tri) {
       for (int i = 0; i < 3; i++) {
@@ -122,20 +122,20 @@ class Triangle {
         vertices[i].brightness = tri.brightness[i];
       }
       normal = tri.normal;
-      colour = tri.material.diffuse.toPackedInt();
+      mat = tri.material;
     }
-    Triangle(const Vertex &v0, const Vertex &v1, const Vertex &v2, const int &tColour, const vec4 &tNormal) {
+    Triangle(const Vertex &v0, const Vertex &v1, const Vertex &v2, const Material &tMat, const vec4 &tNormal) {
       vertices[0] = v0;
       vertices[1] = v1;
       vertices[2] = v2;
-      colour = tColour;
+      mat = tMat;
       normal = tNormal;
     }
 };
 
 void draw();
 void line(vec4 p, vec4 q, int colour, uint32_t *buffer, vec2 &offset);
-void triangle(Triangle &t, Texture &tex, int colour, bool filled, uint32_t *buffer, float *depthBuff, vec2 offset);
+void triangle(Triangle &t, Texture &tex, bool filled, uint32_t *buffer, float *depthBuff, vec2 offset, vec4 &eye_pos);
 int *loadPPM(string fileName, int &width, int &height);
 void savePPM(string fileName, DrawingWindow *window);
 void skipHashWS(ifstream &f);
@@ -216,7 +216,7 @@ int clipTriangle(list<Triangle>& tris, const vec4& normal) {
     temp = mixVertex((*tri).vertices[0], (*tri).vertices[2], (distances[0] / (distances[0] - distances[2])));
     if (nextInside) {
       (*tri).vertices[2] = mixVertex((*tri).vertices[1], (*tri).vertices[2], (distances[1] / (distances[1] - distances[2])));
-      Triangle newTri = Triangle((*tri).vertices[0], (*tri).vertices[2], temp, (*tri).colour, (*tri).normal);
+      Triangle newTri = Triangle((*tri).vertices[0], (*tri).vertices[2], temp, (*tri).mat, (*tri).normal);
       tris.push_back(newTri);
     }
     else {
@@ -261,7 +261,7 @@ void drawTriangles(Camera &cam, std::vector<Model *> models)
   {
     Model &model = *models[i];
     mat4 viewProjection = cam.projection * cam.worldToCamera();
-    vec4 eye = vec4(cam.getPosition(), 0);
+    vec4 eye = vec4(cam.getPosition(), 1.0f);
     for (auto& modelTri : model.tris)
     {
       Triangle tri = Triangle(modelTri);
@@ -292,7 +292,7 @@ void drawTriangles(Camera &cam, std::vector<Model *> models)
         #if SSAA
         #pragma omp parallel for
         for (int s = 0; s < SSAA_SAMPLES; s++) {
-          triangle(t, model.texture, tri.colour, wireframe, buffer + (IMG_SIZE * s), depthBuffer + (IMG_SIZE * s), offsets[s]);
+          triangle(t, model.texture, wireframe, buffer + (IMG_SIZE * s), depthBuffer + (IMG_SIZE * s), offsets[s], eye);
         }
         #else
         triangle(t, model.texture, tri.colour, wireframe, buffer, depthBuffer, vec2(0.5f, 0.5f));
@@ -1036,12 +1036,36 @@ inline int bilinearColour(int tl, int tr, int bl, int br, vec2 pos) {
   return ALPHA | (tl + bl + tr + br);
 }
 
-void triangle(Triangle &t, Texture &tex, int colour, bool filled, uint32_t *buffer, float *depthBuff, vec2 offset)
+inline vec3 bilinearColour(vec3 tl, vec3 tr, vec3 bl, vec3 br, vec2 pos) {
+  float xy = pos.x * pos.y;
+  float a0 = xy - pos.x - pos.y + 1.0f;
+  float a1 = pos.y - xy;
+  float a2 = pos.x - xy;
+  float a3 = xy;
+  tl *= a0;
+  bl *= a1;
+  tr *= a2;
+  br *= a3;
+  return (tl + bl + tr + br);
+}
+
+inline int vec3ToPackedInt(vec3 colour) {
+  return ALPHA | (int(colour.r * 255.0f) << 16) | (int(colour.g * 255.0f) << 8) | int(colour.b * 255.0f);
+}
+
+// As described here: https://en.wikipedia.org/wiki/Phong_reflection_model
+inline vec3 phongReflection(vec3 &Ks, vec3 &Kd, vec3 &Ka, int &alpha, vec3 &Is, vec3 &Id, vec3 &Ia, vec3 &Lm, vec3 &N, vec3 &Rm, vec3 &V) {
+  return (Kd * glm::max(dot(Lm, N), 0.0f) * Id) + (Ks * powf(dot(Rm, V), alpha) * Is) + Ka * Ia;
+}
+
+void triangle(Triangle &t, Texture &tex, bool filled, uint32_t *buffer, float *depthBuff, vec2 offset, vec4 &eye_pos)
 {
   vec4 light_pos = vec4(-0.234f, 5.2f, -3.043f, 1.0f);
-  vec3 light_power = vec3(200.0f, 200.0f, 200.0f);
-  vec3 reflectivity = vec3((t.colour & RED) / (float)RED, (t.colour & GREEN) / (float)GREEN, (t.colour & BLUE) / (float)BLUE);
-  vec3 ambience = vec3(0.2f, 0.2f, 0.2f);
+  vec3 Ia = vec3(0.2f, 0.2f, 0.2f);
+  vec3 Is = vec3(1.0f, 1.0f, 1.0f);
+  vec3 Kd = vec3(t.mat.diffuse.red / 255.0f, t.mat.diffuse.green / 255.0f, t.mat.diffuse.blue / 255.0f);
+  vec3 Ks = vec3(1.0f, 1.0f, 1.0f);
+  int alpha = t.mat.highlights;
   if (filled)
   {
     bool textured = (t.vertices[0].u >= 0.0f);
@@ -1069,11 +1093,6 @@ void triangle(Triangle &t, Texture &tex, int colour, bool filled, uint32_t *buff
     float w1_line = edgeFunction(t.vertices[2].pos.x, t.vertices[2].pos.y, t.vertices[0].pos.x, t.vertices[0].pos.y, p.x, p.y) * area_inv;
     float w2_line = edgeFunction(t.vertices[0].pos.x, t.vertices[0].pos.y, t.vertices[1].pos.x, t.vertices[1].pos.y, p.x, p.y) * area_inv;
     float w0, w1, w2;
-    // 3x SSAA, no changes                      33-34 fps
-    // 3x SSAA, edgeFunction every line         33-34 fps
-    // 3x SSAA, edgeFunction every pixel        26 fps
-    // 3x SSAA, edgeFunction every line w/ OMP  30 fps (oh no)
-    // 3x SSAA, OMP for each sample             90-91 fps (yay)
     for (int y = y_min; y <= y_max; y++) {
       w0 = w0_line;
       w1 = w1_line;
@@ -1092,10 +1111,6 @@ void triangle(Triangle &t, Texture &tex, int colour, bool filled, uint32_t *buff
             else {
               q0 = w0; q1 = w1; q2 = w2;
             }
-            vec4 pos_3d = (q0 * t.vertices[0].pos_3d + q1 * t.vertices[1].pos_3d + q2 * t.vertices[2].pos_3d) / (q0 + q1 + q2);
-            float radius = distance(light_pos, pos_3d);
-            vec3 directLight = light_power * glm::max(dot(normalize(light_pos - pos_3d), t.normal), 0.0f) / (radius * radius * 4.0f * M_PIf);
-            vec3 reflectedLight = glm::min(reflectivity * (directLight + ambience), 1.0f);
             if (textured) {
               float u = (q0 * t.vertices[0].u + q1 * t.vertices[1].u + q2 * t.vertices[2].u) / (q0 + q1 + q2);
               float v = (q0 * t.vertices[0].v + q1 * t.vertices[1].v + q2 * t.vertices[2].v) / (q0 + q1 + q2);
@@ -1108,17 +1123,27 @@ void triangle(Triangle &t, Texture &tex, int colour, bool filled, uint32_t *buff
                 int tr = tl + 1;
                 int bl = tl + tex.width;
                 int br = bl + 1;
-                int biColour = bilinearColour(tex.data[tl], tex.data[tr], tex.data[bl], tex.data[br], vec2(mod(u, 1.0f), mod(v, 1.0f)));
-                buffer[y * WIDTH + x] = scaleColour(biColour, reflectedLight);
+                Kd = bilinearColour(tex.dataVec[tl], tex.dataVec[tr], tex.dataVec[bl], tex.dataVec[br], vec2(mod(u, 1.0f), mod(v, 1.0f)));
               }
               else {
                 u *= tex.width;
                 v *= tex.height;
-                buffer[y * WIDTH + x] = scaleColour(tex.data[(int)u + (int)v * tex.width], reflectedLight);
+                Kd = tex.dataVec[(int)u + (int)v * tex.width];
               }
             }
-            else
-              buffer[y * WIDTH + x] = scaleColour(colour, reflectedLight);
+            vec4 pos_3d = (q0 * t.vertices[0].pos_3d + q1 * t.vertices[1].pos_3d + q2 * t.vertices[2].pos_3d) / (q0 + q1 + q2);
+            float radius = distance(light_pos, pos_3d);
+            vec3 Id = vec3(200.0f, 200.0f, 200.0f) / (4.0f * M_PIf * radius * radius);
+            vec3 Ka = Kd;
+            vec3 V = toThree(normalize(eye_pos - pos_3d));
+            vec3 Lm = toThree(normalize(light_pos - pos_3d));
+            vec3 N = toThree(t.normal);
+            vec3 Rm = normalize(2.0f * N * dot(Lm, N) - Lm);
+            if (t.mat.illum < 2) {
+              Ks = vec3(0.0f);
+            }
+            vec3 reflectedLight = glm::min(phongReflection(Ks, Kd, Ka, alpha, Is, Id, Ia, Lm, N, Rm, V), 1.0f);
+            buffer[y * WIDTH + x] = vec3ToPackedInt(reflectedLight);
           }
         }
         w0 += w0_step_x;
@@ -1132,9 +1157,9 @@ void triangle(Triangle &t, Texture &tex, int colour, bool filled, uint32_t *buff
   }
   else
   {
-    line(t.vertices[0].pos, t.vertices[1].pos, colour, buffer, offset);
-    line(t.vertices[1].pos, t.vertices[2].pos, colour, buffer, offset);
-    line(t.vertices[2].pos, t.vertices[0].pos, colour, buffer, offset);
+    line(t.vertices[0].pos, t.vertices[1].pos, t.mat.diffuse.toPackedInt(), buffer, offset);
+    line(t.vertices[1].pos, t.vertices[2].pos, t.mat.diffuse.toPackedInt(), buffer, offset);
+    line(t.vertices[2].pos, t.vertices[0].pos, t.mat.diffuse.toPackedInt(), buffer, offset);
   }
 }
 

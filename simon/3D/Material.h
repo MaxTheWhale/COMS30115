@@ -11,6 +11,7 @@ class Material
     Colour diffuse = Colour();
     Colour specular = Colour();
     int highlights = 0;
+    int illum = 1;
 
     Material()
     {
