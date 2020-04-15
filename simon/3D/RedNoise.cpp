@@ -479,10 +479,13 @@ Colour getPixelColour(RayTriangleIntersection intersection, Light mainLight, vec
           kr = (Rs * Rs + Rp * Rp) / 2;
         }
 
+        bool outside = glm::dot(rayDirection, intersection.intersectedTriangle.normal) < 0;
+        float bias = 1e-4;
+
         Colour refractionColour = intersection.intersectedTriangle.material.diffuse;
         if (kr < 1) {
           vec4 refractionDirection = refract(rayDirection, intersection.intersectedTriangle.normal, 1.5f);
-          RayTriangleIntersection refractIntersection = findClosestIntersection(intersection.intersectionPoint + (intersection.intersectedTriangle.normal * 0.1f), model, refractionDirection);
+          RayTriangleIntersection refractIntersection = findClosestIntersection(outside ? intersection.intersectionPoint - (intersection.intersectedTriangle.normal * bias) : intersection.intersectionPoint + (intersection.intersectedTriangle.normal * bias), model, refractionDirection);
           refractionColour = getPixelColour(refractIntersection, mainLight, rayDirection, model, depth);
         }
 
@@ -491,7 +494,7 @@ Colour getPixelColour(RayTriangleIntersection intersection, Light mainLight, vec
           vec4 mirrorRayDirection = glm::normalize(rayDirection - 2.0f * (glm::dot(rayDirection, intersection.intersectedTriangle.normal) * intersection.intersectedTriangle.normal));
           mirrorRayDirection.w = 0;
 
-          RayTriangleIntersection mirrorIntersection = findClosestIntersection(intersection.intersectionPoint + (intersection.intersectedTriangle.normal * 0.1f), model, mirrorRayDirection);
+          RayTriangleIntersection mirrorIntersection = findClosestIntersection(outside ? intersection.intersectionPoint - (intersection.intersectedTriangle.normal * bias) : intersection.intersectionPoint + (intersection.intersectedTriangle.normal * bias), model, mirrorRayDirection);
           
           reflectedColour = getPixelColour(mirrorIntersection, mainLight, rayDirection, model, depth + 1) + (intersection.intersectedTriangle.material.specular * 0.8f);
         } else {
