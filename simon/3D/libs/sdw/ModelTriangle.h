@@ -10,6 +10,7 @@ class ModelTriangle
     glm::vec4 vertices[3];
     glm::vec2 uvs[3];
     glm::vec4 normal;
+    glm::vec4 normals[3];
     float brightness[3];
     Material material;
     std::string name = "";
@@ -74,6 +75,9 @@ class ModelTriangle
       vertices[1] = glm::vec4(v1.x, v1.y, v1.z, 1);
       vertices[2] = glm::vec4(v2.x, v2.y, v2.z, 1);
       normal = glm::vec4(glm::normalize(glm::cross(v0 - v1, v0 - v2)), 0);
+      normals[0] = normal;
+      normals[1] = normal;
+      normals[2] = normal;
       material = trigMaterial;
       name = n;
       uvs[0] = glm::vec2(-1.0f, -1.0f);
