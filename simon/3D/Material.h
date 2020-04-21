@@ -3,6 +3,11 @@
 #include <iostream>
 #include <Colour.h>
 
+struct Texture {
+  int* data;
+  int width, height;
+};
+
 class Material
 {
   public:
@@ -12,6 +17,7 @@ class Material
     Colour specular = Colour(-1, -1, -1);
     int highlights = 0;
     int dissolve = 1;
+    Texture texture = {nullptr, 0, 0};
 
     Material()
     {

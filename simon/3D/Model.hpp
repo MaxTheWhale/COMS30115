@@ -6,11 +6,7 @@
 #include <vector>
 #include <unordered_map>
 #include <string>
-
-struct Texture {
-  int* data;
-  int width, height;
-};
+#include "Material.h"
 
 class Model : public Animatable {
   public:

@@ -454,7 +454,14 @@ vec4 refract(vec4 I, vec4 N, float ior) {
 }
 
 Colour getPixelColour(RayTriangleIntersection intersection, Light mainLight, vec4 rayDirection, Model model, int depth) {
+  Texture tex = intersection.intersectedTriangle.material.texture;
+
   Colour colour = Colour(0, 0, 0);
+
+  if(tex.data != nullptr) {
+    cout << Colour(tex.data[(int) (intersection.intersectionPoint.x + intersection.intersectionPoint.y + intersection.intersectionPoint.z)]) << endl;
+    return Colour(tex.data[(int) (intersection.intersectionPoint.x + intersection.intersectionPoint.y + intersection.intersectionPoint.z)]);
+  }
 
       if(intersection.intersectedTriangle.material.dissolve < 1) {
         vec4 refractedRay;
@@ -791,10 +798,10 @@ int main(int argc, char *argv[])
   cornellRB.hasGravity = false;
   updateQueue.push_back(&cornellRB);
 
-  // Model hs_logo = Model("HackspaceLogo/logo");
-  // hs_logo.scale(vec3(0.005f, 0.005f, 0.005f));
-  // hs_logo.move(vec3(-1.1f, 1.21f, -1.8f));
-  // renderQueue.push_back(&hs_logo);
+  Model hs_logo = Model("HackspaceLogo/logo");
+  hs_logo.scale(vec3(0.005f, 0.005f, 0.005f));
+  hs_logo.move(vec3(-1.1f, 1.21f, -1.8f));
+  renderQueue.push_back(&hs_logo);
 
   // Model cornell2 = Model("cornell-box");
   // // cornell2.move(glm::vec3(0,1,0));

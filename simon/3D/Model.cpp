@@ -1,7 +1,6 @@
 #include "Model.hpp"
 #include <Utils.h>
 #include <fstream>
-#include "Material.h"
 
 using namespace std;
 
@@ -178,6 +177,9 @@ unordered_map<string, Material> Model::loadMTL(string fileName, int*& data, int&
         cout << texture_file << '\n';
       }
       data = loadPPM(texture_file, width, height);
+      palette[key].texture.width = width;
+      palette[key].texture.height = height;
+      palette[key].texture.data = data;
     }
   }
   return palette;
