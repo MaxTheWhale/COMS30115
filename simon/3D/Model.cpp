@@ -8,11 +8,13 @@ using namespace std;
 Model::Model(string filename) {
     palette = loadMTL(filename + ".mtl", texture.data, texture.width, texture.height);
     tris = loadOBJ(filename + ".obj", palette);
-    texture.dataVec = new glm::vec3[texture.width * texture.height];
-    for (int i = 0; i < texture.width * texture.height; i++) {
-      texture.dataVec[i].r = ((texture.data[i] & 0xff0000) >> 16) / 255.0f;
-      texture.dataVec[i].g = ((texture.data[i] & 0x00ff00) >> 8) / 255.0f;
-      texture.dataVec[i].b = (texture.data[i] & 0x0000ff) / 255.0f;
+    if (texture.data != nullptr) {
+      texture.dataVec = new glm::vec3[texture.width * texture.height];
+      for (int i = 0; i < texture.width * texture.height; i++) {
+        texture.dataVec[i].r = ((texture.data[i] & 0xff0000) >> 16) / 255.0f;
+        texture.dataVec[i].g = ((texture.data[i] & 0x00ff00) >> 8) / 255.0f;
+        texture.dataVec[i].b = (texture.data[i] & 0x0000ff) / 255.0f;
+      }
     }
 }
 
@@ -150,6 +152,7 @@ unordered_map<string, Material> Model::loadMTL(string fileName, int*& data, int&
   ifstream f;
   string s;
   string key;
+  data = nullptr;
   f.open(fileName, ios::in);
   if (!f.good()) {
     return palette;
