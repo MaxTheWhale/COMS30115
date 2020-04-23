@@ -5,6 +5,7 @@
 
 struct Texture {
   int* data;
+  glm::vec3* dataVec;
   int width, height;
 };
 
@@ -16,6 +17,7 @@ class Material
     Colour diffuse = Colour(-1, -1, -1);
     Colour specular = Colour(-1, -1, -1);
     int highlights = 0;
+    int illum = 1;
     int dissolve = 1;
     Texture texture = {nullptr, 0, 0};
 
