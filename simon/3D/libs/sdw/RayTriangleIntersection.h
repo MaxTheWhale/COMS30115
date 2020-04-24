@@ -11,6 +11,8 @@ class RayTriangleIntersection
     glm::vec4 intersectionPoint;
     float distanceFromCamera;
     ModelTriangle intersectedTriangle;
+    float u;
+    float v;
 
     RayTriangleIntersection()
     {
