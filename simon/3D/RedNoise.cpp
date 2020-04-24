@@ -22,7 +22,7 @@ using namespace glm;
 #define HEIGHT 480
 #define IMG_SIZE (WIDTH*HEIGHT)
 #define SSAA true
-#define SSAA_SCALE 3
+#define SSAA_SCALE 2
 #define SSAA_SAMPLES (SSAA_SCALE*SSAA_SCALE)
 #define MOUSE_SENSITIVITY 0.0015f
 #define AMBIENCE 0.1f
@@ -39,12 +39,14 @@ class Vertex {
   public:
     vec4 pos;
     vec4 pos_3d;
+    vec4 normal;
     float brightness;
     float u, v;
     Vertex operator+=(const Vertex& rhs)
     {
       pos += rhs.pos;
       pos_3d += rhs.pos_3d;
+      normal += rhs.normal;
       brightness += rhs.brightness;
       u += rhs.u;
       v += rhs.v;
@@ -61,6 +63,7 @@ class Vertex {
     {
       pos -= rhs.pos;
       pos_3d -= rhs.pos_3d;
+      normal -= rhs.normal;
       brightness -= rhs.brightness;
       u -= rhs.u;
       v -= rhs.v;
@@ -77,6 +80,7 @@ class Vertex {
     {
       pos *= rhs;
       pos_3d *= rhs;
+      normal *= rhs;
       brightness *= rhs;
       u *= rhs;
       v *= rhs;
@@ -93,6 +97,7 @@ class Vertex {
     {
       pos /= rhs;
       pos_3d /= rhs;
+      normal /= rhs;
       brightness /= rhs;
       u /= rhs;
       v /= rhs;
@@ -120,6 +125,7 @@ class Triangle {
         vertices[i].u = tri.uvs[i].x;
         vertices[i].v = tri.uvs[i].y;
         vertices[i].brightness = tri.brightness[i];
+        vertices[i].normal = tri.normals[i];
       }
       normal = tri.normal;
       mat = tri.material;
@@ -266,6 +272,9 @@ void drawTriangles(Camera &cam, std::vector<Model *> models)
     {
       Triangle tri = Triangle(modelTri);
       tri.normal = normalize(model.transform * tri.normal);
+      tri.vertices[0].normal = normalize(model.transform * tri.vertices[0].normal);
+      tri.vertices[1].normal = normalize(model.transform * tri.vertices[1].normal);
+      tri.vertices[2].normal = normalize(model.transform * tri.vertices[2].normal);
       tri.vertices[0].pos_3d = model.transform * tri.vertices[0].pos;
       tri.vertices[1].pos_3d = model.transform * tri.vertices[1].pos;
       tri.vertices[2].pos_3d = model.transform * tri.vertices[2].pos;
@@ -295,7 +304,7 @@ void drawTriangles(Camera &cam, std::vector<Model *> models)
           triangle(t, model.texture, wireframe, buffer + (IMG_SIZE * s), depthBuffer + (IMG_SIZE * s), offsets[s], eye);
         }
         #else
-        triangle(t, model.texture, tri.colour, wireframe, buffer, depthBuffer, vec2(0.5f, 0.5f));
+        triangle(t, model.texture, wireframe, buffer, depthBuffer, vec2(0.5f, 0.5f), eye);
         #endif
       }
     }
@@ -529,6 +538,7 @@ Colour getPixelColour(RayTriangleIntersection intersection, Light mainLight, vec
           float q0 = intersection.u;
           float q1 = intersection.v;
           float q2 = 1 - q0 - q1;
+          cout << "q0: " << q0 << ", q1: " << q1 << ", q2: " << q2;
           float u = (q0 * t.uvs[0].x + q1 * t.uvs[1].x + q2 * t.uvs[2].x);
           float v = (q0 * t.uvs[0].y + q1 * t.uvs[1].y + q2 * t.uvs[2].y);
           vec3 texVec = tex.dataVec[(int) (u + v * tex.width)];
@@ -632,6 +642,11 @@ int main(int argc, char *argv[])
   hs_logo.move(vec3(-1.1f, 1.21f, -1.8f));
   renderQueue.push_back(&hs_logo);
 
+  // Model miku = Model("sc");
+  // miku.rotate(vec3(0.0f, 0.3f, 0.0f));
+  // miku.move(vec3(1.0f, 0.0f, -4.5f));
+  // renderQueue.push_back(&miku);
+
   // Model cornell2 = Model("cornell-box");
   // // cornell2.move(glm::vec3(0,1,0));
   // cornell2.rotate(glm::vec3(0,1,0));
@@ -664,7 +679,7 @@ int main(int argc, char *argv[])
 
   Camera cam;
   cam.setProjection(90.0f, WIDTH / (float)HEIGHT, 0.1f, 100.0f);
-  cam.lookAt(vec3(0.0f, 2.5f, 3.0f), vec3(0.0f, 2.5f, 0.0f));
+  cam.lookAt(vec3(0.0f, 2.5f, -1.5f), vec3(0.0f, 2.5f, -2.0f));
   // cam.moves.push(Movement(cam.transform));
   // cam.moves.top().lookAt(cam.getPosition(), vec3(0, -2.5f, 0));
 
@@ -980,8 +995,9 @@ void triangle(Triangle &t, Texture &tex, bool filled, uint32_t *buffer, float *d
   vec4 light_pos = vec4(-0.234f, 5.2f, -3.043f, 1.0f);
   vec3 Ia = vec3(0.2f, 0.2f, 0.2f);
   vec3 Is = vec3(1.0f, 1.0f, 1.0f);
-  vec3 Kd = vec3(t.mat.diffuse.red / 255.0f, t.mat.diffuse.green / 255.0f, t.mat.diffuse.blue / 255.0f);
-  vec3 Ks = vec3(1.0f, 1.0f, 1.0f);
+  vec3 Kd = t.mat.diffuseVec;
+  vec3 Ks = t.mat.specularVec;
+  vec3 Ka = t.mat.ambientVec;
   int alpha = t.mat.highlights;
   if (filled)
   {
@@ -1024,13 +1040,17 @@ void triangle(Triangle &t, Texture &tex, bool filled, uint32_t *buffer, float *d
               q0 = w0 * t.vertices[0].pos.w;
               q1 = w1 * t.vertices[1].pos.w;
               q2 = w2 * t.vertices[2].pos.w;
+              float q_inv = 1.0f / (q0 + q1 + q2);
+              q0 *= q_inv;
+              q1 *= q_inv;
+              q2 *= q_inv;
             }
             else {
               q0 = w0; q1 = w1; q2 = w2;
             }
             if (textured) {
-              float u = (q0 * t.vertices[0].u + q1 * t.vertices[1].u + q2 * t.vertices[2].u) / (q0 + q1 + q2);
-              float v = (q0 * t.vertices[0].v + q1 * t.vertices[1].v + q2 * t.vertices[2].v) / (q0 + q1 + q2);
+              float u = q0 * t.vertices[0].u + q1 * t.vertices[1].u + q2 * t.vertices[2].u;
+              float v = q0 * t.vertices[0].v + q1 * t.vertices[1].v + q2 * t.vertices[2].v;
               u = mod(u, 1.0f);
               v = mod(v, 1.0f);
               if (bilinear) {
@@ -1047,14 +1067,15 @@ void triangle(Triangle &t, Texture &tex, bool filled, uint32_t *buffer, float *d
                 v *= tex.height;
                 Kd = tex.dataVec[(int)u + (int)v * tex.width];
               }
+              Ka = Kd;
             }
-            vec4 pos_3d = (q0 * t.vertices[0].pos_3d + q1 * t.vertices[1].pos_3d + q2 * t.vertices[2].pos_3d) / (q0 + q1 + q2);
+            vec4 pos_3d = q0 * t.vertices[0].pos_3d + q1 * t.vertices[1].pos_3d + q2 * t.vertices[2].pos_3d;
             float radius = distance(light_pos, pos_3d);
             vec3 Id = vec3(200.0f, 200.0f, 200.0f) / (4.0f * M_PIf * radius * radius);
-            vec3 Ka = Kd;
             vec3 V = toThree(normalize(eye_pos - pos_3d));
             vec3 Lm = toThree(normalize(light_pos - pos_3d));
-            vec3 N = toThree(t.normal);
+            //vec3 N = toThree(t.normal);
+            vec3 N = toThree(q0 * t.vertices[0].normal + q1 * t.vertices[1].normal + q2 * t.vertices[2].normal);
             vec3 Rm = normalize(2.0f * N * dot(Lm, N) - Lm);
             if (t.mat.illum < 2) {
               Ks = vec3(0.0f);

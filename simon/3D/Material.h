@@ -16,7 +16,10 @@ class Material
     Colour ambient = Colour(-1, -1, -1);
     Colour diffuse = Colour(-1, -1, -1);
     Colour specular = Colour(-1, -1, -1);
-    int highlights = 0;
+    glm::vec3 ambientVec;
+    glm::vec3 diffuseVec;
+    glm::vec3 specularVec = glm::vec3(1.0f, 1.0f, 1.0f);
+    float highlights = 0.0f;
     int illum = 1;
     int dissolve = 1;
     Texture texture = {nullptr, 0, 0};

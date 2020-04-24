@@ -1,17 +1,20 @@
 #include "Model.hpp"
 #include <Utils.h>
 #include <fstream>
+#include <string>
 
 using namespace std;
 
 Model::Model(string filename) {
     palette = loadMTL(filename + ".mtl", texture.data, texture.width, texture.height);
     tris = loadOBJ(filename + ".obj", palette);
-    texture.dataVec = new glm::vec3[texture.width * texture.height];
-    for (int i = 0; i < texture.width * texture.height; i++) {
-      texture.dataVec[i].r = ((texture.data[i] & 0xff0000) >> 16) / 255.0f;
-      texture.dataVec[i].g = ((texture.data[i] & 0x00ff00) >> 8) / 255.0f;
-      texture.dataVec[i].b = (texture.data[i] & 0x0000ff) / 255.0f;
+    if (texture.data != nullptr) {
+      texture.dataVec = new glm::vec3[texture.width * texture.height];
+      for (int i = 0; i < texture.width * texture.height; i++) {
+        texture.dataVec[i].r = ((texture.data[i] & 0xff0000) >> 16) / 255.0f;
+        texture.dataVec[i].g = ((texture.data[i] & 0x00ff00) >> 8) / 255.0f;
+        texture.dataVec[i].b = (texture.data[i] & 0x0000ff) / 255.0f;
+      }
     }
 }
 
@@ -23,6 +26,7 @@ vector<ModelTriangle> Model::loadOBJ(string fileName,
   string name = "";
   Material material = Material("missing", Colour(0, 0, 0), Colour(255, 255, 255), Colour(0, 0, 0));
   vector<glm::vec3> vertices;
+  vector<glm::vec4> normals;
   vector<glm::vec2> uvs;
   vector<ModelTriangle> faces;
   f.open(fileName, ios::in);
@@ -51,6 +55,12 @@ vector<ModelTriangle> Model::loadOBJ(string fileName,
         f >> x >> y >> z;
         vertices.push_back(glm::vec3(x, y, z));
       }
+      if (s == "vn")
+      {
+        float x, y, z;
+        f >> x >> y >> z;
+        normals.push_back(glm::vec4(x, y, z, 0.0f));
+      }
       if (s == "vt")
       {
         float u, v;
@@ -61,6 +71,7 @@ vector<ModelTriangle> Model::loadOBJ(string fileName,
       {
         string a, b, c;
         f >> a >> b >> c;
+        int numFields = count(a.begin(), a.end(), '/') + 1;
         string *as = split(a, '/');
         string *bs = split(b, '/');
         string *cs = split(c, '/');
@@ -68,10 +79,19 @@ vector<ModelTriangle> Model::loadOBJ(string fileName,
                                       vertices[stoi(bs[0]) - 1],
                                       vertices[stoi(cs[0]) - 1],
                                       material, name);
-        if (as[1] != "" && bs[1] != "" && cs[1] != "") {
-          tri.uvs[0] = uvs[stoi(as[1]) - 1];
-          tri.uvs[1] = uvs[stoi(bs[1]) - 1];
-          tri.uvs[2] = uvs[stoi(cs[1]) - 1];
+        if (numFields > 1) {
+          if (as[1] != "" && bs[1] != "" && cs[1] != "") {
+            tri.uvs[0] = uvs[stoi(as[1]) - 1];
+            tri.uvs[1] = uvs[stoi(bs[1]) - 1];
+            tri.uvs[2] = uvs[stoi(cs[1]) - 1];
+          }
+        }
+        if (numFields > 2) {
+          if (as[2] != "" && bs[2] != "" && cs[2] != "") {
+            tri.normals[0] = normals[stoi(as[2]) - 1];
+            tri.normals[1] = normals[stoi(bs[2]) - 1];
+            tri.normals[2] = normals[stoi(cs[2]) - 1];
+          }
         }
         delete [] as;
         delete [] bs;
@@ -132,14 +152,14 @@ unordered_map<string, Material> Model::loadMTL(string fileName, int*& data, int&
   ifstream f;
   string s;
   string key;
+  data = nullptr;
   f.open(fileName, ios::in);
   if (!f.good()) {
     return palette;
   }
   while (!f.eof())
   {
-    f >> s;
-    if (s == "newmtl")
+    if (f >> s)
     {
       f >> key;
       palette[key] = Material(key);
