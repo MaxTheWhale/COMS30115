@@ -1,6 +1,7 @@
 #include "Rigidbody.hpp"
 #include <iostream>
 #include "Times.hpp"
+#include <algorithm>
 
 using namespace glm;
 
@@ -15,13 +16,14 @@ Rigidbody::Rigidbody(Model* model) {
                                0,0,0,1);
 }
 
-glm::vec3 Rigidbody::gravity = glm::vec3(0, -0.1f, 0);
+glm::vec3 Rigidbody::gravity = glm::vec3(0, -0.5f, 0);
+
 
 void Rigidbody::update() {
-    //std::cout << "rigidbody update called" << std::endl;
-    //std::cout << "allRBs = " << allRBs.size() << std::endl;
-    if (hasGravity) {
-        vec3 grav = gravity * Times::deltaTime();
+    //if we're not moving and we're in contact with something then it can be assumed that we are resting on it
+    if (hasGravity && !(velocity[3] == vec4(0,0,0,1) && !collidedWith.empty())) {
+        float timescale = realTimeScale ? Times::deltaTime() : 1.0f/30.0f;
+        vec3 grav = gravity * timescale;
         mat4 gravTransform = mat4(1,0,0,0,
                                   0,1,0,0,
                                   0,0,1,0,
@@ -29,18 +31,27 @@ void Rigidbody::update() {
         //std::cout << "gravTransform = " << gravTransform << std::endl;
         velocity *= gravTransform;
     }
+    //clear the collision list before running collision checks again
+    collidedWith.clear();
+
     mat4 oldTransform = model->transform;
+
     model->transform *= velocity;
+    //disgusting hack to make linear velocity independent of angular
+    model->transform[3] = oldTransform[3] + velocity[3];
+    model->transform[3][3] = 1;
 
     for(unsigned int i = 0; i < allRBs.size(); i++) {
         if (allRBs[i]->model != this->model) {
             if(collide(*allRBs[i])) {
-                hasGravity = false;
-                velocity = mat4();
+                // hasGravity = false;
+                // velocity = mat4();
                 model->transform = oldTransform;
             }
         }
     }
+    cout << "velocity = " << velocity << endl;
+    cout << "transform = " << model->transform << endl;
 }
 
 vec3 toVec3(vec4 in) {
@@ -84,13 +95,13 @@ float calcInterval(vec3 D, const vec3 Va, const vec3 Vb, float da, float db) {
 bool intersection(ModelTriangle localTri, ModelTriangle otherTri, mat4 localTransform, mat4 otherTransform) {
     vec3 verts1[3];
     vec3 verts2[3];
-    // cout << "verts1 = ";
+    //cout << "verts1 = ";
     for (int i = 0; i < 3; i++) {
         verts1[i] = toVec3(localTransform * localTri.vertices[i]);
-        // cout << verts1[i] << ", ";
+        //cout << verts1[i] << ", ";
         verts2[i] = toVec3(otherTransform * otherTri.vertices[i]);
     }
-    // cout << endl << "verts2 = ";
+    //cout << endl << "verts2 = ";
     // for (int i = 0; i < 3; i++) {
     //     cout << verts2[i] << ", ";
     // }
@@ -131,21 +142,91 @@ bool intersection(ModelTriangle localTri, ModelTriangle otherTri, mat4 localTran
 
 bool Rigidbody::collide(Rigidbody other) {
     // return false;
-    if (!collisionEnabled || !other.collisionEnabled) {
+    if (positionFixed || !collisionEnabled || !other.collisionEnabled) {
         return false;
     }
     for (unsigned int i = 0; i < model->tris.size(); i++) {
         for (unsigned int j = 0; j < other.model->tris.size(); j++) {
-            if (intersection(model->tris[i], other.model->tris[j], model->transform, other.model->transform)) {
-                std::cout << "collision detected" << std::endl;
-                vec4 normal = other.model->tris[j].normal * other.model->transform;
-                velocity[3] += dot(normal, velocity[3]) * 1.8;
+            //this line is disgusting because C++'s iterator interface hurts my soul
+            if (std::find_if(collidedWith.begin(), collidedWith.end(), [other](Rigidbody* rb) {return &other == rb;}) == collidedWith.end() &&
+                    intersection(model->tris[i], other.model->tris[j], model->transform, other.model->transform)) {
+                if (velocity[3] != vec4(0,0,0,1)) { //object is resting in contact with other object, so no reaction force is applied
+                    std::cout << "collision detected with " << &other << std::endl;
+                    vec4 normal = other.model->tris[j].normal * other.model->transform;
+                    float combinedElasticity = this->elasticity + other.elasticity; //twice the average ratio of energy conserved
+                    vec3 force = toVec3(-combinedElasticity * dot(normal, velocity[3]) * normal);
+                    cout << "force = " << force << endl;
+                    applyForce(force, vec3(0, 0, 0));
+                    for (int i = 0; i < 3; i++) {
+                        if (velocity[3][i] < 0.01f) {
+                            velocity[3][i] = 0;
+                        }
+                    }
+                }
+                collidedWith.push_back(&other);
+                other.collidedWith.push_back(this);
                 return true;
             }
-            // else {
-            //     std::cout << "no collision detected" << std::endl;
-            // }
         }
     }
     return false;
+}
+
+glm::mat4 rotationFromEuler(const glm::vec3& rotation) {
+    float sa, sb, sc, ca, cb, cc;
+    sa = sinf(rotation.x);
+    sb = sinf(rotation.y);
+    sc = sinf(rotation.z);
+    ca = cosf(rotation.x);
+    cb = cosf(rotation.y);
+    cc = cosf(rotation.z);
+    return glm::mat4(cb * cc, sc, cc * -sb, 0,
+                     sa * sb - ca * cb * sc, cc * ca, sb * sc * ca + cb * sa, 0,
+                     cb * sc * sa + sb * ca, sa * -cc, cb * ca - sb * sc * sa, 0,
+                     0, 0, 0, 1);
+}
+
+// vec3 normalizeSafe(vec3 in) {
+//     if (in == vec3(0,0,0)) {
+//         return in;
+//     }
+//     else {
+//         return normalize(in);
+//     }
+// }
+
+void Rigidbody::applyForce(vec3 force, vec3 position) {
+    vec3 scaledCenter = model->center * model->getScale();
+    // cout << "scaledCenter = " << scaledCenter << endl;
+    position += scaledCenter;
+    // cout << "adjusted position = " << position << endl;
+    if (position == vec3(0,0,0)) {
+        velocity[3] += vec4(force, 0);
+        return;
+    }
+    vec3 linearForce = dot(force, normalize(position)) * normalize(position);
+    // cout << "linear force = " << linearForce << endl;
+    //vec3 arbitraryOrthoganolVector = cross(force, position);
+    velocity[3] += vec4(linearForce/mass, 0);
+
+    cout << "linearAcc = " << vec4(linearForce/mass, 1) << endl;
+
+    vec3 angularForce = force - linearForce;
+    vec3 torque = cross(position, angularForce);
+    // cout << "torque = " << torque << endl;
+
+    //where 1 is the side length ie extent
+    mat3 tensor = ((mass * 1 * 1)/6) * mat3();
+
+    mat4 conversionMat = model->transform;
+    conversionMat[3] = vec4(0,0,0,1);
+
+    //cout << "inverse = " << inverse(tensor) << endl;
+    vec3 angAcc = inverse(tensor) * toVec3(conversionMat * vec4(torque, 1));
+    //cout << "angAcc = " << angAcc << endl;
+    mat4 rot = rotationFromEuler(angAcc);
+    //cout << "rotation matrix = " << rot << endl;
+    velocity *= transpose(rot);
+    velocity[3][3] = 1;
+    // std::cout << "Velocity = " << velocity << endl;
 }
