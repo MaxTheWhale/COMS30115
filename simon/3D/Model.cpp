@@ -161,65 +161,71 @@ unordered_map<string, Material> Model::loadMTL(string fileName, int*& data, int&
   {
     if (f >> s)
     {
-      f >> key;
-      palette[key] = Material(key);
-    }
-    if (s == "Ka") {
-      string r, g, b;
-      f >> r;
-      f >> g;
-      f >> b;
-      palette[key].ambient = Colour(key, stof(r) * 255, stof(g) * 255, stof(b) * 255);
-    }
-    if (s == "Kd") {
-      string r, g, b;
-      f >> r;
-      f >> g;
-      f >> b;
-      palette[key].diffuse = Colour(key, stof(r) * 255, stof(g) * 255, stof(b) * 255);
-    }
-    if (s == "Ks") {
-      string r, g, b;
-      f >> r;
-      f >> g;
-      f >> b;
-      palette[key].specular = Colour(key, stof(r) * 255, stof(g) * 255, stof(b) * 255);
-    }
-    if (s == "Ns") {
-      int Ns;
-      f >> Ns;
-      palette[key].highlights = Ns;
-    }
-    if (s == "illum") {
-      float illum;
-      f >> illum;
-      palette[key].illum = (int)illum;
-    }
-    if (s == "d") {
-      f >> s;
-      palette[key].dissolve = stoi(s);
-    }
-    if (s == "map_Kd") {
-      string texture_file;
-      f >> texture_file;
-      size_t pos = fileName.find('/');
-      if (pos != fileName.npos) {
-        fileName.erase(pos + 1);
-        texture_file = fileName + texture_file;
-        cout << texture_file << '\n';
+      if (s == "newmtl")
+      {
+        f >> key;
+        palette[key] = Material(key);
       }
-      data = loadPPM(texture_file, width, height);
-
-      glm::vec3 *dataVec = new glm::vec3[texture.width * texture.height];
-      for (int i = 0; i < width * height; i++) {
-        dataVec[i].r = ((data[i] & 0xff0000) >> 16) / 255.0f;
-        dataVec[i].g = ((data[i] & 0x00ff00) >> 8) / 255.0f;
-        dataVec[i].b = (data[i] & 0x0000ff) / 255.0f;
+      if (s == "Ka") {
+        string r, g, b;
+        f >> r;
+        f >> g;
+        f >> b;
+        palette[key].ambientVec = glm::vec3(stof(r), stof(g), stof(b));
+        palette[key].ambient = Colour(key, stof(r) * 255, stof(g) * 255, stof(b) * 255);
       }
+      if (s == "Kd") {
+        string r, g, b;
+        f >> r;
+        f >> g;
+        f >> b;
+        palette[key].diffuseVec = glm::vec3(stof(r), stof(g), stof(b));
+        palette[key].diffuse = Colour(key, stof(r) * 255, stof(g) * 255, stof(b) * 255);
+      }
+      if (s == "Ks") {
+        string r, g, b;
+        f >> r;
+        f >> g;
+        f >> b;
+        palette[key].specularVec = glm::vec3(stof(r), stof(g), stof(b));
+        palette[key].specular = Colour(key, stof(r) * 255, stof(g) * 255, stof(b) * 255);
+      }
+      if (s == "Ns") {
+        int Ns;
+        f >> Ns;
+        palette[key].highlights = Ns;
+      }
+      if (s == "illum") {
+        float illum;
+        f >> illum;
+        palette[key].illum = (int)illum;
+      }
+      if (s == "d") {
+        f >> s;
+        palette[key].dissolve = stoi(s);
+      }
+      if (s == "map_Kd") {
+        string texture_file;
+        f >> texture_file;
+        size_t pos = fileName.find('/');
+        if (pos != fileName.npos) {
+          fileName.erase(pos + 1);
+          texture_file = fileName + texture_file;
+          cout << texture_file << '\n';
+        }
+        data = loadPPM(texture_file, width, height);
 
-      palette[key].texture.width = width;
-      palette[key].texture.height = height;
-      palette[key].texture.dataVec = dataVec;
+        glm::vec3 *dataVec = new glm::vec3[texture.width * texture.height];
+        for (int i = 0; i < width * height; i++) {
+          dataVec[i].r = ((data[i] & 0xff0000) >> 16) / 255.0f;
+          dataVec[i].g = ((data[i] & 0x00ff00) >> 8) / 255.0f;
+          dataVec[i].b = (data[i] & 0x0000ff) / 255.0f;
+        }
+
+        palette[key].texture.width = width;
+        palette[key].texture.height = height;
+        palette[key].texture.dataVec = dataVec;
+      }
     }
   }
   return palette;

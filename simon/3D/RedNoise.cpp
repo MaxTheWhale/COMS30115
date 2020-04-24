@@ -263,11 +263,11 @@ void drawTriangles(Camera &cam, std::vector<Model *> models)
 {
   uint32_t *buffer = (SSAA) ? imageBuffer : window.pixelBuffer;
   vector<vec2> offsets = generateRotatedGrid(SSAA_SCALE);
+  mat4 viewProjection = cam.projection * cam.worldToCamera();
+  vec4 eye = vec4(cam.getPosition(), 1.0f);
   for (unsigned int i = 0; i < models.size(); i++)
   {
     Model &model = *models[i];
-    mat4 viewProjection = cam.projection * cam.worldToCamera();
-    vec4 eye = vec4(cam.getPosition(), 1.0f);
     for (auto& modelTri : model.tris)
     {
       Triangle tri = Triangle(modelTri);
@@ -279,9 +279,6 @@ void drawTriangles(Camera &cam, std::vector<Model *> models)
       tri.vertices[1].pos_3d = model.transform * tri.vertices[1].pos;
       tri.vertices[2].pos_3d = model.transform * tri.vertices[2].pos;
       if (dot(tri.vertices[0].pos_3d - eye, tri.normal) >= 0.0f) continue;
-      tri.vertices[0].brightness = glm::max(dot(normalize(eye - tri.vertices[0].pos_3d), tri.normal), 0.0f);
-      tri.vertices[1].brightness = glm::max(dot(normalize(eye - tri.vertices[1].pos_3d), tri.normal), 0.0f);
-      tri.vertices[2].brightness = glm::max(dot(normalize(eye - tri.vertices[2].pos_3d), tri.normal), 0.0f);
       tri.vertices[0].pos = viewProjection * tri.vertices[0].pos_3d;
       tri.vertices[1].pos = viewProjection * tri.vertices[1].pos_3d;
       tri.vertices[2].pos = viewProjection * tri.vertices[2].pos_3d;
@@ -296,7 +293,7 @@ void drawTriangles(Camera &cam, std::vector<Model *> models)
           t.vertices[v].pos.z *= t.vertices[v].pos.w;
           t.vertices[v].pos.x = (t.vertices[v].pos.x + 1.0f) * 0.5f * WIDTH;
           t.vertices[v].pos.y = (1 - (t.vertices[v].pos.y + 1.0f) * 0.5f) * HEIGHT;
-          t.vertices[v].pos.z = ((cam.far - cam.near) / 2.0f) * t.vertices[v].pos.z + ((cam.far + cam.near) / 2.0f);
+          t.vertices[v].pos.z = ((cam.far - cam.near) * 0.5f) * t.vertices[v].pos.z + ((cam.far + cam.near) * 0.5f);
         }
         #if SSAA
         #pragma omp parallel for
