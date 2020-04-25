@@ -16,12 +16,12 @@ Rigidbody::Rigidbody(Model* model) {
                                0,0,0,1);
 }
 
-glm::vec3 Rigidbody::gravity = glm::vec3(0, -0.5f, 0);
+glm::vec3 Rigidbody::gravity = glm::vec3(0, -0.1f, 0);
 
 
 void Rigidbody::update() {
     //if we're not moving and we're in contact with something then it can be assumed that we are resting on it
-    if (hasGravity && !(velocity[3] == vec4(0,0,0,1) && !collidedWith.empty())) {
+    if (hasGravity){// && !(velocity[3] == vec4(0,0,0,1) && !collidedWith.empty())) {
         float timescale = realTimeScale ? Times::deltaTime() : 1.0f/30.0f;
         vec3 grav = gravity * timescale;
         mat4 gravTransform = mat4(1,0,0,0,
@@ -50,8 +50,8 @@ void Rigidbody::update() {
             }
         }
     }
-    cout << "velocity = " << velocity << endl;
-    cout << "transform = " << model->transform << endl;
+    // cout << "velocity = " << velocity << endl;
+    // cout << "transform = " << model->transform << endl;
 }
 
 vec3 toVec3(vec4 in) {
@@ -92,6 +92,18 @@ float calcInterval(vec3 D, const vec3 Va, const vec3 Vb, float da, float db) {
     return t;
 }
 
+int differentSign(float values[3]) {
+    for (int i = 0; i < 3; i++) {
+        int prev = (i + 1) % 3;
+        int next = (i - 1) % 3;
+        if ((values[i] >= 0 && values[next] < 0 && values[next] < 0) || 
+        (values[i] < 0 && values[prev] >=0 && values[prev] >= 0)) {
+            return i;
+        }
+    }
+    return -1;
+}
+
 bool intersection(ModelTriangle localTri, ModelTriangle otherTri, mat4 localTransform, mat4 otherTransform) {
     vec3 verts1[3];
     vec3 verts2[3];
@@ -126,17 +138,36 @@ bool intersection(ModelTriangle localTri, ModelTriangle otherTri, mat4 localTran
         //std::cout << "early return" << endl;
         return false;
     }
+
+    //now we have to check which point is on the opposite side of the plane to the other two
+    int oppositeIndex = differentSign(dist1);
+    int other0 = (oppositeIndex + 1) % 3;
+    int other2 = (oppositeIndex - 1) % 3;
+
     vec3 D = cross(n1, n2);
     //cout << "D = "<< D << endl;
-    float t1 = calcInterval(D, verts1[0], verts1[1], dist1[0], dist1[1]);
-    float t2 = calcInterval(D, verts1[1], verts1[2], dist1[1], dist1[2]);
-    float tPrime1 = calcInterval(D, verts2[0], verts2[1], dist2[0], dist2[1]);
-    float tPrime2 = calcInterval(D, verts2[1], verts2[2], dist2[1], dist2[2]);
+    float t1 = calcInterval(D, verts1[other0], verts1[oppositeIndex], dist1[other0], dist1[oppositeIndex]);
+    float t2 = calcInterval(D, verts1[oppositeIndex], verts1[other2], dist1[oppositeIndex], dist1[other2]);
+    float tPrime1 = calcInterval(D, verts2[other0], verts2[oppositeIndex], dist2[other0], dist2[oppositeIndex]);
+    float tPrime2 = calcInterval(D, verts2[oppositeIndex], verts2[other2], dist2[oppositeIndex], dist2[other2]);
     //std::cout << "interval1: " << t1 << "," << t2 << " interval2: " << tPrime1 << "," << tPrime2 << endl;
     if (std::max(t1,t2) <= std::min(tPrime1, tPrime2) || std::min(t1,t2) <= std::max(tPrime1, tPrime2)) { //may not be efficient since standard lib functions may not be inlined by compiler
         return true;
     }
     //std::cout << "default" << endl;
+    return false;
+}
+
+bool isBasis(vec4 vec) {
+    if (glm::length(vec) == 1) {
+        // cout << "length 1" << endl;
+        for (int i = 0; i < 3; i++) {
+            // cout << abs(vec[i]) << endl;
+            if (abs(vec[i]) == 1) {
+                return true;
+            }
+        }
+    }
     return false;
 }
 
@@ -150,19 +181,24 @@ bool Rigidbody::collide(Rigidbody other) {
             //this line is disgusting because C++'s iterator interface hurts my soul
             if (std::find_if(collidedWith.begin(), collidedWith.end(), [other](Rigidbody* rb) {return &other == rb;}) == collidedWith.end() &&
                     intersection(model->tris[i], other.model->tris[j], model->transform, other.model->transform)) {
-                if (velocity[3] != vec4(0,0,0,1)) { //object is resting in contact with other object, so no reaction force is applied
-                    std::cout << "collision detected with " << &other << std::endl;
+                //if (velocity[3] != vec4(0,0,0,1)) { //object is resting in contact with other object, so no reaction force is applied
                     vec4 normal = other.model->tris[j].normal * other.model->transform;
-                    float combinedElasticity = this->elasticity + other.elasticity; //twice the average ratio of energy conserved
-                    vec3 force = toVec3(-combinedElasticity * dot(normal, velocity[3]) * normal);
+                    if (isBasis(normal)) {
+                        continue;
+                    }
+                    cout << "normal = " << normal << endl;
+                    std::cout << "collision detected with " << &other << std::endl;
+                    float combinedElasticity = (this->elasticity + other.elasticity)/2; //the average ratio of energy conserved
+                    cout << "total elasticity = " << combinedElasticity << endl;
+                    vec3 force = toVec3(combinedElasticity * dot(normalize(normal), normalize(velocity[3])) * normal);
                     cout << "force = " << force << endl;
                     applyForce(force, vec3(0, 0, 0));
-                    for (int i = 0; i < 3; i++) {
-                        if (velocity[3][i] < 0.01f) {
-                            velocity[3][i] = 0;
-                        }
-                    }
-                }
+                    // for (int i = 0; i < 3; i++) {
+                    //     if (velocity[3][i] < 0.01f) {
+                    //         velocity[3][i] = 0;
+                    //     }
+                    // }
+                //}
                 collidedWith.push_back(&other);
                 other.collidedWith.push_back(this);
                 return true;

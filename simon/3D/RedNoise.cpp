@@ -627,13 +627,13 @@ int main(int argc, char *argv[])
   vector<Model*> renderQueue = vector<Model*>();
   vector<Updatable*> updateQueue = vector<Updatable*>();
 
-  Model cornell = Model("cornell-box");
-  //cornell.rotate(glm::vec3(45,0,0));
-  renderQueue.push_back(&cornell);
-  // std::cout << "cornell address = " << &cornell << std::endl;
-  Rigidbody cornellRB = Rigidbody(&cornell);
-  cornellRB.hasGravity = false;
-  updateQueue.push_back(&cornellRB);
+  // Model cornell = Model("cornell-box");
+  // //cornell.rotate(glm::vec3(45,0,0));
+  // renderQueue.push_back(&cornell);
+  // // std::cout << "cornell address = " << &cornell << std::endl;
+  // Rigidbody cornellRB = Rigidbody(&cornell);
+  // cornellRB.hasGravity = false;
+  // updateQueue.push_back(&cornellRB);
 
   // Model hs_logo = Model("HackspaceLogo/logo");
   // hs_logo.scale(vec3(0.005f, 0.005f, 0.005f));
@@ -675,9 +675,24 @@ int main(int argc, char *argv[])
   sphereRB.positionFixed = false;
   sphereRB.hasGravity = true;
   sphereRB.collisionEnabled = true;
-  sphereRB.elasticity = 1.2f;
-  // sphereRB.applyForce(vec3(0,0.2f,0), vec3(0,0,0));
+  sphereRB.elasticity = 0.9f;
+  sphereRB.applyForce(vec3(0,0.05f,0), vec3(0.5f,0,0));
   cout << "sphereRB address = " << &sphereRB << endl;
+
+  Model angle = Model("tilted");
+  angle.setPosition(vec3(0,0,-3));
+  renderQueue.push_back(&angle);
+  Rigidbody angleRB = Rigidbody(&angle);
+  updateQueue.push_back(&angleRB);
+  angleRB.positionFixed = true;
+  angleRB.hasGravity = false;
+  angleRB.collisionEnabled = true;
+  // cout << "angleRB address = " << &angleRB << endl;
+  
+  // cout << "normals: " << endl;
+  // for (int i = 0; i < angle.tris.size(); i++) {
+  //   cout << angle.tris[i].normal << endl;;
+  // }
 
   // Model tri1 = Model("triangle");
   // renderQueue.push_back(&tri1);
@@ -697,7 +712,7 @@ int main(int argc, char *argv[])
 
   Camera cam;
   cam.setProjection(90.0f, WIDTH / (float)HEIGHT, 0.1f, 100.0f);
-  cam.lookAt(vec3(0.0f, 2.5f, -1.5f), vec3(0.0f, 2.5f, -2.0f));
+  cam.lookAt(vec3(-10.0f, 2.5f, -1.5f), vec3(0.0f, 2.5f, -2.0f));
   // cam.moves.push(Movement(cam.transform));
   // cam.moves.top().lookAt(cam.getPosition(), vec3(0, -2.5f, 0));
 
