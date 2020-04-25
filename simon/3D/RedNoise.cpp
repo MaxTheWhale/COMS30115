@@ -535,10 +535,18 @@ Colour getPixelColour(RayTriangleIntersection intersection, Light mainLight, vec
           float q0 = intersection.u;
           float q1 = intersection.v;
           float q2 = 1 - q0 - q1;
-          cout << "q0: " << q0 << ", q1: " << q1 << ", q2: " << q2;
-          float u = (q0 * t.uvs[0].x + q1 * t.uvs[1].x + q2 * t.uvs[2].x);
-          float v = (q0 * t.uvs[0].y + q1 * t.uvs[1].y + q2 * t.uvs[2].y);
-          vec3 texVec = tex.dataVec[(int) (u + v * tex.width)];
+          float u = q2 * t.uvs[0].x + q0 * t.uvs[1].x + q1 * t.uvs[2].x;
+          float v = q2 * t.uvs[0].y + q0 * t.uvs[1].y + q1 * t.uvs[2].y;
+          u = mod(u, 1.0f);
+          v = mod(v, 1.0f);
+          u *= tex.width;
+          v *= tex.height;
+          // cout << t.name << endl;
+          // cout << "q0: " << q0 << ", q1: " << q1 << ", q2: " << q2 << endl;
+          // cout << "t.uvs[0]: " << t.uvs[0].x << ", " << t.uvs[0].y << endl;
+          // cout << "t.uvs[1]: " << t.uvs[1].x << ", " << t.uvs[1].y << endl;
+          // cout << "t.uvs[2]: " << t.uvs[2].x << ", " << t.uvs[2].y << endl;
+          vec3 texVec = tex.dataVec[(int)u + (int)v * tex.width];
           colour = Colour(texVec.r * 255, texVec.g * 255, texVec.b * 255);
         } else {
           colour = intersection.intersectedTriangle.material.diffuse;
@@ -575,13 +583,14 @@ void raytrace(Camera camera, std::vector<Model*> models) {
   Model model = Model(*models[0]);
   for (unsigned int i = 1; i < models.size(); i++) {
     for (auto tri : (*models[i]).tris) {
-      //if (dot(((*models[i]).transform * tri.vertices[0]) - vec4(camera.getPosition(), 0), tri.normal) >= 0.0f) continue;
-      model
-          .tris.push_back(
-              ModelTriangle((*models[i]).transform * tri.vertices[0],
+      ModelTriangle newTri = ModelTriangle((*models[i]).transform * tri.vertices[0],
                             (*models[i]).transform * tri.vertices[1],
                             (*models[i]).transform * tri.vertices[2],
-                            tri.material, tri.normal));
+                            tri.material, tri.normal);
+      newTri.uvs[0] = tri.uvs[0];
+      newTri.uvs[1] = tri.uvs[1];
+      newTri.uvs[2] = tri.uvs[2];
+      model.tris.push_back(newTri);
     }
   }
 
@@ -593,7 +602,6 @@ void raytrace(Camera camera, std::vector<Model*> models) {
 
   Light mainLight = Light("light", lights);
   mainLight.calculateCentre();
-  mainLight.centre = vec4(0, 3.5, 0, 1);
 
   //loop through each pixel in image plane
   #pragma omp parallel for
@@ -673,7 +681,11 @@ int main(int argc, char *argv[])
   // updateQueue.push_back(&tri2RB);
 
   //std::cout << "address stored as " << cornellRB.model << std::endl;
-
+  for (unsigned int i = 0; i < renderQueue.size(); i++) {
+    for (auto tri : (*renderQueue[i]).tris) {
+      cout << "UVs for " << tri.name << ": " << tri.uvs[0].x << "," << tri.uvs[0].y << "  " << tri.uvs[1].x << "," << tri.uvs[1].y << "  " << tri.uvs[2].x << "," << tri.uvs[2].y << endl;
+    }
+  }
   Camera cam;
   cam.setProjection(90.0f, WIDTH / (float)HEIGHT, 0.1f, 100.0f);
   cam.lookAt(vec3(0.0f, 2.5f, -1.5f), vec3(0.0f, 2.5f, -2.0f));
