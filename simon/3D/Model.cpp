@@ -1,6 +1,8 @@
 #include "Model.hpp"
 #include <Utils.h>
 #include <fstream>
+#include "Material.h"
+#include "VectorOutput.hpp"
 #include <string>
 
 using namespace std;
@@ -229,4 +231,25 @@ unordered_map<string, Material> Model::loadMTL(string fileName, int*& data, int&
     }
   }
   return palette;
+}
+
+//adapted from https://stackoverflow.com/questions/2083771/a-method-to-calculate-the-centre-of-mass-from-a-stl-stereo-lithography-file
+vec3 Model::centerOfMass() {
+  float totalVolume = 0;
+  vec3 center;
+  cout << "triangle: " << tris[6] << endl;
+  for (unsigned int i = 0; i < tris.size(); i++) {
+    //maaaaaaaaaths
+    float currentVolume = (tris[i].vertices[0][0]*tris[i].vertices[1][1]*tris[i].vertices[2][2] -
+                           tris[i].vertices[0][0]*tris[i].vertices[2][1]*tris[i].vertices[1][2] -
+                           tris[i].vertices[1][0]*tris[i].vertices[0][1]*tris[i].vertices[2][2] +
+                           tris[i].vertices[1][0]*tris[i].vertices[2][1]*tris[i].vertices[0][2] +
+                           tris[i].vertices[2][0]*tris[i].vertices[0][1]*tris[i].vertices[1][2] -
+                           tris[i].vertices[2][0]*tris[i].vertices[1][1]*tris[i].vertices[0][2]) / 6;
+    totalVolume += currentVolume;
+    center[0] += ((tris[i].vertices[0][0] + tris[i].vertices[1][0] + tris[i].vertices[2][0]) / 4) * currentVolume;
+    center[1] += ((tris[i].vertices[0][1] + tris[i].vertices[1][1] + tris[i].vertices[2][1]) / 4) * currentVolume;
+    center[2] += ((tris[i].vertices[0][2] + tris[i].vertices[1][2] + tris[i].vertices[2][2]) / 4) * currentVolume;
+  }
+  return center;
 }

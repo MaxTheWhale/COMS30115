@@ -41,6 +41,14 @@ void Transformable::setScale(const glm::vec3& new_scale) {
     }
 }
 
+vec3 Transformable::getScale() {
+    vec3 scale;
+    for (int i = 0; i < 3; i++) {
+        scale[i] = length(transform[i]);
+    }
+    return scale;
+}
+
 glm::vec3 Transformable::getPosition() {
     return vec3(transform[3].x, transform[3].y, transform[3].z);
 }

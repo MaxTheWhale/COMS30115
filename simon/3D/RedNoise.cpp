@@ -636,16 +636,30 @@ int main(int argc, char *argv[])
   vector<Updatable*> updateQueue = vector<Updatable*>();
 
   Model cornell = Model("cornell-box");
+  //cornell.rotate(glm::vec3(45,0,0));
   renderQueue.push_back(&cornell);
   // std::cout << "cornell address = " << &cornell << std::endl;
   Rigidbody cornellRB = Rigidbody(&cornell);
   cornellRB.hasGravity = false;
   updateQueue.push_back(&cornellRB);
 
-  Model hs_logo = Model("HackspaceLogo/logo");
-  hs_logo.scale(vec3(0.005f, 0.005f, 0.005f));
-  hs_logo.move(vec3(-1.1f, 1.21f, -1.8f));
-  renderQueue.push_back(&hs_logo);
+  // Model hs_logo = Model("HackspaceLogo/logo");
+  // hs_logo.scale(vec3(0.005f, 0.005f, 0.005f));
+  // hs_logo.move(vec3(-1.1f, 1.21f, -1.8f));
+  // renderQueue.push_back(&hs_logo);
+
+  // for (int i = -5; i < 5; i++) {
+    // Model logo = Model("HackspaceLogo/Logo");
+    // logo.scale(vec3(0.005f, 0.005f, 0.005f));
+    // logo.move(vec3(-1, 1, 0));
+    // logo.center = vec3(300, 300, 0);
+    // renderQueue.push_back(&logo);
+    // Rigidbody rb = Rigidbody(&logo);
+    // rb.hasGravity = false;
+    // rb.collisionEnabled = false;
+    // rb.applyForce(vec3(-0.2f, 0, 0), vec3(0,-10,0));
+    // updateQueue.push_back(&rb);
+  // }
 
   // Model miku = Model("sc");
   // miku.rotate(vec3(0.0f, 0.3f, 0.0f));
@@ -660,11 +674,18 @@ int main(int argc, char *argv[])
   // cornellRB2.hasGravity = false;
   // updateQueue.push_back(&cornellRB2);
 
-  // Model sphere = Model("blob");
-  // sphere.setPosition(vec3(0,10.0f,-3));
-  // renderQueue.push_back(&sphere);
-  // Rigidbody sphereRB = Rigidbody(&sphere);
-  // updateQueue.push_back(&sphereRB);
+  Model sphere = Model("blob");
+  sphere.setPosition(vec3(0,10.0f,-3));
+  //sphere.rotate(vec3(1,0,0));
+  renderQueue.push_back(&sphere);
+  Rigidbody sphereRB = Rigidbody(&sphere);
+  updateQueue.push_back(&sphereRB);
+  sphereRB.positionFixed = false;
+  sphereRB.hasGravity = true;
+  sphereRB.collisionEnabled = true;
+  sphereRB.elasticity = 1.2f;
+  // sphereRB.applyForce(vec3(0,0.2f,0), vec3(0,0,0));
+  cout << "sphereRB address = " << &sphereRB << endl;
 
   // Model tri1 = Model("triangle");
   // renderQueue.push_back(&tri1);
