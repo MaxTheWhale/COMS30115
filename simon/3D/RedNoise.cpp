@@ -1042,11 +1042,14 @@ void triangle(Triangle &t, Texture &tex, bool filled, uint32_t *buffer, float *d
   vec3 Is = vec3(1.0f, 1.0f, 1.0f);
   vec3 Kd = t.mat.diffuseVec;
   vec3 Ks = t.mat.specularVec;
+  if (t.mat.illum != 2) {
+    Ks = vec3(0.0f);
+  }
   vec3 Ka = t.mat.ambientVec;
   int alpha = t.mat.highlights;
   if (filled)
   {
-    bool textured = (t.vertices[0].u >= 0.0f);
+    bool textured = (t.mat.texture.data != nullptr);
     int x_min = glm::min(t.vertices[0].pos.x, t.vertices[1].pos.x);
     x_min = glm::min((float)x_min, t.vertices[2].pos.x);
     int x_max = glm::max(t.vertices[0].pos.x, t.vertices[1].pos.x);
@@ -1122,9 +1125,6 @@ void triangle(Triangle &t, Texture &tex, bool filled, uint32_t *buffer, float *d
             //vec3 N = toThree(t.normal);
             vec3 N = toThree(q0 * t.vertices[0].normal + q1 * t.vertices[1].normal + q2 * t.vertices[2].normal);
             vec3 Rm = normalize(2.0f * N * dot(Lm, N) - Lm);
-            if (t.mat.illum < 2) {
-              Ks = vec3(0.0f);
-            }
             vec3 reflectedLight = glm::min(phongReflection(Ks, Kd, Ka, alpha, Is, Id, Ia, Lm, N, Rm, V), 1.0f);
             buffer[y * WIDTH + x] = vec3ToPackedInt(reflectedLight);
           }
