@@ -20,4 +20,8 @@ class Rigidbody : public Updatable {
         float elasticity = 0.9; //how much energy is conserved in collisions
     protected:
         static std::vector<Rigidbody*> allRBs;
+        //hack for the sake of efficiency
+        //set every time there is a collision to the model-relative 3D coordinates of the vertex assumed to have caused it
+        glm::vec3 lastCollision;
+        bool intersection(ModelTriangle localTri, ModelTriangle otherTri, mat4 localTransform, mat4 otherTransform);
 };

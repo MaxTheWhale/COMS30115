@@ -92,10 +92,21 @@ float calcInterval(vec3 D, const vec3 Va, const vec3 Vb, float da, float db) {
     return t;
 }
 
+//so this c++ compiler implements a mod operator that doesn't flip negative numbers positive
+//this one does
+int positiveMod(int value, int mod) {
+    if (value >= 0) {
+        return value % mod;
+    }
+    else {
+        return (value % mod) + mod;
+    }
+}
+
 int differentSign(float values[3]) {
     for (int i = 0; i < 3; i++) {
         int prev = (i + 1) % 3;
-        int next = (i - 1) % 3;
+        int next = positiveMod(i - 1, 3);
         if ((values[i] >= 0 && values[next] < 0 && values[next] < 0) || 
         (values[i] < 0 && values[prev] >=0 && values[prev] >= 0)) {
             return i;
@@ -104,7 +115,7 @@ int differentSign(float values[3]) {
     return -1;
 }
 
-bool intersection(ModelTriangle localTri, ModelTriangle otherTri, mat4 localTransform, mat4 otherTransform) {
+bool Rigidbody::intersection(ModelTriangle localTri, ModelTriangle otherTri, mat4 localTransform, mat4 otherTransform) {
     vec3 verts1[3];
     vec3 verts2[3];
     //cout << "verts1 = ";
@@ -142,7 +153,9 @@ bool intersection(ModelTriangle localTri, ModelTriangle otherTri, mat4 localTran
     //now we have to check which point is on the opposite side of the plane to the other two
     int oppositeIndex = differentSign(dist1);
     int other0 = (oppositeIndex + 1) % 3;
-    int other2 = (oppositeIndex - 1) % 3;
+    int other2 = positiveMod(oppositeIndex - 1, 3);
+
+    // cout << "vertex indices: " << oppositeIndex << " " << other0 << " " << other2 << endl;
 
     vec3 D = cross(n1, n2);
     //cout << "D = "<< D << endl;
@@ -152,6 +165,7 @@ bool intersection(ModelTriangle localTri, ModelTriangle otherTri, mat4 localTran
     float tPrime2 = calcInterval(D, verts2[oppositeIndex], verts2[other2], dist2[oppositeIndex], dist2[other2]);
     //std::cout << "interval1: " << t1 << "," << t2 << " interval2: " << tPrime1 << "," << tPrime2 << endl;
     if (std::max(t1,t2) <= std::min(tPrime1, tPrime2) || std::min(t1,t2) <= std::max(tPrime1, tPrime2)) { //may not be efficient since standard lib functions may not be inlined by compiler
+        this->lastCollision = toVec3(localTri.vertices[oppositeIndex]);
         return true;
     }
     //std::cout << "default" << endl;
@@ -186,18 +200,19 @@ bool Rigidbody::collide(Rigidbody other) {
                     if (isBasis(normal)) {
                         continue;
                     }
-                    cout << "normal = " << normal << endl;
                     std::cout << "collision detected with " << &other << std::endl;
+                    cout << "normal = " << normal << endl;
                     float combinedElasticity = (this->elasticity + other.elasticity)/2; //the average ratio of energy conserved
                     cout << "total elasticity = " << combinedElasticity << endl;
                     vec3 force = toVec3(combinedElasticity * dot(normalize(normal), normalize(velocity[3])) * normal);
                     cout << "force = " << force << endl;
-                    applyForce(force, vec3(0, 0, 0));
+                    applyForce(force, this->lastCollision);
                     // for (int i = 0; i < 3; i++) {
                     //     if (velocity[3][i] < 0.01f) {
                     //         velocity[3][i] = 0;
                     //     }
                     // }
+                    cout << endl;
                 //}
                 collidedWith.push_back(&other);
                 other.collidedWith.push_back(this);

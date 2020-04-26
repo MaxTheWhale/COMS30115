@@ -675,7 +675,7 @@ int main(int argc, char *argv[])
   // updateQueue.push_back(&cornellRB2);
 
   Model sphere = Model("blob");
-  sphere.setPosition(vec3(0,10.0f,-3));
+  sphere.setPosition(vec3(0,20.0f,-3));
   //sphere.rotate(vec3(1,0,0));
   renderQueue.push_back(&sphere);
   Rigidbody sphereRB = Rigidbody(&sphere);
@@ -695,7 +695,7 @@ int main(int argc, char *argv[])
   angleRB.positionFixed = true;
   angleRB.hasGravity = false;
   angleRB.collisionEnabled = true;
-  // cout << "angleRB address = " << &angleRB << endl;
+  cout << "angleRB address = " << &angleRB << endl;
   
   // cout << "normals: " << endl;
   // for (int i = 0; i < angle.tris.size(); i++) {
@@ -724,7 +724,7 @@ int main(int argc, char *argv[])
   }
   Camera cam;
   cam.setProjection(90.0f, WIDTH / (float)HEIGHT, 0.1f, 100.0f);
-  cam.lookAt(vec3(-10.0f, 2.5f, -1.5f), vec3(0.0f, 2.5f, -2.0f));
+  cam.lookAt(vec3(-20.0f, 2.5f, -1.5f), vec3(0.0f, 2.5f, -2.0f));
   // cam.moves.push(Movement(cam.transform));
   // cam.moves.top().lookAt(cam.getPosition(), vec3(0, -2.5f, 0));
 
