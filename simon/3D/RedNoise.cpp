@@ -21,7 +21,7 @@ using namespace glm;
 #define WIDTH 640
 #define HEIGHT 480
 #define IMG_SIZE (WIDTH*HEIGHT)
-#define SSAA true
+#define SSAA false
 #define SSAA_SCALE 2
 #define SSAA_SAMPLES (SSAA_SCALE*SSAA_SCALE)
 #define MOUSE_SENSITIVITY 0.0015f
@@ -666,6 +666,10 @@ int main(int argc, char *argv[])
   // miku.move(vec3(1.0f, 0.0f, -4.5f));
   // renderQueue.push_back(&miku);
 
+  Model bumpy = Model("bumpy");
+  bumpy.move(vec3(1.0f, 0.0f, -4.5f));
+  renderQueue.push_back(&bumpy);
+
   // Model cornell2 = Model("cornell-box");
   // // cornell2.move(glm::vec3(0,1,0));
   // cornell2.rotate(glm::vec3(0,1,0));
@@ -674,28 +678,28 @@ int main(int argc, char *argv[])
   // cornellRB2.hasGravity = false;
   // updateQueue.push_back(&cornellRB2);
 
-  Model sphere = Model("blob");
-  sphere.setPosition(vec3(0,20.0f,-3));
-  //sphere.rotate(vec3(1,0,0));
-  renderQueue.push_back(&sphere);
-  Rigidbody sphereRB = Rigidbody(&sphere);
-  updateQueue.push_back(&sphereRB);
-  sphereRB.positionFixed = false;
-  sphereRB.hasGravity = true;
-  sphereRB.collisionEnabled = true;
-  sphereRB.elasticity = 0.9f;
-  sphereRB.applyForce(vec3(0,0.05f,0), vec3(0.5f,0,0));
-  cout << "sphereRB address = " << &sphereRB << endl;
+  // Model sphere = Model("blob");
+  // sphere.setPosition(vec3(0,20.0f,-3));
+  // //sphere.rotate(vec3(1,0,0));
+  // renderQueue.push_back(&sphere);
+  // Rigidbody sphereRB = Rigidbody(&sphere);
+  // updateQueue.push_back(&sphereRB);
+  // sphereRB.positionFixed = false;
+  // sphereRB.hasGravity = true;
+  // sphereRB.collisionEnabled = true;
+  // sphereRB.elasticity = 0.9f;
+  // sphereRB.applyForce(vec3(0,0.05f,0), vec3(0.5f,0,0));
+  // cout << "sphereRB address = " << &sphereRB << endl;
 
-  Model angle = Model("tilted");
-  angle.setPosition(vec3(0,0,-3));
-  renderQueue.push_back(&angle);
-  Rigidbody angleRB = Rigidbody(&angle);
-  updateQueue.push_back(&angleRB);
-  angleRB.positionFixed = true;
-  angleRB.hasGravity = false;
-  angleRB.collisionEnabled = true;
-  cout << "angleRB address = " << &angleRB << endl;
+  // Model angle = Model("tilted");
+  // angle.setPosition(vec3(0,0,-3));
+  // renderQueue.push_back(&angle);
+  // Rigidbody angleRB = Rigidbody(&angle);
+  // updateQueue.push_back(&angleRB);
+  // angleRB.positionFixed = true;
+  // angleRB.hasGravity = false;
+  // angleRB.collisionEnabled = true;
+  // cout << "angleRB address = " << &angleRB << endl;
   
   // cout << "normals: " << endl;
   // for (int i = 0; i < angle.tris.size(); i++) {
@@ -1122,7 +1126,6 @@ void triangle(Triangle &t, Texture &tex, bool filled, uint32_t *buffer, float *d
             vec3 Id = vec3(200.0f, 200.0f, 200.0f) / (4.0f * M_PIf * radius * radius);
             vec3 V = toThree(normalize(eye_pos - pos_3d));
             vec3 Lm = toThree(normalize(light_pos - pos_3d));
-            //vec3 N = toThree(t.normal);
             vec3 N = toThree(q0 * t.vertices[0].normal + q1 * t.vertices[1].normal + q2 * t.vertices[2].normal);
             vec3 Rm = normalize(2.0f * N * dot(Lm, N) - Lm);
             vec3 reflectedLight = glm::min(phongReflection(Ks, Kd, Ka, alpha, Is, Id, Ia, Lm, N, Rm, V), 1.0f);
