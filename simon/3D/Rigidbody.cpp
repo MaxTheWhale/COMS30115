@@ -1,6 +1,5 @@
 #include "Rigidbody.hpp"
 #include <iostream>
-#include "Times.hpp"
 #include <algorithm>
 
 using namespace glm;
@@ -22,8 +21,7 @@ glm::vec3 Rigidbody::gravity = glm::vec3(0, -0.1f, 0);
 void Rigidbody::update() {
     //if we're not moving and we're in contact with something then it can be assumed that we are resting on it
     if (hasGravity){// && !(velocity[3] == vec4(0,0,0,1) && !collidedWith.empty())) {
-        float timescale = realTimeScale ? Times::deltaTime() : 1.0f/30.0f;
-        vec3 grav = gravity * timescale;
+        vec3 grav = gravity * timeStep();
         mat4 gravTransform = mat4(1,0,0,0,
                                   0,1,0,0,
                                   0,0,1,0,
@@ -103,6 +101,7 @@ int positiveMod(int value, int mod) {
     }
 }
 
+//returns the index of the element in the array that has a different sign to the other two
 int differentSign(float values[3]) {
     for (int i = 0; i < 3; i++) {
         int prev = (i + 1) % 3;
@@ -117,7 +116,9 @@ int differentSign(float values[3]) {
 
 //tests if the intervals a to b and x to y overlap on a line
 bool intervalOverlap(float a, float b, float x, float y) {
-    if (std::min(a,b) > std::min(x,y) && std::max(a,b) < std::max(x,y)) {
+    //fully contained
+    if ((std::min(a,b) > std::min(x,y) && std::max(a,b) < std::max(x,y)) ||
+        (std::min(x,y) > std::min(a,b) && std::max(x,y) < std::max(a,b))) {
         return false;
     }
     return std::max(a,b) >= std::min(x, y) && std::min(a,b) <= std::max(x, y);

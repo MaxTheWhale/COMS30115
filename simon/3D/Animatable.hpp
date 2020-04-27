@@ -7,10 +7,11 @@
 #include "Times.hpp"
 #include "VectorOutput.hpp"
 #include "Updatable.hpp"
+#include "Temporal.hpp"
 
 using namespace std;
 
-class Animatable : public Transformable, public Updatable {
+class Animatable : public Transformable, public Updatable, Temporal {
     public:
         Animatable();
         stack<Movement> moves;
