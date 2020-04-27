@@ -141,7 +141,7 @@ class Triangle {
 
 void draw();
 void line(vec4 p, vec4 q, int colour, uint32_t *buffer, vec2 &offset);
-void triangle(Triangle &t, Texture &tex, bool filled, uint32_t *buffer, float *depthBuff, vec2 offset, vec4 &eye_pos);
+void triangle(Triangle &t, bool filled, uint32_t *buffer, float *depthBuff, vec2 offset, vec4 &eye_pos);
 int *loadPPM(string fileName, int &width, int &height);
 void savePPM(string fileName, DrawingWindow *window);
 void skipHashWS(ifstream &f);
@@ -298,10 +298,10 @@ void drawTriangles(Camera &cam, std::vector<Model *> models)
         #if SSAA
         #pragma omp parallel for
         for (int s = 0; s < SSAA_SAMPLES; s++) {
-          triangle(t, model.texture, wireframe, buffer + (IMG_SIZE * s), depthBuffer + (IMG_SIZE * s), offsets[s], eye);
+          triangle(t, wireframe, buffer + (IMG_SIZE * s), depthBuffer + (IMG_SIZE * s), offsets[s], eye);
         }
         #else
-        triangle(t, model.texture, wireframe, buffer, depthBuffer, vec2(0.5f, 0.5f), eye);
+        triangle(t, wireframe, buffer, depthBuffer, vec2(0.5f, 0.5f), eye);
         #endif
       }
     }
@@ -1039,7 +1039,7 @@ inline vec3 phongReflection(vec3 &Ks, vec3 &Kd, vec3 &Ka, int &alpha, vec3 &Is, 
   return (Kd * glm::max(dot(Lm, N), 0.0f) * Id) + (Ks * powf(dot(Rm, V), alpha) * Is) + Ka * Ia;
 }
 
-void triangle(Triangle &t, Texture &tex, bool filled, uint32_t *buffer, float *depthBuff, vec2 offset, vec4 &eye_pos)
+void triangle(Triangle &t, bool filled, uint32_t *buffer, float *depthBuff, vec2 offset, vec4 &eye_pos)
 {
   vec4 light_pos = vec4(-0.234f, 5.2f, -3.043f, 1.0f);
   vec3 Ia = vec3(0.2f, 0.2f, 0.2f);
@@ -1106,18 +1106,18 @@ void triangle(Triangle &t, Texture &tex, bool filled, uint32_t *buffer, float *d
               u = mod(u, 1.0f);
               v = mod(v, 1.0f);
               if (bilinear) {
-                u *= tex.width - 1;
-                v *= tex.height - 1;
-                int tl = (int)u + (int)v * tex.width;
+                u *= t.mat.texture.width - 1;
+                v *= t.mat.texture.height - 1;
+                int tl = (int)u + (int)v * t.mat.texture.width;
                 int tr = tl + 1;
-                int bl = tl + tex.width;
+                int bl = tl + t.mat.texture.width;
                 int br = bl + 1;
-                Kd = bilinearColour(tex.dataVec[tl], tex.dataVec[tr], tex.dataVec[bl], tex.dataVec[br], vec2(mod(u, 1.0f), mod(v, 1.0f)));
+                Kd = bilinearColour(t.mat.texture.dataVec[tl], t.mat.texture.dataVec[tr], t.mat.texture.dataVec[bl], t.mat.texture.dataVec[br], vec2(mod(u, 1.0f), mod(v, 1.0f)));
               }
               else {
-                u *= tex.width;
-                v *= tex.height;
-                Kd = tex.dataVec[(int)u + (int)v * tex.width];
+                u *= t.mat.texture.width;
+                v *= t.mat.texture.height;
+                Kd = t.mat.texture.dataVec[(int)u + (int)v * t.mat.texture.width];
               }
               Ka = Kd;
             }
