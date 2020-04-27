@@ -32,7 +32,7 @@ void Animatable::update()
     if (!moves.empty())
     {
         //cout << "delta = deltaTime (" << Times::deltaTime() << ") * (previous transform (" << this->previous.transform << ") - next transform (" << moves.top().transform << "))" << endl;
-        mat4 delta = -Times::deltaTime() / moves.top().time * (previous.transform - moves.top().transform);
+        mat4 delta = -timeStep() / moves.top().time * (previous.transform - moves.top().transform);
         cout << "previous = " << previous.transform << endl << "target = " << moves.top().transform << endl << "delta = " << delta << endl;
         mat4 newTransform = mat4();
         for (int i = 0; i < 4; i++)

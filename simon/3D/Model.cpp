@@ -18,6 +18,7 @@ Model::Model(string filename) {
         texture.dataVec[i].b = (texture.data[i] & 0x0000ff) / 255.0f;
       }
     }
+    this->furthestExtent = calcExtent();
 }
 
 vector<ModelTriangle> Model::loadOBJ(string fileName,
@@ -275,4 +276,22 @@ vec3 Model::centerOfMass() {
     center[2] += ((tris[i].vertices[0][2] + tris[i].vertices[1][2] + tris[i].vertices[2][2]) / 4) * currentVolume;
   }
   return center;
+}
+
+float Model::calcExtent() {
+  float value = -1.0f;
+  vec4 scales;
+  for (int i = 0; i < 3; i++) {
+    scales[i] = glm::length(this->transform[i]);
+  }
+  scales[3] = 0;
+  for (unsigned int i = 0; i < this->tris.size(); i++) {
+    for (unsigned int j = 0; j < 3; j++) {
+      float dist = glm::length(this->tris[i].vertices[j] * scales);
+      if (dist > value) {
+        value = dist;
+      }
+    }
+  }
+  return value;
 }

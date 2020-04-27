@@ -1,6 +1,5 @@
 #include "Rigidbody.hpp"
 #include <iostream>
-#include "Times.hpp"
 #include <algorithm>
 
 using namespace glm;
@@ -22,8 +21,7 @@ glm::vec3 Rigidbody::gravity = glm::vec3(0, -0.1f, 0);
 void Rigidbody::update() {
     //if we're not moving and we're in contact with something then it can be assumed that we are resting on it
     if (hasGravity){// && !(velocity[3] == vec4(0,0,0,1) && !collidedWith.empty())) {
-        float timescale = realTimeScale ? Times::deltaTime() : 1.0f/30.0f;
-        vec3 grav = gravity * timescale;
+        vec3 grav = gravity * timeStep();
         mat4 gravTransform = mat4(1,0,0,0,
                                   0,1,0,0,
                                   0,0,1,0,
@@ -103,6 +101,7 @@ int positiveMod(int value, int mod) {
     }
 }
 
+//returns the index of the element in the array that has a different sign to the other two
 int differentSign(float values[3]) {
     for (int i = 0; i < 3; i++) {
         int prev = (i + 1) % 3;
@@ -113,6 +112,16 @@ int differentSign(float values[3]) {
         }
     }
     return -1;
+}
+
+//tests if the intervals a to b and x to y overlap on a line
+bool intervalOverlap(float a, float b, float x, float y) {
+    //fully contained
+    if ((std::min(a,b) > std::min(x,y) && std::max(a,b) < std::max(x,y)) ||
+        (std::min(x,y) > std::min(a,b) && std::max(x,y) < std::max(a,b))) {
+        return false;
+    }
+    return std::max(a,b) >= std::min(x, y) && std::min(a,b) <= std::max(x, y);
 }
 
 bool Rigidbody::intersection(ModelTriangle localTri, ModelTriangle otherTri, mat4 localTransform, mat4 otherTransform) {
@@ -151,21 +160,26 @@ bool Rigidbody::intersection(ModelTriangle localTri, ModelTriangle otherTri, mat
     }
 
     //now we have to check which point is on the opposite side of the plane to the other two
-    int oppositeIndex = differentSign(dist1);
-    int other0 = (oppositeIndex + 1) % 3;
-    int other2 = positiveMod(oppositeIndex - 1, 3);
+    int oppositeIndexOne = differentSign(dist1);
+    int one0 = (oppositeIndexOne + 1) % 3;
+    int one2 = positiveMod(oppositeIndexOne - 1, 3);
+
+    int oppositeIndexTwo = differentSign(dist2);
+    int two0 = (oppositeIndexTwo + 1) % 3;
+    int two2 = positiveMod(oppositeIndexTwo - 1, 3);
 
     // cout << "vertex indices: " << oppositeIndex << " " << other0 << " " << other2 << endl;
 
     vec3 D = cross(n1, n2);
     //cout << "D = "<< D << endl;
-    float t1 = calcInterval(D, verts1[other0], verts1[oppositeIndex], dist1[other0], dist1[oppositeIndex]);
-    float t2 = calcInterval(D, verts1[oppositeIndex], verts1[other2], dist1[oppositeIndex], dist1[other2]);
-    float tPrime1 = calcInterval(D, verts2[other0], verts2[oppositeIndex], dist2[other0], dist2[oppositeIndex]);
-    float tPrime2 = calcInterval(D, verts2[oppositeIndex], verts2[other2], dist2[oppositeIndex], dist2[other2]);
+    float t1 = calcInterval(D, verts1[one0], verts1[oppositeIndexOne], dist1[one0], dist1[oppositeIndexOne]);
+    float t2 = calcInterval(D, verts1[oppositeIndexOne], verts1[one2], dist1[oppositeIndexOne], dist1[one2]);
+    float tPrime1 = calcInterval(D, verts2[two0], verts2[oppositeIndexTwo], dist2[two0], dist2[oppositeIndexTwo]);
+    float tPrime2 = calcInterval(D, verts2[oppositeIndexTwo], verts2[two2], dist2[oppositeIndexTwo], dist2[two2]);
     //std::cout << "interval1: " << t1 << "," << t2 << " interval2: " << tPrime1 << "," << tPrime2 << endl;
-    if (std::max(t1,t2) <= std::min(tPrime1, tPrime2) || std::min(t1,t2) <= std::max(tPrime1, tPrime2)) { //may not be efficient since standard lib functions may not be inlined by compiler
-        this->lastCollision = toVec3(localTri.vertices[oppositeIndex]);
+    if (intervalOverlap(t1,t2,tPrime1,tPrime2)) { //may not be efficient since standard lib functions may not be inlined by compiler
+        cout << "t1,t2 = (" << t1 << "," << t2 << ") tPrime1, tPrime2 = (" << tPrime1 << "," << tPrime2 << ")" << endl;
+        this->lastCollision = toVec3(localTri.vertices[oppositeIndexOne]);
         return true;
     }
     //std::cout << "default" << endl;

@@ -1,8 +1,9 @@
 #include <glm/glm.hpp>
 #include "Model.hpp"
 #include "Updatable.hpp"
+#include "Temporal.hpp"
 
-class Rigidbody : public Updatable {
+class Rigidbody : public Updatable, Temporal {
     public:
         glm::mat4 velocity;
         void update() override;
@@ -11,7 +12,6 @@ class Rigidbody : public Updatable {
         bool collisionEnabled = true;
         bool positionFixed = true;
         static glm::vec3 gravity;
-        const static bool realTimeScale = false;
         Rigidbody(Model* model);
         Model* model;
         std::vector<Rigidbody*> collidedWith; //all RBs that this RB has collided with this frame, ensuring that they do not collide twice
