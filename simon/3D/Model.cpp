@@ -184,6 +184,10 @@ unordered_map<string, Material> Model::loadMTL(string fileName, int*& data, int&
         f >> b;
         palette[key].diffuseVec = glm::vec3(stof(r), stof(g), stof(b));
         palette[key].diffuse = Colour(key, stof(r) * 255, stof(g) * 255, stof(b) * 255);
+        if (palette[key].ambient.red == -1) {
+          palette[key].ambient = palette[key].diffuse;
+          palette[key].ambientVec = palette[key].diffuseVec;
+        }
       }
       if (s == "Ks") {
         string r, g, b;
