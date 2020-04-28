@@ -509,9 +509,27 @@ Colour getPixelColour(RayTriangleIntersection intersection, Light mainLight, vec
           reflectedColour = getPixelColour(mirrorIntersection, mainLight, rayDirection, model, depth + 1, i, j) + (intersection.intersectedTriangle.material.specular * 0.8f);
         } else {
           reflectedColour = intersection.intersectedTriangle.material.specular;
-        }       
+        }
 
-        return reflectedColour * kr + refractionColour * (1 - kr);
+        Colour glassColour;
+        if(tex.dataVec != nullptr) {
+          ModelTriangle t = intersection.intersectedTriangle;
+          float q0 = intersection.u;
+          float q1 = intersection.v;
+          float q2 = 1 - q0 - q1;
+          float u = q2 * t.uvs[0].x + q0 * t.uvs[1].x + q1 * t.uvs[2].x;
+          float v = q2 * t.uvs[0].y + q0 * t.uvs[1].y + q1 * t.uvs[2].y;
+          u = mod(u, 1.0f);
+          v = mod(v, 1.0f);
+          u *= tex.width;
+          v *= tex.height;
+          vec3 texVec = tex.dataVec[(int)u + (int)v * tex.width];
+          glassColour = Colour(texVec.r * 255, texVec.g * 255, texVec.b * 255);
+        } else {
+          glassColour = intersection.intersectedTriangle.material.diffuse;
+        }
+        
+        return glassColour * (float) intersection.intersectedTriangle.material.dissolve + reflectedColour * kr + refractionColour * (1 - kr);
       }
 
       if(intersection.intersectedTriangle.material.specular.red >= 0) {
@@ -648,6 +666,11 @@ int main(int argc, char *argv[])
   // hs_logo.move(vec3(-1.1f, 1.21f, -1.8f));
   // renderQueue.push_back(&hs_logo);
 
+  Model glass = Model("GlassSphere/glassSphere");
+  glass.scale(vec3(0.75f, 0.75f, 0.75f));
+  glass.move(vec3(0.75f, 2.3f, -2.0f));
+  renderQueue.push_back(&glass);
+
   // for (int i = -5; i < 5; i++) {
     // Model logo = Model("HackspaceLogo/Logo");
     // logo.scale(vec3(0.005f, 0.005f, 0.005f));
@@ -674,18 +697,18 @@ int main(int argc, char *argv[])
   // cornellRB2.hasGravity = false;
   // updateQueue.push_back(&cornellRB2);
 
-  Model sphere = Model("blob");
-  sphere.setPosition(vec3(0,10.0f,-3));
-  //sphere.rotate(vec3(1,0,0));
-  renderQueue.push_back(&sphere);
-  Rigidbody sphereRB = Rigidbody(&sphere);
-  updateQueue.push_back(&sphereRB);
-  sphereRB.positionFixed = false;
-  sphereRB.hasGravity = true;
-  sphereRB.collisionEnabled = true;
-  sphereRB.elasticity = 1.2f;
-  // sphereRB.applyForce(vec3(0,0.2f,0), vec3(0,0,0));
-  cout << "sphereRB address = " << &sphereRB << endl;
+  // Model sphere = Model("blob");
+  // sphere.setPosition(vec3(0,10.0f,-3));
+  // //sphere.rotate(vec3(1,0,0));
+  // renderQueue.push_back(&sphere);
+  // Rigidbody sphereRB = Rigidbody(&sphere);
+  // updateQueue.push_back(&sphereRB);
+  // sphereRB.positionFixed = false;
+  // sphereRB.hasGravity = true;
+  // sphereRB.collisionEnabled = true;
+  // sphereRB.elasticity = 1.2f;
+  // // sphereRB.applyForce(vec3(0,0.2f,0), vec3(0,0,0));
+  // cout << "sphereRB address = " << &sphereRB << endl;
 
   // Model tri1 = Model("triangle");
   // renderQueue.push_back(&tri1);
@@ -702,11 +725,11 @@ int main(int argc, char *argv[])
   // updateQueue.push_back(&tri2RB);
 
   //std::cout << "address stored as " << cornellRB.model << std::endl;
-  for (unsigned int i = 0; i < renderQueue.size(); i++) {
-    for (auto tri : (*renderQueue[i]).tris) {
-      cout << "UVs for " << tri.name << ": " << tri.uvs[0].x << "," << tri.uvs[0].y << "  " << tri.uvs[1].x << "," << tri.uvs[1].y << "  " << tri.uvs[2].x << "," << tri.uvs[2].y << endl;
-    }
-  }
+  // for (unsigned int i = 0; i < renderQueue.size(); i++) {
+  //   for (auto tri : (*renderQueue[i]).tris) {
+  //     cout << "UVs for " << tri.name << ": " << tri.uvs[0].x << "," << tri.uvs[0].y << "  " << tri.uvs[1].x << "," << tri.uvs[1].y << "  " << tri.uvs[2].x << "," << tri.uvs[2].y << endl;
+  //   }
+  // }
   Camera cam;
   cam.setProjection(90.0f, WIDTH / (float)HEIGHT, 0.1f, 100.0f);
   cam.lookAt(vec3(0.0f, 2.5f, -1.5f), vec3(0.0f, 2.5f, -2.0f));

@@ -50,8 +50,8 @@ void Rigidbody::update() {
             }
         }
     }
-    cout << "velocity = " << velocity << endl;
-    cout << "transform = " << model->transform << endl;
+    // cout << "velocity = " << velocity << endl;
+    // cout << "transform = " << model->transform << endl;
 }
 
 vec3 toVec3(vec4 in) {
