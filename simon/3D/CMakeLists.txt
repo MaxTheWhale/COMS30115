@@ -29,5 +29,5 @@ target_link_libraries(debug SDL2::Main OpenMP::OpenMP_CXX)
 
 add_executable(speedy EXCLUDE_FROM_ALL ${SOURCE_FILES})
 set_target_properties(speedy PROPERTIES OUTPUT_NAME ${CMAKE_PROJECT_NAME})
-target_compile_options(speedy PUBLIC -Wall -Ofast -funsafe-math-optimizations -fno-finite-math-only -march=native)
+target_compile_options(speedy PUBLIC -Wall -Ofast -fno-unsafe-math-optimizations -march=native)
 target_link_libraries(speedy SDL2::Main OpenMP::OpenMP_CXX)
