@@ -1,7 +1,6 @@
 #include "Animatable.hpp"
 #include <glm/glm.hpp>
 #include <iostream>
-#include "VectorOutput.hpp"
 
 using namespace glm;
 using namespace std;

@@ -2,7 +2,7 @@
 #include <Utils.h>
 #include <fstream>
 #include "Material.h"
-#include "VectorOutput.hpp"
+#include "VectorUtil.hpp"
 #include <string>
 
 using namespace std;
