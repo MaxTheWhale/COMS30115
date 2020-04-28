@@ -40,7 +40,7 @@ using namespace glm;
 enum COLOUR_MASK {ALPHA = 0xff000000, RED = 0x00ff0000, GREEN = 0x0000ff00, BLUE = 0x000000ff};
 
 void draw();
-void triangle(Triangle &t, Texture &tex, bool filled, uint32_t *buffer, float *depthBuff, vec2 offset, vec4 &eye_pos);
+void triangle(Triangle &t, bool filled, uint32_t *buffer, float *depthBuff, vec2 offset, vec4 &eye_pos);
 int *loadPPM(string fileName, int &width, int &height);
 void savePPM(string fileName, DrawingWindow *window);
 void skipHashWS(ifstream &f);
@@ -100,10 +100,10 @@ void drawTriangles(Camera &cam, std::vector<Model *> models)
         #if SSAA
         #pragma omp parallel for
         for (int s = 0; s < SSAA_SAMPLES; s++) {
-          triangle(t, model.texture, wireframe, buffer + (IMG_SIZE * s), depthBuffer + (IMG_SIZE * s), offsets[s], eye);
+          triangle(t, wireframe, buffer + (IMG_SIZE * s), depthBuffer + (IMG_SIZE * s), offsets[s], eye);
         }
         #else
-        triangle(t, model.texture, wireframe, buffer, depthBuffer, vec2(0.5f, 0.5f), eye);
+        triangle(t, wireframe, buffer, depthBuffer, vec2(0.5f, 0.5f), eye);
         #endif
       }
     }
@@ -237,14 +237,40 @@ vec4 refract(vec4 I, vec4 N, float ior) {
 
 Colour getPixelColour(RayTriangleIntersection intersection, Light mainLight, vec4 rayDirection, Model model, int depth, int i, int j) {
   Texture tex = intersection.intersectedTriangle.material.texture;
+  Texture bumps = intersection.intersectedTriangle.material.normal_map;
+  vec4 normal;
+
+  if(bumps.dataVec != nullptr) {
+          ModelTriangle t = intersection.intersectedTriangle;
+          float q0 = intersection.u;
+          float q1 = intersection.v;
+          float q2 = 1 - q0 - q1;
+          float u = q2 * t.uvs[0].x + q0 * t.uvs[1].x + q1 * t.uvs[2].x;
+          float v = q2 * t.uvs[0].y + q0 * t.uvs[1].y + q1 * t.uvs[2].y;
+          u = mod(u, 1.0f);
+          v = mod(v, 1.0f);
+          u *= bumps.width;
+          v *= bumps.height;
+          // cout << t.name << endl;
+          // cout << "q0: " << q0 << ", q1: " << q1 << ", q2: " << q2 << endl;
+          // cout << "t.uvs[0]: " << t.uvs[0].x << ", " << t.uvs[0].y << endl;
+          // cout << "t.uvs[1]: " << t.uvs[1].x << ", " << t.uvs[1].y << endl;
+          // cout << "t.uvs[2]: " << t.uvs[2].x << ", " << t.uvs[2].y << endl;
+          vec3 bumpVec = bumps.dataVec[(int)u + (int)v * bumps.width];
+          normal = vec4(bumpVec.x, bumpVec.y, bumpVec.z, 0.0f);
+          // cout << "new normal: " << normal.x << ", " << normal.y << ", " << normal.z << endl;
+        } else {
+          normal = intersection.intersectedTriangle.normal;
+        }
 
   Colour colour = Colour(0, 0, 0);
 
-      if(intersection.intersectedTriangle.material.dissolve < 1) {
+      if(intersection.intersectedTriangle.material.dissolve < 1 && depth < 2) {
+        // cout << "trying with normal " << normal.x << ", " << normal.y << ", " << normal.z << endl;
         vec4 refractedRay;
         float kr;
 
-        float cosi = glm::clamp<float>(glm::dot(rayDirection, intersection.intersectedTriangle.normal), -1.0f, 1.0f);
+        float cosi = glm::clamp<float>(glm::dot(rayDirection, normal), -1.0f, 1.0f);
         float etai = 1.0f, etat = 1.5f;
 
         if(cosi > 0) {
@@ -263,37 +289,55 @@ Colour getPixelColour(RayTriangleIntersection intersection, Light mainLight, vec
           kr = (Rs * Rs + Rp * Rp) / 2;
         }
 
-        bool outside = glm::dot(rayDirection, intersection.intersectedTriangle.normal) < 0;
+        bool outside = glm::dot(rayDirection, normal) < 0;
         float bias = 1e-4;
 
         Colour refractionColour = intersection.intersectedTriangle.material.diffuse;
         if (kr < 1) {
-          vec4 refractionDirection = refract(rayDirection, intersection.intersectedTriangle.normal, 1.5f);
-          RayTriangleIntersection refractIntersection = findClosestIntersection(outside ? intersection.intersectionPoint - (intersection.intersectedTriangle.normal * bias) : intersection.intersectionPoint + (intersection.intersectedTriangle.normal * bias), model, refractionDirection);
-          refractionColour = getPixelColour(refractIntersection, mainLight, rayDirection, model, depth, i, j);
+          vec4 refractionDirection = refract(rayDirection, normal, 1.5f);
+          RayTriangleIntersection refractIntersection = findClosestIntersection(outside ? intersection.intersectionPoint - (normal * bias) : intersection.intersectionPoint + (normal * bias), model, refractionDirection);
+          refractionColour = getPixelColour(refractIntersection, mainLight, rayDirection, model, depth + 1, i, j);
         }
 
         Colour reflectedColour = intersection.intersectedTriangle.material.diffuse;
         if(depth < 2) {
-          vec4 mirrorRayDirection = glm::normalize(rayDirection - 2.0f * (glm::dot(rayDirection, intersection.intersectedTriangle.normal) * intersection.intersectedTriangle.normal));
+          vec4 mirrorRayDirection = glm::normalize(rayDirection - 2.0f * (glm::dot(rayDirection, normal) * normal));
           mirrorRayDirection.w = 0;
 
-          RayTriangleIntersection mirrorIntersection = findClosestIntersection(outside ? intersection.intersectionPoint - (intersection.intersectedTriangle.normal * bias) : intersection.intersectionPoint + (intersection.intersectedTriangle.normal * bias), model, mirrorRayDirection);
+          RayTriangleIntersection mirrorIntersection = findClosestIntersection(outside ? intersection.intersectionPoint - (normal * bias) : intersection.intersectionPoint + (normal * bias), model, mirrorRayDirection);
           
           reflectedColour = getPixelColour(mirrorIntersection, mainLight, rayDirection, model, depth + 1, i, j) + (intersection.intersectedTriangle.material.specular * 0.8f);
         } else {
           reflectedColour = intersection.intersectedTriangle.material.specular;
-        }       
+        }
 
-        return reflectedColour * kr + refractionColour * (1 - kr);
+        Colour glassColour;
+        if(tex.dataVec != nullptr) {
+          ModelTriangle t = intersection.intersectedTriangle;
+          float q0 = intersection.u;
+          float q1 = intersection.v;
+          float q2 = 1 - q0 - q1;
+          float u = q2 * t.uvs[0].x + q0 * t.uvs[1].x + q1 * t.uvs[2].x;
+          float v = q2 * t.uvs[0].y + q0 * t.uvs[1].y + q1 * t.uvs[2].y;
+          u = mod(u, 1.0f);
+          v = mod(v, 1.0f);
+          u *= tex.width;
+          v *= tex.height;
+          vec3 texVec = tex.dataVec[(int)u + (int)v * tex.width];
+          glassColour = Colour(texVec.r * 255, texVec.g * 255, texVec.b * 255);
+        } else {
+          glassColour = intersection.intersectedTriangle.material.diffuse;
+        }
+        
+        return glassColour * intersection.intersectedTriangle.material.dissolve + reflectedColour * kr + refractionColour * (1 - kr);
       }
 
       if(intersection.intersectedTriangle.material.specular.red >= 0) {
         if(depth < 2) {
-          vec4 mirrorRayDirection = glm::normalize(rayDirection - 2.0f * (glm::dot(rayDirection, intersection.intersectedTriangle.normal) * intersection.intersectedTriangle.normal));
+          vec4 mirrorRayDirection = glm::normalize(rayDirection - 2.0f * (glm::dot(rayDirection, normal) * normal));
           mirrorRayDirection.w = 0;
 
-          RayTriangleIntersection mirrorIntersection = findClosestIntersection(intersection.intersectionPoint + (intersection.intersectedTriangle.normal * 0.1f), model, mirrorRayDirection);
+          RayTriangleIntersection mirrorIntersection = findClosestIntersection(intersection.intersectionPoint + (normal * 0.1f), model, mirrorRayDirection);
           
           return getPixelColour(mirrorIntersection, mainLight, rayDirection, model, depth + 1, i, j) + (intersection.intersectedTriangle.material.specular * 0.8f);
         } else {
@@ -332,7 +376,7 @@ Colour getPixelColour(RayTriangleIntersection intersection, Light mainLight, vec
         if(isInShadow) colour = colour * mainLight.shadow;
         else {
           //calculate the angleOfIncidence between 0 and 1
-          float angleOfIncidence = glm::dot(glm::normalize(shadowRayDirection), intersection.intersectedTriangle.normal);
+          float angleOfIncidence = glm::dot(glm::normalize(shadowRayDirection), normal);
           colour = colour * glm::clamp<float>(angleOfIncidence, mainLight.shadow, 1);
 
           //adjust brightness for proximity lighting
@@ -341,7 +385,7 @@ Colour getPixelColour(RayTriangleIntersection intersection, Light mainLight, vec
 
           if(intersection.intersectedTriangle.material.highlights > 0) {
             //TODO: make the colour of the highlights match the specular material colour
-            vec4 reflection = glm::normalize((-shadowRayDirection) - 2.0f * (glm::dot((-shadowRayDirection), intersection.intersectedTriangle.normal) * intersection.intersectedTriangle.normal));
+            vec4 reflection = glm::normalize((-shadowRayDirection) - 2.0f * (glm::dot((-shadowRayDirection), normal) * normal));
             float specular = pow(glm::dot(glm::normalize((-rayDirection)), reflection), intersection.intersectedTriangle.material.highlights);
             colour = colour + (glm::clamp<float>(specular, 0, 1) * 255);
           }
@@ -409,10 +453,10 @@ int main(int argc, char *argv[])
   vector<Model*> renderQueue = vector<Model*>();
   vector<Updatable*> updateQueue = vector<Updatable*>();
 
-  // Model cornell = Model("cornell-box");
-  // //cornell.rotate(glm::vec3(45,0,0));
-  // renderQueue.push_back(&cornell);
-  // // std::cout << "cornell address = " << &cornell << std::endl;
+  Model cornell = Model("cornell-box");
+  //cornell.rotate(glm::vec3(45,0,0));
+  renderQueue.push_back(&cornell);
+  // std::cout << "cornell address = " << &cornell << std::endl;
   // Rigidbody cornellRB = Rigidbody(&cornell);
   // cornellRB.hasGravity = false;
   // updateQueue.push_back(&cornellRB);
@@ -421,6 +465,11 @@ int main(int argc, char *argv[])
   // hs_logo.scale(vec3(0.005f, 0.005f, 0.005f));
   // hs_logo.move(vec3(-1.1f, 1.21f, -1.8f));
   // renderQueue.push_back(&hs_logo);
+
+  // Model glass = Model("GlassSphere/glassSphere");
+  // glass.scale(vec3(0.75f, 0.75f, 0.75f));
+  // glass.move(vec3(0.75f, 2.3f, -2.0f));
+  // renderQueue.push_back(&glass);
 
   // for (int i = -5; i < 5; i++) {
     // Model logo = Model("HackspaceLogo/Logo");
@@ -441,7 +490,8 @@ int main(int argc, char *argv[])
   // renderQueue.push_back(&miku);
 
   Model bumpy = Model("bumpy");
-  bumpy.move(vec3(1.0f, 0.0f, -4.5f));
+  bumpy.scale(vec3(0.75f, 0.75f, 0.75f));
+  bumpy.move(vec3(0.75f, 2.3f, -2.0f));
   renderQueue.push_back(&bumpy);
 
   // Model cornell2 = Model("cornell-box");
@@ -495,14 +545,14 @@ int main(int argc, char *argv[])
   // updateQueue.push_back(&tri2RB);
 
   //std::cout << "address stored as " << cornellRB.model << std::endl;
-  for (unsigned int i = 0; i < renderQueue.size(); i++) {
-    for (auto tri : (*renderQueue[i]).tris) {
-      cout << "UVs for " << tri.name << ": " << tri.uvs[0].x << "," << tri.uvs[0].y << "  " << tri.uvs[1].x << "," << tri.uvs[1].y << "  " << tri.uvs[2].x << "," << tri.uvs[2].y << endl;
-    }
-  }
+  // for (unsigned int i = 0; i < renderQueue.size(); i++) {
+  //   for (auto tri : (*renderQueue[i]).tris) {
+  //     cout << "UVs for " << tri.name << ": " << tri.uvs[0].x << "," << tri.uvs[0].y << "  " << tri.uvs[1].x << "," << tri.uvs[1].y << "  " << tri.uvs[2].x << "," << tri.uvs[2].y << endl;
+  //   }
+  // }
   Camera cam;
   cam.setProjection(90.0f, WIDTH / (float)HEIGHT, 0.1f, 100.0f);
-  cam.lookAt(vec3(-20.0f, 2.5f, -1.5f), vec3(0.0f, 2.5f, -2.0f));
+  // cam.lookAt(vec3(-20.0f, 2.5f, -1.5f), vec3(0.0f, 2.5f, -2.0f));
   // cam.moves.push(Movement(cam.transform));
   // cam.moves.top().lookAt(cam.getPosition(), vec3(0, -2.5f, 0));
 
@@ -659,7 +709,7 @@ inline vec3 phongReflection(vec3 &Ks, vec3 &Kd, vec3 &Ka, int &alpha, vec3 &Is, 
   return (Kd * glm::max(dot(Lm, N), 0.0f) * Id) + (Ks * powf(dot(Rm, V), alpha) * Is) + Ka * Ia;
 }
 
-void triangle(Triangle &t, Texture &tex, bool filled, uint32_t *buffer, float *depthBuff, vec2 offset, vec4 &eye_pos)
+void triangle(Triangle &t, bool filled, uint32_t *buffer, float *depthBuff, vec2 offset, vec4 &eye_pos)
 {
   vec4 light_pos = vec4(-0.234f, 5.2f, -3.043f, 1.0f);
   vec3 Ia = vec3(0.2f, 0.2f, 0.2f);
@@ -726,18 +776,18 @@ void triangle(Triangle &t, Texture &tex, bool filled, uint32_t *buffer, float *d
               u = mod(u, 1.0f);
               v = mod(v, 1.0f);
               if (bilinear) {
-                u *= tex.width - 1;
-                v *= tex.height - 1;
-                int tl = (int)u + (int)v * tex.width;
+                u *= t.mat.texture.width - 1;
+                v *= t.mat.texture.height - 1;
+                int tl = (int)u + (int)v * t.mat.texture.width;
                 int tr = tl + 1;
-                int bl = tl + tex.width;
+                int bl = tl + t.mat.texture.width;
                 int br = bl + 1;
-                Kd = bilinearColour(tex.dataVec[tl], tex.dataVec[tr], tex.dataVec[bl], tex.dataVec[br], vec2(mod(u, 1.0f), mod(v, 1.0f)));
+                Kd = bilinearColour(t.mat.texture.dataVec[tl], t.mat.texture.dataVec[tr], t.mat.texture.dataVec[bl], t.mat.texture.dataVec[br], vec2(mod(u, 1.0f), mod(v, 1.0f)));
               }
               else {
-                u *= tex.width;
-                v *= tex.height;
-                Kd = tex.dataVec[(int)u + (int)v * tex.width];
+                u *= t.mat.texture.width;
+                v *= t.mat.texture.height;
+                Kd = t.mat.texture.dataVec[(int)u + (int)v * t.mat.texture.width];
               }
               Ka = Kd;
             }

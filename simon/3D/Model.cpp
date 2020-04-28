@@ -8,16 +8,8 @@
 using namespace std;
 
 Model::Model(string filename) {
-    palette = loadMTL(filename + ".mtl", texture.data, texture.width, texture.height);
+    palette = loadMTL(filename + ".mtl");
     tris = loadOBJ(filename + ".obj", palette);
-    if (texture.data != nullptr) {
-      texture.dataVec = new glm::vec3[texture.width * texture.height];
-      for (int i = 0; i < texture.width * texture.height; i++) {
-        texture.dataVec[i].r = ((texture.data[i] & 0xff0000) >> 16) / 255.0f;
-        texture.dataVec[i].g = ((texture.data[i] & 0x00ff00) >> 8) / 255.0f;
-        texture.dataVec[i].b = (texture.data[i] & 0x0000ff) / 255.0f;
-      }
-    }
     this->furthestExtent = calcExtent();
 }
 
@@ -149,13 +141,12 @@ int *loadPPM(string fileName, int &width, int &height)
   return buff;
 }
 
-unordered_map<string, Material> Model::loadMTL(string fileName, int*& data, int& width, int& height) {
+unordered_map<string, Material> Model::loadMTL(string fileName) {
   unordered_map<string, Material> palette;
 
   ifstream f;
   string s;
   string key;
-  data = nullptr;
   f.open(fileName, ios::in);
   if (!f.good()) {
     return palette;
@@ -209,7 +200,7 @@ unordered_map<string, Material> Model::loadMTL(string fileName, int*& data, int&
       }
       if (s == "d") {
         f >> s;
-        palette[key].dissolve = stoi(s);
+        palette[key].dissolve = stof(s);
       }
       if (s == "map_Kd") {
         string texture_file;
