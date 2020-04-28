@@ -40,6 +40,9 @@ class ModelTriangle
       uvs[0] = glm::vec2(-1.0f, -1.0f);
       uvs[1] = glm::vec2(-1.0f, -1.0f);
       uvs[2] = glm::vec2(-1.0f, -1.0f);
+      normals[0] = normal;
+      normals[1] = normal;
+      normals[2] = normal;
     }
 
     ModelTriangle(glm::vec4 v0, glm::vec4 v1, glm::vec4 v2, float b0, float b1, float b2, Material trigMaterial, glm::vec4 trigNormal)
@@ -55,6 +58,9 @@ class ModelTriangle
       uvs[0] = glm::vec2(-1.0f, -1.0f);
       uvs[1] = glm::vec2(-1.0f, -1.0f);
       uvs[2] = glm::vec2(-1.0f, -1.0f);
+      normals[0] = normal;
+      normals[1] = normal;
+      normals[2] = normal;
     }
 
     ModelTriangle(glm::vec3 v0, glm::vec3 v1, glm::vec3 v2, Material trigMaterial)
@@ -67,6 +73,9 @@ class ModelTriangle
       uvs[0] = glm::vec2(-1.0f, -1.0f);
       uvs[1] = glm::vec2(-1.0f, -1.0f);
       uvs[2] = glm::vec2(-1.0f, -1.0f);
+      normals[0] = normal;
+      normals[1] = normal;
+      normals[2] = normal;
     }
 
     ModelTriangle(glm::vec3 v0, glm::vec3 v1, glm::vec3 v2, Material trigMaterial, std::string n)

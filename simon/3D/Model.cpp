@@ -8,16 +8,9 @@
 using namespace std;
 
 Model::Model(string filename) {
-    palette = loadMTL(filename + ".mtl", texture.data, texture.width, texture.height);
+    palette = loadMTL(filename + ".mtl");
     tris = loadOBJ(filename + ".obj", palette);
-    if (texture.data != nullptr) {
-      texture.dataVec = new glm::vec3[texture.width * texture.height];
-      for (int i = 0; i < texture.width * texture.height; i++) {
-        texture.dataVec[i].r = ((texture.data[i] & 0xff0000) >> 16) / 255.0f;
-        texture.dataVec[i].g = ((texture.data[i] & 0x00ff00) >> 8) / 255.0f;
-        texture.dataVec[i].b = (texture.data[i] & 0x0000ff) / 255.0f;
-      }
-    }
+    this->furthestExtent = calcExtent();
 }
 
 vector<ModelTriangle> Model::loadOBJ(string fileName,
@@ -148,13 +141,12 @@ int *loadPPM(string fileName, int &width, int &height)
   return buff;
 }
 
-unordered_map<string, Material> Model::loadMTL(string fileName, int*& data, int& width, int& height) {
+unordered_map<string, Material> Model::loadMTL(string fileName) {
   unordered_map<string, Material> palette;
 
   ifstream f;
   string s;
   string key;
-  data = nullptr;
   f.open(fileName, ios::in);
   if (!f.good()) {
     return palette;
@@ -183,6 +175,10 @@ unordered_map<string, Material> Model::loadMTL(string fileName, int*& data, int&
         f >> b;
         palette[key].diffuseVec = glm::vec3(stof(r), stof(g), stof(b));
         palette[key].diffuse = Colour(key, stof(r) * 255, stof(g) * 255, stof(b) * 255);
+        if (palette[key].ambient.red == -1) {
+          palette[key].ambient = palette[key].diffuse;
+          palette[key].ambientVec = palette[key].diffuseVec;
+        }
       }
       if (s == "Ks") {
         string r, g, b;
@@ -193,7 +189,7 @@ unordered_map<string, Material> Model::loadMTL(string fileName, int*& data, int&
         palette[key].specular = Colour(key, stof(r) * 255, stof(g) * 255, stof(b) * 255);
       }
       if (s == "Ns") {
-        int Ns;
+        float Ns;
         f >> Ns;
         palette[key].highlights = Ns;
       }
@@ -204,7 +200,7 @@ unordered_map<string, Material> Model::loadMTL(string fileName, int*& data, int&
       }
       if (s == "d") {
         f >> s;
-        palette[key].dissolve = stoi(s);
+        palette[key].dissolve = stof(s);
       }
       if (s == "map_Kd") {
         string texture_file;
@@ -213,20 +209,39 @@ unordered_map<string, Material> Model::loadMTL(string fileName, int*& data, int&
         if (pos != fileName.npos) {
           fileName.erase(pos + 1);
           texture_file = fileName + texture_file;
-          cout << texture_file << '\n';
         }
-        data = loadPPM(texture_file, width, height);
+        palette[key].texture.data = loadPPM(texture_file, palette[key].texture.width, palette[key].texture.height);
 
-        glm::vec3 *dataVec = new glm::vec3[texture.width * texture.height];
-        for (int i = 0; i < width * height; i++) {
-          dataVec[i].r = ((data[i] & 0xff0000) >> 16) / 255.0f;
-          dataVec[i].g = ((data[i] & 0x00ff00) >> 8) / 255.0f;
-          dataVec[i].b = (data[i] & 0x0000ff) / 255.0f;
+        palette[key].texture.dataVec = new glm::vec3[palette[key].texture.width * palette[key].texture.height];
+        for (int i = 0; i < palette[key].texture.width * palette[key].texture.height; i++) {
+          palette[key].texture.dataVec[i].r = ((palette[key].texture.data[i] & 0xff0000) >> 16) / 255.0f;
+          palette[key].texture.dataVec[i].g = ((palette[key].texture.data[i] & 0x00ff00) >> 8) / 255.0f;
+          palette[key].texture.dataVec[i].b = (palette[key].texture.data[i] & 0x0000ff) / 255.0f;
         }
+      }
+      if (s == "map_bump" || s == "bump") {
+        string texture_file;
+        f >> texture_file;
+        size_t pos = fileName.find('/');
+        if (pos != fileName.npos) {
+          fileName.erase(pos + 1);
+          texture_file = fileName + texture_file;
+        }
+        palette[key].normal_map.data = loadPPM(texture_file, palette[key].normal_map.width, palette[key].normal_map.height);
 
-        palette[key].texture.width = width;
-        palette[key].texture.height = height;
-        palette[key].texture.dataVec = dataVec;
+        palette[key].normal_map.dataVec = new glm::vec3[palette[key].normal_map.width * palette[key].normal_map.height];
+        for (int i = 0; i < palette[key].normal_map.width * palette[key].normal_map.height; i++) {
+          palette[key].normal_map.dataVec[i].x = ((palette[key].normal_map.data[i] & 0xff0000) >> 16) / 255.0f;
+          palette[key].normal_map.dataVec[i].y = ((palette[key].normal_map.data[i] & 0x00ff00) >> 8) / 255.0f;
+          palette[key].normal_map.dataVec[i].z = (palette[key].normal_map.data[i] & 0x0000ff) / 255.0f;
+          palette[key].normal_map.dataVec[i].x *= 2.0f;
+          palette[key].normal_map.dataVec[i].x -= 1.0f;
+          palette[key].normal_map.dataVec[i].y *= 2.0f;
+          palette[key].normal_map.dataVec[i].y -= 1.0f;
+          palette[key].normal_map.dataVec[i].z *= 2.0f;
+          palette[key].normal_map.dataVec[i].z -= 1.0f;
+          palette[key].normal_map.dataVec[i] = glm::normalize(palette[key].normal_map.dataVec[i]);
+        }
       }
     }
   }
@@ -252,4 +267,22 @@ vec3 Model::centerOfMass() {
     center[2] += ((tris[i].vertices[0][2] + tris[i].vertices[1][2] + tris[i].vertices[2][2]) / 4) * currentVolume;
   }
   return center;
+}
+
+float Model::calcExtent() {
+  float value = -1.0f;
+  vec4 scales;
+  for (int i = 0; i < 3; i++) {
+    scales[i] = glm::length(this->transform[i]);
+  }
+  scales[3] = 0;
+  for (unsigned int i = 0; i < this->tris.size(); i++) {
+    for (unsigned int j = 0; j < 3; j++) {
+      float dist = glm::length(this->tris[i].vertices[j] * scales);
+      if (dist > value) {
+        value = dist;
+      }
+    }
+  }
+  return value;
 }

@@ -1,0 +1,5 @@
+newmtl Material
+Kd 1.000000 1.000000 1.000000
+d 0.01
+map_Kd texture.ppm
+map_bump bumpy.ppm
