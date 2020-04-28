@@ -3,8 +3,8 @@
 
 class Temporal {
     public:
-        bool realTime;
-        float frameRate = 30.0f;
+        bool realTime = false;
+        float frameRate = 60.0f;
     protected:
         float timeStep();
 };

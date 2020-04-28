@@ -15,6 +15,8 @@
 #include "VectorOutput.hpp"
 #include "Rigidbody.hpp"
 #include "Light.h"
+#include "Magnet.hpp"
+
 using namespace std;
 using namespace glm;
 
@@ -675,28 +677,41 @@ int main(int argc, char *argv[])
   // updateQueue.push_back(&cornellRB2);
 
   Model sphere = Model("blob");
-  sphere.setPosition(vec3(0,20.0f,-3));
+  sphere.setPosition(vec3(3,0.0f,0));
   //sphere.rotate(vec3(1,0,0));
   renderQueue.push_back(&sphere);
   Rigidbody sphereRB = Rigidbody(&sphere);
   updateQueue.push_back(&sphereRB);
   sphereRB.positionFixed = false;
-  sphereRB.hasGravity = true;
+  sphereRB.hasGravity = false;
   sphereRB.collisionEnabled = true;
   sphereRB.elasticity = 0.9f;
-  sphereRB.applyForce(vec3(0,0.05f,0), vec3(0.5f,0,0));
+  // sphereRB.applyForce(vec3(0,0.05f,0), vec3(0.5f,0,0));
+  sphereRB.applyForce(vec3(0.5f,0,0), vec3(0,0,0));
   cout << "sphereRB address = " << &sphereRB << endl;
 
   Model angle = Model("tilted");
-  angle.setPosition(vec3(0,0,-3));
+  angle.scale(vec3(3,3,3));
+  angle.setPosition(vec3(0,0,0));
+  angle.furthestExtent = angle.calcExtent();
   renderQueue.push_back(&angle);
-  Rigidbody angleRB = Rigidbody(&angle);
-  updateQueue.push_back(&angleRB);
-  angleRB.positionFixed = true;
-  angleRB.hasGravity = false;
-  angleRB.collisionEnabled = true;
-  cout << "angleRB address = " << &angleRB << endl;
+  Magnet mag = Magnet(&angle);
+  updateQueue.push_back(&mag);
+  // Rigidbody angleRB = Rigidbody(&angle);
+  // updateQueue.push_back(&angleRB);
+  // angleRB.positionFixed = true;
+  // angleRB.hasGravity = false;
+  // angleRB.collisionEnabled = true;
+  // cout << "angleRB address = " << &angleRB << endl;
   
+  Model angle2 = Model("tilted");
+  angle2.scale(vec3(3,3,3));
+  angle2.setPosition(vec3(0,0,10));
+  angle2.furthestExtent = angle2.calcExtent();
+  renderQueue.push_back(&angle2);
+  Magnet mag2 = Magnet(&angle2);
+  updateQueue.push_back(&mag2);
+
   // cout << "normals: " << endl;
   // for (int i = 0; i < angle.tris.size(); i++) {
   //   cout << angle.tris[i].normal << endl;;
@@ -724,7 +739,7 @@ int main(int argc, char *argv[])
   }
   Camera cam;
   cam.setProjection(90.0f, WIDTH / (float)HEIGHT, 0.1f, 100.0f);
-  cam.lookAt(vec3(-20.0f, 2.5f, -1.5f), vec3(0.0f, 2.5f, -2.0f));
+  cam.lookAt(vec3(5.0f, 20.0f, 0.0f), vec3(0.0f, 0, 0));
   // cam.moves.push(Movement(cam.transform));
   // cam.moves.top().lookAt(cam.getPosition(), vec3(0, -2.5f, 0));
 
@@ -1042,14 +1057,11 @@ void triangle(Triangle &t, Texture &tex, bool filled, uint32_t *buffer, float *d
   vec3 Is = vec3(1.0f, 1.0f, 1.0f);
   vec3 Kd = t.mat.diffuseVec;
   vec3 Ks = t.mat.specularVec;
-  if (t.mat.illum != 2) {
-    Ks = vec3(0.0f);
-  }
   vec3 Ka = t.mat.ambientVec;
   int alpha = t.mat.highlights;
   if (filled)
   {
-    bool textured = (t.mat.texture.data != nullptr);
+    bool textured = (t.vertices[0].u >= 0.0f);
     int x_min = glm::min(t.vertices[0].pos.x, t.vertices[1].pos.x);
     x_min = glm::min((float)x_min, t.vertices[2].pos.x);
     int x_max = glm::max(t.vertices[0].pos.x, t.vertices[1].pos.x);
@@ -1125,6 +1137,9 @@ void triangle(Triangle &t, Texture &tex, bool filled, uint32_t *buffer, float *d
             //vec3 N = toThree(t.normal);
             vec3 N = toThree(q0 * t.vertices[0].normal + q1 * t.vertices[1].normal + q2 * t.vertices[2].normal);
             vec3 Rm = normalize(2.0f * N * dot(Lm, N) - Lm);
+            if (t.mat.illum < 2) {
+              Ks = vec3(0.0f);
+            }
             vec3 reflectedLight = glm::min(phongReflection(Ks, Kd, Ka, alpha, Is, Id, Ia, Lm, N, Rm, V), 1.0f);
             buffer[y * WIDTH + x] = vec3ToPackedInt(reflectedLight);
           }

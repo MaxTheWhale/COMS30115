@@ -19,6 +19,9 @@ glm::vec3 Rigidbody::gravity = glm::vec3(0, -0.1f, 0);
 
 
 void Rigidbody::update() {
+    if (positionFixed) {
+        return;
+    }
     //if we're not moving and we're in contact with something then it can be assumed that we are resting on it
     if (hasGravity){// && !(velocity[3] == vec4(0,0,0,1) && !collidedWith.empty())) {
         vec3 grav = gravity * timeStep();
@@ -124,16 +127,25 @@ bool intervalOverlap(float a, float b, float x, float y) {
     return std::max(a,b) >= std::min(x, y) && std::min(a,b) <= std::max(x, y);
 }
 
+float intervalMid(float a, float b, float x, float y) {
+    if (std::max(a,b) < std::max(x,y)) {
+        return (std::max(a,b) + std::min(x,y)) / 2.0f;
+    }
+    else {
+        return (std::max(x,y) + std::min(a,b)) / 2.0f;
+    }
+}
+
 bool Rigidbody::intersection(ModelTriangle localTri, ModelTriangle otherTri, mat4 localTransform, mat4 otherTransform) {
     vec3 verts1[3];
     vec3 verts2[3];
-    //cout << "verts1 = ";
+    // cout << "verts1 = ";
     for (int i = 0; i < 3; i++) {
         verts1[i] = toVec3(localTransform * localTri.vertices[i]);
-        //cout << verts1[i] << ", ";
+        // cout << verts1[i] << ", ";
         verts2[i] = toVec3(otherTransform * otherTri.vertices[i]);
     }
-    //cout << endl << "verts2 = ";
+    // cout << endl << "verts2 = ";
     // for (int i = 0; i < 3; i++) {
     //     cout << verts2[i] << ", ";
     // }
@@ -171,15 +183,16 @@ bool Rigidbody::intersection(ModelTriangle localTri, ModelTriangle otherTri, mat
     // cout << "vertex indices: " << oppositeIndex << " " << other0 << " " << other2 << endl;
 
     vec3 D = cross(n1, n2);
-    //cout << "D = "<< D << endl;
+    // cout << "D = "<< D << endl;
     float t1 = calcInterval(D, verts1[one0], verts1[oppositeIndexOne], dist1[one0], dist1[oppositeIndexOne]);
     float t2 = calcInterval(D, verts1[oppositeIndexOne], verts1[one2], dist1[oppositeIndexOne], dist1[one2]);
     float tPrime1 = calcInterval(D, verts2[two0], verts2[oppositeIndexTwo], dist2[two0], dist2[oppositeIndexTwo]);
     float tPrime2 = calcInterval(D, verts2[oppositeIndexTwo], verts2[two2], dist2[oppositeIndexTwo], dist2[two2]);
     //std::cout << "interval1: " << t1 << "," << t2 << " interval2: " << tPrime1 << "," << tPrime2 << endl;
-    if (intervalOverlap(t1,t2,tPrime1,tPrime2)) { //may not be efficient since standard lib functions may not be inlined by compiler
-        cout << "t1,t2 = (" << t1 << "," << t2 << ") tPrime1, tPrime2 = (" << tPrime1 << "," << tPrime2 << ")" << endl;
-        this->lastCollision = toVec3(localTri.vertices[oppositeIndexOne]);
+    if (intervalOverlap(t1,t2,tPrime1,tPrime2)) {
+        // cout << "t1,t2 = (" << t1 << "," << t2 << ") tPrime1, tPrime2 = (" << tPrime1 << "," << tPrime2 << ")" << endl;
+        this->lastCollision = intervalMid(t1,t2,tPrime1,tPrime2) * normalize(D);
+        // this->lastCollision = verts1[oppositeIndexOne];
         return true;
     }
     //std::cout << "default" << endl;
@@ -200,8 +213,14 @@ bool isBasis(vec4 vec) {
 }
 
 bool Rigidbody::collide(Rigidbody other) {
-    // return false;
     if (positionFixed || !collisionEnabled || !other.collisionEnabled) {
+        return false;
+    }
+    float dist = glm::distance(toVec3(this->model->transform[3]), toVec3(other.model->transform[3]));
+    float maxDist = this->model->furthestExtent + other.model->furthestExtent;
+    // cout << "dist = " << dist << endl;
+    // cout << "maxDist = " << maxDist << endl;
+    if (dist > maxDist) { //no possible collisions, too far
         return false;
     }
     for (unsigned int i = 0; i < model->tris.size(); i++) {
@@ -214,13 +233,21 @@ bool Rigidbody::collide(Rigidbody other) {
                     if (isBasis(normal)) {
                         continue;
                     }
+                    if (glm::length(this->lastCollision) > this->model->furthestExtent) { //collision apparently happened outside the bounds of the model
+                        cout << "illegal collision point = " << this->lastCollision << endl;
+                        continue;
+                    }
                     std::cout << "collision detected with " << &other << std::endl;
                     cout << "normal = " << normal << endl;
-                    float combinedElasticity = (this->elasticity + other.elasticity)/2; //the average ratio of energy conserved
+                    float combinedElasticity = (this->elasticity + other.elasticity); //the average ratio of energy conserved
                     cout << "total elasticity = " << combinedElasticity << endl;
-                    vec3 force = toVec3(combinedElasticity * dot(normalize(normal), normalize(velocity[3])) * normal);
+                    vec3 force = toVec3(-combinedElasticity * dot(normalize(normal), normalize(velocity[3])) * normal);
                     cout << "force = " << force << endl;
-                    applyForce(force, this->lastCollision);
+                    cout << "collision point = " << this->lastCollision << endl;
+                    applyForce(force, vec3(0,0,0));
+                    // applyForce(force, this->lastCollision);
+                    // this->positionFixed = true;
+                    // this->collisionEnabled = false; //only collide once for testing purposes
                     // for (int i = 0; i < 3; i++) {
                     //     if (velocity[3][i] < 0.01f) {
                     //         velocity[3][i] = 0;
@@ -269,12 +296,14 @@ void Rigidbody::applyForce(vec3 force, vec3 position) {
         velocity[3] += vec4(force, 0);
         return;
     }
+    cout << "normalised position = " << normalize(position) << endl;
     vec3 linearForce = dot(force, normalize(position)) * normalize(position);
-    // cout << "linear force = " << linearForce << endl;
+    // vec3 linearForce = normalize(position) * glm::length(force) / glm::length(position);
+    cout << "linear force = " << linearForce << endl;
     //vec3 arbitraryOrthoganolVector = cross(force, position);
     velocity[3] += vec4(linearForce/mass, 0);
 
-    cout << "linearAcc = " << vec4(linearForce/mass, 1) << endl;
+    cout << "linearAcc = " << vec4(linearForce/mass, 0) << endl;
 
     vec3 angularForce = force - linearForce;
     vec3 torque = cross(position, angularForce);

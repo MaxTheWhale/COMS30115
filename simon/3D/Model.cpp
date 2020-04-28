@@ -19,6 +19,7 @@ Model::Model(string filename) {
       }
     }
     this->furthestExtent = calcExtent();
+    cout << "Model " << this << " extent: " << furthestExtent << endl;
 }
 
 vector<ModelTriangle> Model::loadOBJ(string fileName,

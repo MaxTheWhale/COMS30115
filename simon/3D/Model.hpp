@@ -15,10 +15,10 @@ class Model : public Animatable {
     Texture texture;
     Model(std::string filename);
     vec3 center;
-  protected:
-    vec3 centerOfMass();
     float furthestExtent = -1.0f;
     float calcExtent();
+  protected:
+    vec3 centerOfMass();
     std::unordered_map<std::string, Material> loadMTL(std::string filename, int*& data, int& width, int& height);
     std::vector<ModelTriangle> loadOBJ(std::string filename,
                               std::unordered_map<std::string, Material> palette);
