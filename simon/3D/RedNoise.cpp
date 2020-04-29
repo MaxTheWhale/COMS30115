@@ -735,7 +735,7 @@ void triangle(Triangle &t, bool filled, uint32_t *buffer, float *depthBuff, vec2
   int alpha = t.mat.highlights;
   if (filled)
   {
-    bool textured = (t.vertices[0].u >= 0.0f);
+    bool textured = (t.mat.texture.dataVec != nullptr);
     int x_min = glm::min(t.vertices[0].pos.x, t.vertices[1].pos.x);
     x_min = glm::min((float)x_min, t.vertices[2].pos.x);
     int x_max = glm::max(t.vertices[0].pos.x, t.vertices[1].pos.x);
