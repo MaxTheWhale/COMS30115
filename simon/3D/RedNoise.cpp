@@ -736,6 +736,7 @@ void triangle(Triangle &t, bool filled, uint32_t *buffer, float *depthBuff, vec2
   if (filled)
   {
     bool textured = (t.mat.texture.dataVec != nullptr);
+    bool bump_map = (t.mat.normal_map.dataVec != nullptr);
     int x_min = glm::min(t.vertices[0].pos.x, t.vertices[1].pos.x);
     x_min = glm::min((float)x_min, t.vertices[2].pos.x);
     int x_max = glm::max(t.vertices[0].pos.x, t.vertices[1].pos.x);
@@ -782,33 +783,38 @@ void triangle(Triangle &t, bool filled, uint32_t *buffer, float *depthBuff, vec2
             else {
               q0 = w0; q1 = w1; q2 = w2;
             }
-            if (textured) {
-              float u = q0 * t.vertices[0].u + q1 * t.vertices[1].u + q2 * t.vertices[2].u;
-              float v = q0 * t.vertices[0].v + q1 * t.vertices[1].v + q2 * t.vertices[2].v;
+            float u, v;
+            vec3 N;
+            if (textured || bump_map) {
+              u = q0 * t.vertices[0].u + q1 * t.vertices[1].u + q2 * t.vertices[2].u;
+              v = q0 * t.vertices[0].v + q1 * t.vertices[1].v + q2 * t.vertices[2].v;
               u = mod(u, 1.0f);
               v = mod(v, 1.0f);
+            }
+            if (textured) {
               if (bilinear) {
-                u *= t.mat.texture.width - 1;
-                v *= t.mat.texture.height - 1;
-                int tl = (int)u + (int)v * t.mat.texture.width;
+                int tl = (int)(u * t.mat.texture.width - 1) + (int)(v * t.mat.texture.height - 1) * t.mat.texture.width;
                 int tr = tl + 1;
                 int bl = tl + t.mat.texture.width;
                 int br = bl + 1;
                 Kd = bilinearColour(t.mat.texture.dataVec[tl], t.mat.texture.dataVec[tr], t.mat.texture.dataVec[bl], t.mat.texture.dataVec[br], vec2(mod(u, 1.0f), mod(v, 1.0f)));
               }
               else {
-                u *= t.mat.texture.width;
-                v *= t.mat.texture.height;
-                Kd = t.mat.texture.dataVec[(int)u + (int)v * t.mat.texture.width];
+                Kd = t.mat.texture.dataVec[(int)(u * t.mat.texture.width) + (int)(v * t.mat.texture.height) * t.mat.texture.width];
               }
               Ka = Kd;
+            }
+            if (bump_map) {
+              N = t.mat.normal_map.dataVec[(int)(u * t.mat.normal_map.width) + (int)(v * t.mat.normal_map.height) * t.mat.normal_map.width];
+            }
+            else {
+              N = toThree(q0 * t.vertices[0].normal + q1 * t.vertices[1].normal + q2 * t.vertices[2].normal);
             }
             vec4 pos_3d = q0 * t.vertices[0].pos_3d + q1 * t.vertices[1].pos_3d + q2 * t.vertices[2].pos_3d;
             float radius = distance(light_pos, pos_3d);
             vec3 Id = vec3(200.0f, 200.0f, 200.0f) / (4.0f * M_PIf * radius * radius);
             vec3 V = toThree(normalize(eye_pos - pos_3d));
             vec3 Lm = toThree(normalize(light_pos - pos_3d));
-            vec3 N = toThree(q0 * t.vertices[0].normal + q1 * t.vertices[1].normal + q2 * t.vertices[2].normal);
             vec3 Rm = normalize(2.0f * N * dot(Lm, N) - Lm);
             if (t.mat.illum < 2) {
               Ks = vec3(0.0f);
