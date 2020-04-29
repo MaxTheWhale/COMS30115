@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.7)
 set(CMAKE_CXX_STANDARD 11)
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake/sdl2)
 set(SOURCE_FILES libs/sdw/Colour.cpp libs/sdw/Utils.cpp libs/sdw/DrawingWindow.cpp libs/sdw/ModelTriangle.cpp Model.cpp Material.h Light.h Transformable.cpp Camera.cpp Animatable.cpp Movement.cpp Times.cpp VectorUtil.cpp Rigidbody.cpp Updatable.hpp Temporal.cpp Magnet.cpp Vertex.cpp Triangle.cpp Clipping.cpp Lines.cpp SSAA.cpp RedNoise.cpp)
 
 IF(WIN32)
