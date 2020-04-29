@@ -793,11 +793,13 @@ void triangle(Triangle &t, bool filled, uint32_t *buffer, float *depthBuff, vec2
             }
             if (textured) {
               if (bilinear) {
-                int tl = (int)(u * t.mat.texture.width - 1) + (int)(v * t.mat.texture.height - 1) * t.mat.texture.width;
+                float u_bi = u * (t.mat.texture.width - 1);
+                float v_bi = v * (t.mat.texture.height - 1);
+                int tl = (int)u_bi + (int)v_bi * t.mat.texture.width;
                 int tr = tl + 1;
                 int bl = tl + t.mat.texture.width;
                 int br = bl + 1;
-                Kd = bilinearColour(t.mat.texture.dataVec[tl], t.mat.texture.dataVec[tr], t.mat.texture.dataVec[bl], t.mat.texture.dataVec[br], vec2(mod(u, 1.0f), mod(v, 1.0f)));
+                Kd = bilinearColour(t.mat.texture.dataVec[tl], t.mat.texture.dataVec[tr], t.mat.texture.dataVec[bl], t.mat.texture.dataVec[br], vec2(mod(u_bi, 1.0f), mod(v_bi, 1.0f)));
               }
               else {
                 Kd = t.mat.texture.dataVec[(int)(u * t.mat.texture.width) + (int)(v * t.mat.texture.height) * t.mat.texture.width];
