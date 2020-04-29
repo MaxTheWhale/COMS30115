@@ -3,7 +3,7 @@
 #include <glm/glm.hpp>
 #include <iostream>
 #include <ModelTriangle.h>
-#include "../../VectorOutput.hpp"
+#include "../../VectorUtil.hpp"
 
 class RayTriangleIntersection
 {

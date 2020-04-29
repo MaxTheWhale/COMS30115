@@ -5,7 +5,7 @@
 #include "Movement.hpp"
 #include "Transformable.hpp"
 #include "Times.hpp"
-#include "VectorOutput.hpp"
+#include "VectorUtil.hpp"
 #include "Updatable.hpp"
 #include "Temporal.hpp"
 

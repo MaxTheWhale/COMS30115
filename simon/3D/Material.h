@@ -21,8 +21,9 @@ class Material
     glm::vec3 specularVec = glm::vec3(1.0f, 1.0f, 1.0f);
     float highlights = 0.0f;
     int illum = 1;
-    int dissolve = 1;
-    Texture texture = {nullptr, 0, 0};
+    float dissolve = 1.0f;
+    Texture texture = {nullptr, nullptr, 0, 0};
+    Texture normal_map = {nullptr, nullptr, 0, 0};
 
     Material()
     {

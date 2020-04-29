@@ -9,10 +9,15 @@
 #include <list>
 #include <chrono>
 #include <sys/time.h>
+#include "SSAA.hpp"
+#include "Vertex.hpp"
+#include "Triangle.hpp"
+#include "Clipping.hpp"
+#include "Lines.hpp"
 #include "Camera.hpp"
 #include "Model.hpp"
 #include "Times.hpp"
-#include "VectorOutput.hpp"
+#include "VectorUtil.hpp"
 #include "Rigidbody.hpp"
 #include "Light.h"
 #include "Magnet.hpp"
@@ -34,121 +39,16 @@ using namespace glm;
 #define M_PIf 3.14159265358979323846f
 #endif
 
-enum CLIP_CODE {TOP = 1, RIGHT = 2, BOTTOM = 4, LEFT = 8};
 enum COLOUR_MASK {ALPHA = 0xff000000, RED = 0x00ff0000, GREEN = 0x0000ff00, BLUE = 0x000000ff};
 
-class Vertex {
-  public:
-    vec4 pos;
-    vec4 pos_3d;
-    vec4 normal;
-    float brightness;
-    float u, v;
-    Vertex operator+=(const Vertex& rhs)
-    {
-      pos += rhs.pos;
-      pos_3d += rhs.pos_3d;
-      normal += rhs.normal;
-      brightness += rhs.brightness;
-      u += rhs.u;
-      v += rhs.v;
-      return *this;
-    }
-
-    friend Vertex operator+(Vertex lhs, const Vertex& rhs)
-    {
-      lhs += rhs;
-      return lhs;
-    }
-
-    Vertex operator-=(const Vertex& rhs)
-    {
-      pos -= rhs.pos;
-      pos_3d -= rhs.pos_3d;
-      normal -= rhs.normal;
-      brightness -= rhs.brightness;
-      u -= rhs.u;
-      v -= rhs.v;
-      return *this;
-    }
-
-    friend Vertex operator-(Vertex lhs, const Vertex& rhs)
-    {
-      lhs -= rhs;
-      return lhs;
-    }
-
-    Vertex operator*=(float rhs)
-    {
-      pos *= rhs;
-      pos_3d *= rhs;
-      normal *= rhs;
-      brightness *= rhs;
-      u *= rhs;
-      v *= rhs;
-      return *this;
-    }
-
-    friend Vertex operator*(Vertex lhs, float rhs)
-    {
-      lhs *= rhs;
-      return lhs;
-    }
-
-    Vertex operator/=(float rhs)
-    {
-      pos /= rhs;
-      pos_3d /= rhs;
-      normal /= rhs;
-      brightness /= rhs;
-      u /= rhs;
-      v /= rhs;
-      return *this;
-    }
-
-    friend Vertex operator/(Vertex lhs, float rhs)
-    {
-      lhs /= rhs;
-      return lhs;
-    }
-};
-
-class Triangle {
-  public:
-    Vertex vertices[3];
-    Material mat;
-    vec4 normal;
-    Triangle(ModelTriangle &tri) {
-      for (int i = 0; i < 3; i++) {
-        vertices[i].pos.x = tri.vertices[i].x;
-        vertices[i].pos.y = tri.vertices[i].y;
-        vertices[i].pos.z = tri.vertices[i].z;
-        vertices[i].pos.w = tri.vertices[i].w;
-        vertices[i].u = tri.uvs[i].x;
-        vertices[i].v = tri.uvs[i].y;
-        vertices[i].brightness = tri.brightness[i];
-        vertices[i].normal = tri.normals[i];
-      }
-      normal = tri.normal;
-      mat = tri.material;
-    }
-    Triangle(const Vertex &v0, const Vertex &v1, const Vertex &v2, const Material &tMat, const vec4 &tNormal) {
-      vertices[0] = v0;
-      vertices[1] = v1;
-      vertices[2] = v2;
-      mat = tMat;
-      normal = tNormal;
-    }
-};
-
 void draw();
-void line(vec4 p, vec4 q, int colour, uint32_t *buffer, vec2 &offset);
-void triangle(Triangle &t, Texture &tex, bool filled, uint32_t *buffer, float *depthBuff, vec2 offset, vec4 &eye_pos);
+void triangle(Triangle &t, bool filled, uint32_t *buffer, float *depthBuff, vec2 offset, vec4 &eye_pos);
 int *loadPPM(string fileName, int &width, int &height);
 void savePPM(string fileName, DrawingWindow *window);
 void skipHashWS(ifstream &f);
 void update(Camera &cam, vector<Updatable*> updatables);
 void handleEvent(SDL_Event event, Camera &cam);
+
 #if SSAA
 float depthBuffer[IMG_SIZE * SSAA_SAMPLES];
 uint32_t imageBuffer[IMG_SIZE * SSAA_SAMPLES];
@@ -159,107 +59,9 @@ uint32_t imageBuffer[IMG_SIZE];
 bool wireframe;
 bool bilinear = true;
 bool perspective = true;
-vector<float> Interpolate(float a, float b, int n);
-vector<vec3> Interpolate(vec3 a, vec3 b, int n);
-vector<vec4> Interpolate(vec4 a, vec4 b, int n);
-
 bool toRaytrace = false;
 bool softShadows = false;
 DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
-
-inline float vectorLength(vec4 v) {
-  return sqrt(v.x*v.x + v.y*v.y + v.z*v.z + v.w*v.w);
-}
-
-inline vec3 toThree(vec4 v) {
-  return vec3(v.x, v.y, v.z);
-}
-
-inline vec4 cross(const vec4& a, const vec4& b) {
-  return vec4(a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x, 0);
-}
-
-inline Vertex mixVertex(const Vertex &p, const Vertex &q, float a) {
-  return p * (1.0f - a) + q * a;
-}
-
-// based on https://casual-effects.com/research/McGuire2011Clipping/McGuire-Clipping.pdf
-int clipTriangle(list<Triangle>& tris, const vec4& normal) {
-  Vertex temp;
-  list<Triangle>::iterator tri = tris.begin();
-  int n = tris.size();
-  for (int i = 0; (i < n) && tri != tris.end(); i++) {
-    vector<float> distances;
-    distances.push_back(dot((*tri).vertices[0].pos, normal));
-    distances.push_back(dot((*tri).vertices[1].pos, normal));
-    distances.push_back(dot((*tri).vertices[2].pos, normal));
-    if (distances[0] >= 0.0f && distances[1] >= 0.0f && distances[2] >= 0.0f) {
-      tri++;
-      continue;
-    }
-    if (distances[0] < 0.0f && distances[1] < 0.0f && distances[2] < 0.0f) {
-      tri = tris.erase(tri);
-      continue;
-    }
-    bool nextInside;
-    if (distances[1] >= 0.0f && distances[0] < 0.0f) {
-      nextInside = (distances[2] >= 0.0f);
-      temp = (*tri).vertices[0];
-      (*tri).vertices[0] = (*tri).vertices[1];
-      (*tri).vertices[1] = (*tri).vertices[2];
-      (*tri).vertices[2] = temp;
-      rotate(distances.begin(),distances.begin()+1,distances.end());
-    }
-    else if (distances[2] >= 0.0f && distances[1] < 0.0f) {
-      nextInside = (distances[0] >= 0.0f);
-      temp = (*tri).vertices[2];
-      (*tri).vertices[2] = (*tri).vertices[1];
-      (*tri).vertices[1] = (*tri).vertices[0];
-      (*tri).vertices[0] = temp;
-      rotate(distances.begin(),distances.begin()+2,distances.end());
-    }
-    else {
-      nextInside = (distances[1] >= 0.0f);
-    }
-    temp = mixVertex((*tri).vertices[0], (*tri).vertices[2], (distances[0] / (distances[0] - distances[2])));
-    if (nextInside) {
-      (*tri).vertices[2] = mixVertex((*tri).vertices[1], (*tri).vertices[2], (distances[1] / (distances[1] - distances[2])));
-      Triangle newTri = Triangle((*tri).vertices[0], (*tri).vertices[2], temp, (*tri).mat, (*tri).normal);
-      tris.push_back(newTri);
-    }
-    else {
-      (*tri).vertices[1] = mixVertex((*tri).vertices[0], (*tri).vertices[1], (distances[0] / (distances[0] - distances[1])));
-      (*tri).vertices[2] = temp;
-    }
-    tri++;
-  }
-  return tris.size();
-}
-
-int clipToView(list<Triangle>& tris) {
-  const vec4 normals[6] = {vec4(1, 0, 0, 1), vec4(-1, 0, 0, 1), vec4(0, 1, 0, 1), vec4(0, -1, 0, 1), vec4(0, 0, 1, 1), vec4(0, 0, -1, 1)};
-  for (auto n : normals) {
-    int num = clipTriangle(tris, n);
-    if (num == 0) {
-      return 0;
-    }
-  }
-  return tris.size();
-}
-
-vector<vec2> generateRotatedGrid(int gridSize) {
-  vector<vec2> result;
-  const int numSamples = gridSize * gridSize;
-  const float step = 1.0f / numSamples;
-  float x = (step * 0.5f) + step * (numSamples - gridSize);
-  for (float y = step * 0.5f; y < 1.0f; y += step) {
-    result.push_back(vec2(x, y));
-    x -= step * gridSize;
-    if (x < 0)
-      x += step * (numSamples + 1);
-  }
-  return result;
-}
 
 void drawTriangles(Camera &cam, std::vector<Model *> models)
 {
@@ -300,41 +102,13 @@ void drawTriangles(Camera &cam, std::vector<Model *> models)
         #if SSAA
         #pragma omp parallel for
         for (int s = 0; s < SSAA_SAMPLES; s++) {
-          triangle(t, model.texture, wireframe, buffer + (IMG_SIZE * s), depthBuffer + (IMG_SIZE * s), offsets[s], eye);
+          triangle(t, wireframe, buffer + (IMG_SIZE * s), depthBuffer + (IMG_SIZE * s), offsets[s], eye);
         }
         #else
-        triangle(t, model.texture, wireframe, buffer, depthBuffer, vec2(0.5f, 0.5f), eye);
+        triangle(t, wireframe, buffer, depthBuffer, vec2(0.5f, 0.5f), eye);
         #endif
       }
     }
-  }
-}
-
-void downsample(uint32_t *source, uint32_t *dest, int width, int height, int num_samples) {
-  uint32_t pixel, sample, red, green, blue;
-  for (int y = 0; y < height; y++) {
-    for (int x = 0; x < width; x++) {
-      red = 0;
-      green = 0;
-      blue = 0;
-      for (int s = 0; s < num_samples; s++) {
-        sample = source[(s * width * height) + x + y * width];
-        red += (sample & RED);
-        green += (sample & GREEN);
-        blue += (sample & BLUE);
-      }
-      pixel = ALPHA | ((red / num_samples) & RED) | ((green / num_samples) & GREEN) | ((blue / num_samples) & BLUE);
-      dest[x + y * width] = pixel;
-    }
-  }
-}
-
-void handleMouse(Camera& cam) {
-  int motion_x = 0;
-  int motion_y = 0;
-  SDL_GetRelativeMouseState(&motion_x, &motion_y);
-  if (motion_x || motion_y) {
-    cam.rotate(vec3(motion_y * MOUSE_SENSITIVITY, motion_x * MOUSE_SENSITIVITY, 0));
   }
 }
 
@@ -449,7 +223,7 @@ bool inShadow(Model model, vec4 shadowRayDirection, RayTriangleIntersection inte
 vec4 refract(vec4 I, vec4 N, float ior) {
   vec4 refractedRay;
 
-  float cosi = clamp<float>(glm::dot(I, N), -1.0f, 1.0f);
+  float cosi = glm::clamp<float>(glm::dot(I, N), -1.0f, 1.0f);
   float etai = 1.0f, etat = ior;
   vec4 n = N;
   if (cosi < 0) {
@@ -465,14 +239,40 @@ vec4 refract(vec4 I, vec4 N, float ior) {
 
 Colour getPixelColour(RayTriangleIntersection intersection, Light mainLight, vec4 rayDirection, Model model, int depth, int i, int j) {
   Texture tex = intersection.intersectedTriangle.material.texture;
+  Texture bumps = intersection.intersectedTriangle.material.normal_map;
+  vec4 normal;
+
+  if(bumps.dataVec != nullptr) {
+          ModelTriangle t = intersection.intersectedTriangle;
+          float q0 = intersection.u;
+          float q1 = intersection.v;
+          float q2 = 1 - q0 - q1;
+          float u = q2 * t.uvs[0].x + q0 * t.uvs[1].x + q1 * t.uvs[2].x;
+          float v = q2 * t.uvs[0].y + q0 * t.uvs[1].y + q1 * t.uvs[2].y;
+          u = mod(u, 1.0f);
+          v = mod(v, 1.0f);
+          u *= bumps.width;
+          v *= bumps.height;
+          // cout << t.name << endl;
+          // cout << "q0: " << q0 << ", q1: " << q1 << ", q2: " << q2 << endl;
+          // cout << "t.uvs[0]: " << t.uvs[0].x << ", " << t.uvs[0].y << endl;
+          // cout << "t.uvs[1]: " << t.uvs[1].x << ", " << t.uvs[1].y << endl;
+          // cout << "t.uvs[2]: " << t.uvs[2].x << ", " << t.uvs[2].y << endl;
+          vec3 bumpVec = bumps.dataVec[(int)u + (int)v * bumps.width];
+          normal = vec4(bumpVec.x, bumpVec.y, bumpVec.z, 0.0f);
+          // cout << "new normal: " << normal.x << ", " << normal.y << ", " << normal.z << endl;
+        } else {
+          normal = intersection.intersectedTriangle.normal;
+        }
 
   Colour colour = Colour(0, 0, 0);
 
-      if(intersection.intersectedTriangle.material.dissolve < 1) {
+      if(intersection.intersectedTriangle.material.dissolve < 1 && depth < 2) {
+        // cout << "trying with normal " << normal.x << ", " << normal.y << ", " << normal.z << endl;
         vec4 refractedRay;
         float kr;
 
-        float cosi = clamp<float>(glm::dot(rayDirection, intersection.intersectedTriangle.normal), -1.0f, 1.0f);
+        float cosi = glm::clamp<float>(glm::dot(rayDirection, normal), -1.0f, 1.0f);
         float etai = 1.0f, etat = 1.5f;
 
         if(cosi > 0) {
@@ -491,37 +291,55 @@ Colour getPixelColour(RayTriangleIntersection intersection, Light mainLight, vec
           kr = (Rs * Rs + Rp * Rp) / 2;
         }
 
-        bool outside = glm::dot(rayDirection, intersection.intersectedTriangle.normal) < 0;
+        bool outside = glm::dot(rayDirection, normal) < 0;
         float bias = 1e-4;
 
         Colour refractionColour = intersection.intersectedTriangle.material.diffuse;
         if (kr < 1) {
-          vec4 refractionDirection = refract(rayDirection, intersection.intersectedTriangle.normal, 1.5f);
-          RayTriangleIntersection refractIntersection = findClosestIntersection(outside ? intersection.intersectionPoint - (intersection.intersectedTriangle.normal * bias) : intersection.intersectionPoint + (intersection.intersectedTriangle.normal * bias), model, refractionDirection);
-          refractionColour = getPixelColour(refractIntersection, mainLight, rayDirection, model, depth, i, j);
+          vec4 refractionDirection = refract(rayDirection, normal, 1.5f);
+          RayTriangleIntersection refractIntersection = findClosestIntersection(outside ? intersection.intersectionPoint - (normal * bias) : intersection.intersectionPoint + (normal * bias), model, refractionDirection);
+          refractionColour = getPixelColour(refractIntersection, mainLight, rayDirection, model, depth + 1, i, j);
         }
 
         Colour reflectedColour = intersection.intersectedTriangle.material.diffuse;
         if(depth < 2) {
-          vec4 mirrorRayDirection = glm::normalize(rayDirection - 2.0f * (glm::dot(rayDirection, intersection.intersectedTriangle.normal) * intersection.intersectedTriangle.normal));
+          vec4 mirrorRayDirection = glm::normalize(rayDirection - 2.0f * (glm::dot(rayDirection, normal) * normal));
           mirrorRayDirection.w = 0;
 
-          RayTriangleIntersection mirrorIntersection = findClosestIntersection(outside ? intersection.intersectionPoint - (intersection.intersectedTriangle.normal * bias) : intersection.intersectionPoint + (intersection.intersectedTriangle.normal * bias), model, mirrorRayDirection);
+          RayTriangleIntersection mirrorIntersection = findClosestIntersection(outside ? intersection.intersectionPoint - (normal * bias) : intersection.intersectionPoint + (normal * bias), model, mirrorRayDirection);
           
           reflectedColour = getPixelColour(mirrorIntersection, mainLight, rayDirection, model, depth + 1, i, j) + (intersection.intersectedTriangle.material.specular * 0.8f);
         } else {
           reflectedColour = intersection.intersectedTriangle.material.specular;
-        }       
+        }
 
-        return reflectedColour * kr + refractionColour * (1 - kr);
+        Colour glassColour;
+        if(tex.dataVec != nullptr) {
+          ModelTriangle t = intersection.intersectedTriangle;
+          float q0 = intersection.u;
+          float q1 = intersection.v;
+          float q2 = 1 - q0 - q1;
+          float u = q2 * t.uvs[0].x + q0 * t.uvs[1].x + q1 * t.uvs[2].x;
+          float v = q2 * t.uvs[0].y + q0 * t.uvs[1].y + q1 * t.uvs[2].y;
+          u = mod(u, 1.0f);
+          v = mod(v, 1.0f);
+          u *= tex.width;
+          v *= tex.height;
+          vec3 texVec = tex.dataVec[(int)u + (int)v * tex.width];
+          glassColour = Colour(texVec.r * 255, texVec.g * 255, texVec.b * 255);
+        } else {
+          glassColour = intersection.intersectedTriangle.material.diffuse;
+        }
+        
+        return glassColour * intersection.intersectedTriangle.material.dissolve + reflectedColour * kr + refractionColour * (1 - kr);
       }
 
       if(intersection.intersectedTriangle.material.specular.red >= 0) {
         if(depth < 2) {
-          vec4 mirrorRayDirection = glm::normalize(rayDirection - 2.0f * (glm::dot(rayDirection, intersection.intersectedTriangle.normal) * intersection.intersectedTriangle.normal));
+          vec4 mirrorRayDirection = glm::normalize(rayDirection - 2.0f * (glm::dot(rayDirection, normal) * normal));
           mirrorRayDirection.w = 0;
 
-          RayTriangleIntersection mirrorIntersection = findClosestIntersection(intersection.intersectionPoint + (intersection.intersectedTriangle.normal * 0.1f), model, mirrorRayDirection);
+          RayTriangleIntersection mirrorIntersection = findClosestIntersection(intersection.intersectionPoint + (normal * 0.1f), model, mirrorRayDirection);
           
           return getPixelColour(mirrorIntersection, mainLight, rayDirection, model, depth + 1, i, j) + (intersection.intersectedTriangle.material.specular * 0.8f);
         } else {
@@ -560,18 +378,18 @@ Colour getPixelColour(RayTriangleIntersection intersection, Light mainLight, vec
         if(isInShadow) colour = colour * mainLight.shadow;
         else {
           //calculate the angleOfIncidence between 0 and 1
-          float angleOfIncidence = glm::dot(glm::normalize(shadowRayDirection), intersection.intersectedTriangle.normal);
-          colour = colour * clamp<float>(angleOfIncidence, mainLight.shadow, 1);
+          float angleOfIncidence = glm::dot(glm::normalize(shadowRayDirection), normal);
+          colour = colour * glm::clamp<float>(angleOfIncidence, mainLight.shadow, 1);
 
           //adjust brightness for proximity lighting
-          float brightness = mainLight.intensity/pow(vectorLength(shadowRayDirection),2);
-          colour = colour * clamp<float>(brightness, mainLight.shadow, 1);
+          float brightness = mainLight.intensity/pow(length(shadowRayDirection),2);
+          colour = colour * glm::clamp<float>(brightness, mainLight.shadow, 1);
 
           if(intersection.intersectedTriangle.material.highlights > 0) {
             //TODO: make the colour of the highlights match the specular material colour
-            vec4 reflection = glm::normalize((-shadowRayDirection) - 2.0f * (glm::dot((-shadowRayDirection), intersection.intersectedTriangle.normal) * intersection.intersectedTriangle.normal));
+            vec4 reflection = glm::normalize((-shadowRayDirection) - 2.0f * (glm::dot((-shadowRayDirection), normal) * normal));
             float specular = pow(glm::dot(glm::normalize((-rayDirection)), reflection), intersection.intersectedTriangle.material.highlights);
-            colour = colour + (clamp<float>(specular, 0, 1) * 255);
+            colour = colour + (glm::clamp<float>(specular, 0, 1) * 255);
           }
         }
 
@@ -637,10 +455,10 @@ int main(int argc, char *argv[])
   vector<Model*> renderQueue = vector<Model*>();
   vector<Updatable*> updateQueue = vector<Updatable*>();
 
-  // Model cornell = Model("cornell-box");
-  // //cornell.rotate(glm::vec3(45,0,0));
-  // renderQueue.push_back(&cornell);
-  // // std::cout << "cornell address = " << &cornell << std::endl;
+  Model cornell = Model("cornell-box");
+  //cornell.rotate(glm::vec3(45,0,0));
+  renderQueue.push_back(&cornell);
+  // std::cout << "cornell address = " << &cornell << std::endl;
   // Rigidbody cornellRB = Rigidbody(&cornell);
   // cornellRB.hasGravity = false;
   // updateQueue.push_back(&cornellRB);
@@ -649,6 +467,11 @@ int main(int argc, char *argv[])
   // hs_logo.scale(vec3(0.005f, 0.005f, 0.005f));
   // hs_logo.move(vec3(-1.1f, 1.21f, -1.8f));
   // renderQueue.push_back(&hs_logo);
+
+  // Model glass = Model("GlassSphere/glassSphere");
+  // glass.scale(vec3(0.75f, 0.75f, 0.75f));
+  // glass.move(vec3(0.75f, 2.3f, -2.0f));
+  // renderQueue.push_back(&glass);
 
   // for (int i = -5; i < 5; i++) {
     // Model logo = Model("HackspaceLogo/Logo");
@@ -667,6 +490,11 @@ int main(int argc, char *argv[])
   // miku.rotate(vec3(0.0f, 0.3f, 0.0f));
   // miku.move(vec3(1.0f, 0.0f, -4.5f));
   // renderQueue.push_back(&miku);
+
+  Model bumpy = Model("bumpy");
+  bumpy.scale(vec3(0.75f, 0.75f, 0.75f));
+  bumpy.move(vec3(0.75f, 2.3f, -2.0f));
+  renderQueue.push_back(&bumpy);
 
   // Model cornell2 = Model("cornell-box");
   // // cornell2.move(glm::vec3(0,1,0));
@@ -732,11 +560,11 @@ int main(int argc, char *argv[])
   // updateQueue.push_back(&tri2RB);
 
   //std::cout << "address stored as " << cornellRB.model << std::endl;
-  for (unsigned int i = 0; i < renderQueue.size(); i++) {
-    for (auto tri : (*renderQueue[i]).tris) {
-      cout << "UVs for " << tri.name << ": " << tri.uvs[0].x << "," << tri.uvs[0].y << "  " << tri.uvs[1].x << "," << tri.uvs[1].y << "  " << tri.uvs[2].x << "," << tri.uvs[2].y << endl;
-    }
-  }
+  // for (unsigned int i = 0; i < renderQueue.size(); i++) {
+  //   for (auto tri : (*renderQueue[i]).tris) {
+  //     cout << "UVs for " << tri.name << ": " << tri.uvs[0].x << "," << tri.uvs[0].y << "  " << tri.uvs[1].x << "," << tri.uvs[1].y << "  " << tri.uvs[2].x << "," << tri.uvs[2].y << endl;
+  //   }
+  // }
   Camera cam;
   cam.setProjection(90.0f, WIDTH / (float)HEIGHT, 0.1f, 100.0f);
   cam.lookAt(vec3(5.0f, 20.0f, 0.0f), vec3(0.0f, 0, 0));
@@ -870,162 +698,8 @@ void handleEvent(SDL_Event event, Camera &cam)
   }
 }
 
-vector<float> Interpolate(float a, float b, int n)
-{
-  vector<float> result;
-  if (n == 1)
-  {
-    result.push_back((a + b) / 2);
-    return result;
-  }
-  else if (n > 1)
-  {
-    float step = (b - a) / (n - 1);
-    for (int i = 0; i < n; ++i)
-    {
-      result.push_back(a);
-      a += step;
-    }
-  }
-  return result;
-}
-
-vector<vec3> Interpolate(vec3 a, vec3 b, int n)
-{
-  vector<vec3> result;
-  if (n == 1)
-  {
-    result.push_back((a + b) / 2.0f);
-    return result;
-  }
-  else if (n > 1)
-  {
-    vec3 step = (b - a) / (n - 1.0f);
-    for (int i = 0; i < n; ++i)
-    {
-      result.push_back(a);
-      a += step;
-    }
-  }
-  return result;
-}
-
-vector<vec4> Interpolate(vec4 a, vec4 b, int n)
-{
-  vector<vec4> result;
-  if (n == 1)
-  {
-    result.push_back((a + b) / 2.0f);
-    return result;
-  }
-  else if (n > 1)
-  {
-    vec4 step = (b - a) / (n - 1.0f);
-    for (int i = 0; i < n; ++i)
-    {
-      result.push_back(a);
-      a += step;
-    }
-  }
-  return result;
-}
-
-// Line clipping based on https://www.geeksforgeeks.org/line-clipping-set-1-cohen-sutherland-algorithm/
-int clipCode(vec4& p, int width, int height) {
-  int code = 0;
-  if (p.x < 0.0f) code |= LEFT;
-  if (p.y < 0.0f) code |= TOP;
-  if (p.x > width - 1.0f) code |= RIGHT;
-  if (p.y > height - 1.0f) code |= BOTTOM;
-  return code;
-}
-
-bool clipLine(vec4& p, vec4& q, int width, int height) {
-  int p_code = clipCode(p, width, height);
-  int q_code = clipCode(q, width, height);
-  while (true) {
-    if (p_code == 0 && q_code == 0) return true;
-    if (p_code & q_code) return false;
-    int current_code = p_code ? p_code : q_code;
-    float x = 0.0f, y = 0.0f;
-    if (current_code & TOP) {
-      x = mix(p.x, q.x, (-p.y) / (q.y - p.y));
-      y = 0.0f;
-    }
-    else if (current_code & RIGHT) {
-      y = mix(p.y, q.y, ((width - 1.0f) - p.x) / (q.x - p.x));
-      x = width - 1.0f;
-    }
-    else if (current_code & BOTTOM) {
-      x = mix(p.x, q.x, ((height - 1.0f) - p.y) / (q.y - p.y));
-      y = height - 1.0f;
-    }
-    else if (current_code & LEFT) {
-      y = mix(p.y, q.y, (-p.x) / (q.x - p.x));
-      x = 0.0f;
-    }
-    if (current_code == p_code) {
-      p.x = x;
-      p.y = y;
-      p_code = clipCode(p, width, height);
-    }
-    else {
-      q.x = x; 
-      q.y = y; 
-      q_code = clipCode(q, width, height);
-    }
-  }
-}
-
-void line(vec4 p, vec4 q, int colour, uint32_t *buffer, vec2 &offset)
-{
-  if (!clipLine(p, q, WIDTH, HEIGHT)) return;
-  float x_diff = p.x - q.x;
-  float y_diff = p.y - q.y;
-  float max_diff = std::max(abs(x_diff), abs(y_diff));
-  vector<float> interpolate_x = Interpolate(p.x + offset.x, q.x + offset.x, max_diff + 1);
-  vector<float> interpolate_y = Interpolate(p.y + offset.y, q.y + offset.y, max_diff + 1);
-  for (int i = 0; i < max_diff; i++)
-  {
-    buffer[(int)(interpolate_y[i]) * WIDTH + (int)interpolate_x[i]] = colour;
-  }
-}
-
 inline float edgeFunction(const float v0_x, const float v0_y, const float v1_x, const float v1_y, const float p_x, const float p_y) {
   return (p_x - v0_x) * (v1_y - v0_y) - (p_y - v0_y) * (v1_x - v0_x);
-}
-
-inline int scaleColour(int colour, float scale) {
-  unsigned char red = (colour & RED) >> 16;
-  red *= scale;
-  unsigned char green = (colour & GREEN) >> 8;
-  green *= scale;
-  unsigned char blue = (colour & BLUE);
-  blue *= scale;
-  return (colour & ALPHA) | (red << 16) | (green << 8) | blue;
-}
-
-inline int scaleColour(int colour, vec3 scale) {
-  unsigned char red = (colour & RED) >> 16;
-  red *= scale.r;
-  unsigned char green = (colour & GREEN) >> 8;
-  green *= scale.g;
-  unsigned char blue = (colour & BLUE);
-  blue *= scale.b;
-  return (colour & ALPHA) | (red << 16) | (green << 8) | blue;
-}
-
-inline int bilinearColour(int tl, int tr, int bl, int br, vec2 pos) {
-  float xy = pos.x * pos.y;
-  float a0 = xy - pos.x - pos.y + 1.0f;
-  float a1 = pos.y - xy;
-  float a2 = pos.x - xy;
-  float a3 = xy;
-  tl = scaleColour(tl, a0);
-  bl = scaleColour(bl, a1);
-  tr = scaleColour(tr, a2);
-  br = scaleColour(br, a3);
-  return ALPHA | (tl + bl + tr + br);
 }
 
 inline vec3 bilinearColour(vec3 tl, vec3 tr, vec3 bl, vec3 br, vec2 pos) {
@@ -1050,7 +724,7 @@ inline vec3 phongReflection(vec3 &Ks, vec3 &Kd, vec3 &Ka, int &alpha, vec3 &Is, 
   return (Kd * glm::max(dot(Lm, N), 0.0f) * Id) + (Ks * powf(dot(Rm, V), alpha) * Is) + Ka * Ia;
 }
 
-void triangle(Triangle &t, Texture &tex, bool filled, uint32_t *buffer, float *depthBuff, vec2 offset, vec4 &eye_pos)
+void triangle(Triangle &t, bool filled, uint32_t *buffer, float *depthBuff, vec2 offset, vec4 &eye_pos)
 {
   vec4 light_pos = vec4(-0.234f, 5.2f, -3.043f, 1.0f);
   vec3 Ia = vec3(0.2f, 0.2f, 0.2f);
@@ -1114,18 +788,18 @@ void triangle(Triangle &t, Texture &tex, bool filled, uint32_t *buffer, float *d
               u = mod(u, 1.0f);
               v = mod(v, 1.0f);
               if (bilinear) {
-                u *= tex.width - 1;
-                v *= tex.height - 1;
-                int tl = (int)u + (int)v * tex.width;
+                u *= t.mat.texture.width - 1;
+                v *= t.mat.texture.height - 1;
+                int tl = (int)u + (int)v * t.mat.texture.width;
                 int tr = tl + 1;
-                int bl = tl + tex.width;
+                int bl = tl + t.mat.texture.width;
                 int br = bl + 1;
-                Kd = bilinearColour(tex.dataVec[tl], tex.dataVec[tr], tex.dataVec[bl], tex.dataVec[br], vec2(mod(u, 1.0f), mod(v, 1.0f)));
+                Kd = bilinearColour(t.mat.texture.dataVec[tl], t.mat.texture.dataVec[tr], t.mat.texture.dataVec[bl], t.mat.texture.dataVec[br], vec2(mod(u, 1.0f), mod(v, 1.0f)));
               }
               else {
-                u *= tex.width;
-                v *= tex.height;
-                Kd = tex.dataVec[(int)u + (int)v * tex.width];
+                u *= t.mat.texture.width;
+                v *= t.mat.texture.height;
+                Kd = t.mat.texture.dataVec[(int)u + (int)v * t.mat.texture.width];
               }
               Ka = Kd;
             }
@@ -1134,7 +808,6 @@ void triangle(Triangle &t, Texture &tex, bool filled, uint32_t *buffer, float *d
             vec3 Id = vec3(200.0f, 200.0f, 200.0f) / (4.0f * M_PIf * radius * radius);
             vec3 V = toThree(normalize(eye_pos - pos_3d));
             vec3 Lm = toThree(normalize(light_pos - pos_3d));
-            //vec3 N = toThree(t.normal);
             vec3 N = toThree(q0 * t.vertices[0].normal + q1 * t.vertices[1].normal + q2 * t.vertices[2].normal);
             vec3 Rm = normalize(2.0f * N * dot(Lm, N) - Lm);
             if (t.mat.illum < 2) {
@@ -1155,9 +828,9 @@ void triangle(Triangle &t, Texture &tex, bool filled, uint32_t *buffer, float *d
   }
   else
   {
-    line(t.vertices[0].pos, t.vertices[1].pos, t.mat.diffuse.toPackedInt(), buffer, offset);
-    line(t.vertices[1].pos, t.vertices[2].pos, t.mat.diffuse.toPackedInt(), buffer, offset);
-    line(t.vertices[2].pos, t.vertices[0].pos, t.mat.diffuse.toPackedInt(), buffer, offset);
+    line(t.vertices[0].pos, t.vertices[1].pos, t.mat.diffuse.toPackedInt(), buffer, WIDTH, HEIGHT, offset);
+    line(t.vertices[1].pos, t.vertices[2].pos, t.mat.diffuse.toPackedInt(), buffer, WIDTH, HEIGHT, offset);
+    line(t.vertices[2].pos, t.vertices[0].pos, t.mat.diffuse.toPackedInt(), buffer, WIDTH, HEIGHT, offset);
   }
 }
 
