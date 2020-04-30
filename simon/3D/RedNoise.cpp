@@ -28,8 +28,8 @@ using namespace glm;
 #define WIDTH 640
 #define HEIGHT 480
 #define IMG_SIZE (WIDTH*HEIGHT)
-#define SSAA true
-#define SSAA_SCALE 2
+#define SSAA false
+#define SSAA_SCALE 3
 #define SSAA_SAMPLES (SSAA_SCALE*SSAA_SCALE)
 #define MOUSE_SENSITIVITY 0.0015f
 #define AMBIENCE 0.1f
@@ -62,6 +62,10 @@ bool perspective = true;
 bool toRaytrace = false;
 bool softShadows = false;
 DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
+
+inline int vec3ToPackedInt(vec3 colour) {
+  return ALPHA | (int(colour.r * 255.0f) << 16) | (int(colour.g * 255.0f) << 8) | int(colour.b * 255.0f);
+}
 
 vec3 bilinearInterpolate(vec3 tl, vec3 tr, vec3 bl, vec3 br, vec2 pos) {
   float xy = pos.x * pos.y;
@@ -144,42 +148,19 @@ void drawTriangles(Camera &cam, std::vector<Model *> models)
   }
 }
 
-int darkenColour(Colour colour, float brightness, float specular) {
-  colour.red *= brightness;
-  colour.green *= brightness;
-  colour.blue *= brightness;
-
-  colour.red += specular * 255;
-  colour.blue += specular * 255;
-  colour.green += specular * 255;
-
-  colour.red  = colour.red > 255 ? 255 : colour.red;
-  colour.green  = colour.green > 255 ? 255 : colour.green;
-  colour.blue  = colour.blue > 255 ? 255 : colour.blue;
-
-  return colour.toPackedInt();
-}
-
-Colour addColours(Colour base, Colour add) {
-  base.red += add.red;
-  base.green += add.green;
-  base.blue += add.blue;
-  return base;
-}
-
-vector<ModelTriangle> getLights(Model model) {
+vector<ModelTriangle> getLights(vector<ModelTriangle>& tris) {
   vector<ModelTriangle> lights = vector<ModelTriangle>();
-  for(ModelTriangle triangle : model.tris) {
+  for(ModelTriangle& triangle : tris) {
     if(triangle.name == "light") lights.push_back(triangle);
   }
 
   return lights;
 }
 
-vector<vec4> getLightPoints(vector<ModelTriangle> lights) {
+vector<vec4> getLightPoints(vector<ModelTriangle>& lights) {
   vector<vec4> vertices = vector<vec4>();
   vec4 average = vec4(0, 0, 0, 0);
-  for(ModelTriangle light : lights) {
+  for(ModelTriangle& light : lights) {
     vertices.push_back(light.vertices[0]);
     vertices.push_back(light.vertices[1]);
     vertices.push_back(light.vertices[2]);
@@ -200,12 +181,12 @@ vector<vec4> getLightPoints(vector<ModelTriangle> lights) {
   return result;
 }
 
-RayTriangleIntersection findClosestIntersection(vec4 start, Model model, vec4 rayDirection) {
+RayTriangleIntersection findClosestIntersection(vec4 start, vector<ModelTriangle>& tris, vec4 rayDirection) {
   RayTriangleIntersection intersection = RayTriangleIntersection();
   float minDistance = std::numeric_limits<float>::infinity();
 
   //calculate closest intersection by looping through each of the triangles
-  for(ModelTriangle triangle : model.tris) {
+  for(ModelTriangle& triangle : tris) {
     vec4 e0 = triangle.vertices[1] - triangle.vertices[0];
     vec4 e1 = triangle.vertices[2] - triangle.vertices[0];
     vec4 SPVector = start - triangle.vertices[0];
@@ -213,12 +194,12 @@ RayTriangleIntersection findClosestIntersection(vec4 start, Model model, vec4 ra
     vec4 possibleSolution = glm::inverse(DEMatrix) * SPVector;
 
     // check if ray intersects triangle and not just triangle plane
-    if (possibleSolution.y >= 0 && possibleSolution.y <= 1 &&
-      possibleSolution.z >= 0 && possibleSolution.z <= 1 &&
+    if (possibleSolution.y >= 0.0f && possibleSolution.y <= 1.0f &&
+      possibleSolution.z >= 0.0f && possibleSolution.z <= 1.0f &&
       possibleSolution.y + possibleSolution.z <= 1) {
-      if (possibleSolution.x < minDistance && possibleSolution.x > 0) {
+      if (possibleSolution.x < minDistance && possibleSolution.x > 0.0f) {
         intersection = RayTriangleIntersection(start + (possibleSolution.x * rayDirection) , possibleSolution.x, triangle);
-        intersection.intersectionPoint.w = 1;
+        intersection.intersectionPoint.w = 1.0f;
         intersection.u = possibleSolution.y;
         intersection.v = possibleSolution.z;
         minDistance = possibleSolution.x;
@@ -229,21 +210,21 @@ RayTriangleIntersection findClosestIntersection(vec4 start, Model model, vec4 ra
   return intersection;
 }
 
-bool inShadow(Model model, vec4 shadowRayDirection, RayTriangleIntersection intersection) {
-  float shadowBias = 1e-4;
+bool inShadow(vector<ModelTriangle>& tris, vec4 shadowRayDirection, RayTriangleIntersection& intersection) {
+  float shadowBias = 0.0001f;
 
   //check if the ray is in shadow. 
-  for(ModelTriangle triangle : model.tris) {
+  for(ModelTriangle& triangle : tris) {
     vec4 e0 = triangle.vertices[1] - triangle.vertices[0];
     vec4 e1 = triangle.vertices[2] - triangle.vertices[0];
     vec4 SPVector = (intersection.intersectionPoint) - triangle.vertices[0];
-    mat4 DEMatrix(-shadowRayDirection, e0, e1, vec4(1,1,1,1));
+    mat4 DEMatrix(-shadowRayDirection, e0, e1, vec4(1.0f, 1.0f, 1.0f, 1.0f));
     vec4 possibleSolution = glm::inverse(DEMatrix) * SPVector;
 
     //check if ray intersects triangle and not just triangle plane
-    if(possibleSolution.y >= 0 && possibleSolution.y <= 1 && possibleSolution.z >= 0 && possibleSolution.z <= 1 && possibleSolution.y + possibleSolution.z <= 1) {
+    if(possibleSolution.y >= 0.0f && possibleSolution.y <= 1.0f && possibleSolution.z >= 0.0f && possibleSolution.z <= 1.0f && possibleSolution.y + possibleSolution.z <= 1.0f) {
       //I genuinely have no idea why doing the shadowBias this way works. without it the shadows are just everywhere???
-      if(possibleSolution.x < 1 - shadowBias && possibleSolution.x > shadowBias) {
+      if(possibleSolution.x < 1.0f - shadowBias && possibleSolution.x > shadowBias) {
         return true;
       }
     }
@@ -265,159 +246,157 @@ vec4 refract(vec4 I, vec4 N, float ior) {
     n = -N;
   }
   float eta = etai / etat;
-  float k = 1 - eta * eta * (1 - cosi * cosi);
-  return k < 0 ? vec4(0, 0, 0, 0) : eta * I + (eta * cosi - sqrtf(k)) * n;
+  float k = 1.0f - eta * eta * (1.0f - cosi * cosi);
+  return k < 0.0f ? vec4(0.0f, 0.0f, 0.0f, 0.0f) : eta * I + (eta * cosi - sqrtf(k)) * n;
 }
 
-Colour getPixelColour(RayTriangleIntersection intersection, Light mainLight, vec4 rayDirection, Model model, int depth, int i, int j) {
-  Texture tex = intersection.intersectedTriangle.material.texture;
-  Texture bumps = intersection.intersectedTriangle.material.normal_map;
+vec3 getPixelColour(RayTriangleIntersection& intersection, Light& mainLight, vec4 rayDirection, vector<ModelTriangle>& tris, int depth, int i, int j) {
+  Texture& tex = intersection.intersectedTriangle.material.texture;
+  Texture& bumps = intersection.intersectedTriangle.material.normal_map;
   vec4 normal;
 
-  if(bumps.dataVec != nullptr) {
-          ModelTriangle t = intersection.intersectedTriangle;
-          float q0 = intersection.u;
-          float q1 = intersection.v;
-          float q2 = 1 - q0 - q1;
-          float u = q2 * t.uvs[0].x + q0 * t.uvs[1].x + q1 * t.uvs[2].x;
-          float v = q2 * t.uvs[0].y + q0 * t.uvs[1].y + q1 * t.uvs[2].y;
-          u = mod(u, 1.0f);
-          v = mod(v, 1.0f);
-          vec3 bumpVec = getTexPoint(u, v, bumps, bilinear);
-          normal = vec4(bumpVec.x, bumpVec.y, bumpVec.z, 0.0f);
-        } else {
-          normal = intersection.intersectedTriangle.normal;
-        }
+  // if(bumps.dataVec != nullptr) {
+  //   ModelTriangle& t = intersection.intersectedTriangle;
+  //   float q0 = intersection.u;
+  //   float q1 = intersection.v;
+  //   float q2 = 1.0f - q0 - q1;
+  //   float u = q2 * t.uvs[0].x + q0 * t.uvs[1].x + q1 * t.uvs[2].x;
+  //   float v = q2 * t.uvs[0].y + q0 * t.uvs[1].y + q1 * t.uvs[2].y;
+  //   u = mod(u, 1.0f);
+  //   v = mod(v, 1.0f);
+  //   vec3 bumpVec = getTexPoint(u, v, bumps, bilinear);
+  //   normal = vec4(bumpVec.x, bumpVec.y, bumpVec.z, 0.0f);
+  // } else {
+    normal = intersection.intersectedTriangle.normal;
+  //}
 
-  Colour colour = Colour(0, 0, 0);
+  vec3 colour = vec3(0.0f, 0.0f, 0.0f);
 
-      if(intersection.intersectedTriangle.material.dissolve < 1 && depth < 2) {
-        // cout << "trying with normal " << normal.x << ", " << normal.y << ", " << normal.z << endl;
-        vec4 refractedRay;
-        float kr;
+  if(intersection.intersectedTriangle.material.dissolve < 1.0f && depth < 2) {
+    // cout << "trying with normal " << normal.x << ", " << normal.y << ", " << normal.z << endl;
+    vec4 refractedRay;
+    float kr;
 
-        float cosi = glm::clamp<float>(glm::dot(rayDirection, normal), -1.0f, 1.0f);
-        float etai = 1.0f, etat = 1.5f;
+    float cosi = glm::clamp<float>(glm::dot(rayDirection, normal), -1.0f, 1.0f);
+    float etai = 1.0f, etat = 1.5f;
 
-        if(cosi > 0) {
-          std::swap(etai, etat);
-        }
+    if(cosi > 0.0f) {
+      std::swap(etai, etat);
+    }
 
-        float sint = etai / etat * sqrtf(std::max(0.0f, 1 - cosi * cosi));
+    float sint = etai / etat * sqrtf(std::max(0.0f, 1 - cosi * cosi));
 
-        if (sint >= 1) {
-          kr = 1.0f;
-        } else {
-          float cost = sqrtf(std::max(0.0f, 1 - sint * sint));
-          cosi = fabsf(cosi);
-          float Rs = ((etat * cosi) - (etai * cost)) / ((etat * cosi) + (etai * cost));
-          float Rp = ((etai * cosi) - (etat * cost)) / ((etai * cosi) + (etat * cost));
-          kr = (Rs * Rs + Rp * Rp) / 2;
-        }
+    if (sint >= 1.0f) {
+      kr = 1.0f;
+    } else {
+      float cost = sqrtf(std::max(0.0f, 1.0f - sint * sint));
+      cosi = fabsf(cosi);
+      float Rs = ((etat * cosi) - (etai * cost)) / ((etat * cosi) + (etai * cost));
+      float Rp = ((etai * cosi) - (etat * cost)) / ((etai * cosi) + (etat * cost));
+      kr = (Rs * Rs + Rp * Rp) * 0.5f;
+    }
 
-        bool outside = glm::dot(rayDirection, normal) < 0;
-        float bias = 1e-4;
+    bool outside = glm::dot(rayDirection, normal) < 0.0f;
+    float bias = 0.0001f;
 
-        Colour refractionColour = intersection.intersectedTriangle.material.diffuse;
-        if (kr < 1) {
-          vec4 refractionDirection = refract(rayDirection, normal, 1.5f);
-          RayTriangleIntersection refractIntersection = findClosestIntersection(outside ? intersection.intersectionPoint - (normal * bias) : intersection.intersectionPoint + (normal * bias), model, refractionDirection);
-          refractionColour = getPixelColour(refractIntersection, mainLight, rayDirection, model, depth + 1, i, j);
-        }
+    vec3 refractionColour = intersection.intersectedTriangle.material.diffuseVec;
+    if (kr < 1.0f) {
+      vec4 refractionDirection = refract(rayDirection, normal, 1.5f);
+      RayTriangleIntersection refractIntersection = findClosestIntersection(outside ? intersection.intersectionPoint - (normal * bias) : intersection.intersectionPoint + (normal * bias), tris, refractionDirection);
+      refractionColour = getPixelColour(refractIntersection, mainLight, rayDirection, tris, depth + 1, i, j);
+    }
 
-        Colour reflectedColour = intersection.intersectedTriangle.material.diffuse;
-        if(depth < 2) {
-          vec4 mirrorRayDirection = glm::normalize(rayDirection - 2.0f * (glm::dot(rayDirection, normal) * normal));
-          mirrorRayDirection.w = 0;
+    vec3 reflectedColour = intersection.intersectedTriangle.material.diffuseVec;
+    if(depth < 2) {
+      vec4 mirrorRayDirection = glm::normalize(rayDirection - 2.0f * (glm::dot(rayDirection, normal) * normal));
+      mirrorRayDirection.w = 0.0f;
 
-          RayTriangleIntersection mirrorIntersection = findClosestIntersection(outside ? intersection.intersectionPoint - (normal * bias) : intersection.intersectionPoint + (normal * bias), model, mirrorRayDirection);
-          
-          reflectedColour = getPixelColour(mirrorIntersection, mainLight, rayDirection, model, depth + 1, i, j) + (intersection.intersectedTriangle.material.specular * 0.8f);
-        } else {
-          reflectedColour = intersection.intersectedTriangle.material.specular;
-        }
+      RayTriangleIntersection mirrorIntersection = findClosestIntersection(outside ? intersection.intersectionPoint - (normal * bias) : intersection.intersectionPoint + (normal * bias), tris, mirrorRayDirection);
+      
+      reflectedColour = glm::min(getPixelColour(mirrorIntersection, mainLight, rayDirection, tris, depth + 1, i, j) + (intersection.intersectedTriangle.material.specularVec * 0.8f), 1.0f);
+    } else {
+      reflectedColour = intersection.intersectedTriangle.material.specularVec;
+    }
 
-        Colour glassColour;
-        if(tex.dataVec != nullptr) {
-          ModelTriangle t = intersection.intersectedTriangle;
-          float q0 = intersection.u;
-          float q1 = intersection.v;
-          float q2 = 1 - q0 - q1;
-          float u = q2 * t.uvs[0].x + q0 * t.uvs[1].x + q1 * t.uvs[2].x;
-          float v = q2 * t.uvs[0].y + q0 * t.uvs[1].y + q1 * t.uvs[2].y;
-          u = mod(u, 1.0f);
-          v = mod(v, 1.0f);
-          vec3 texVec = getTexPoint(u, v, tex, bilinear);
-          glassColour = Colour(texVec.r * 255, texVec.g * 255, texVec.b * 255);
-        } else {
-          glassColour = intersection.intersectedTriangle.material.diffuse;
-        }
-        
-        return glassColour * intersection.intersectedTriangle.material.dissolve + reflectedColour * kr + refractionColour * (1 - kr);
+    vec3 glassColour;
+    if(tex.dataVec != nullptr) {
+      ModelTriangle& t = intersection.intersectedTriangle;
+      float q0 = intersection.u;
+      float q1 = intersection.v;
+      float q2 = 1.0f - q0 - q1;
+      float u = q2 * t.uvs[0].x + q0 * t.uvs[1].x + q1 * t.uvs[2].x;
+      float v = q2 * t.uvs[0].y + q0 * t.uvs[1].y + q1 * t.uvs[2].y;
+      u = mod(u, 1.0f);
+      v = mod(v, 1.0f);
+      glassColour = getTexPoint(u, v, tex, bilinear);
+    } else {
+      glassColour = intersection.intersectedTriangle.material.diffuseVec;
+    }
+    
+    return glm::min(glm::min(glassColour * intersection.intersectedTriangle.material.dissolve, 1.0f) + glm::min(reflectedColour * kr, 1.0f) + glm::min(refractionColour * (1.0f - kr), 1.0f), 1.0f);
+  }
+
+  if(intersection.intersectedTriangle.material.specular.red >= 0) {
+    if(depth < 2) {
+      vec4 mirrorRayDirection = glm::normalize(rayDirection - 2.0f * (glm::dot(rayDirection, normal) * normal));
+      mirrorRayDirection.w = 0;
+
+      RayTriangleIntersection mirrorIntersection = findClosestIntersection(intersection.intersectionPoint + (normal * 0.1f), tris, mirrorRayDirection);
+      
+      return glm::min(getPixelColour(mirrorIntersection, mainLight, rayDirection, tris, depth + 1, i, j) + (intersection.intersectedTriangle.material.specularVec * 0.8f), 1.0f);
+    } else {
+      return intersection.intersectedTriangle.material.specularVec;
+    }
+  }
+
+  if(intersection.intersectedTriangle.name == mainLight.name) {
+    return intersection.intersectedTriangle.material.diffuseVec;
+  } else {
+    if(tex.dataVec != nullptr) {
+      ModelTriangle& t = intersection.intersectedTriangle;
+      float q0 = intersection.u;
+      float q1 = intersection.v;
+      float q2 = 1 - q0 - q1;
+      float u = q2 * t.uvs[0].x + q0 * t.uvs[1].x + q1 * t.uvs[2].x;
+      float v = q2 * t.uvs[0].y + q0 * t.uvs[1].y + q1 * t.uvs[2].y;
+      u = mod(u, 1.0f);
+      v = mod(v, 1.0f);
+      colour = getTexPoint(u, v, tex, bilinear);
+    } else {
+      colour = intersection.intersectedTriangle.material.diffuseVec;
+    }
+
+    vec4 shadowRayDirection = mainLight.centre - intersection.intersectionPoint;
+    bool isInShadow = inShadow(tris, shadowRayDirection, intersection);
+
+    if(isInShadow) colour = colour * mainLight.shadow;
+    else {
+      //calculate the angleOfIncidence between 0 and 1
+      float angleOfIncidence = glm::dot(glm::normalize(shadowRayDirection), normal);
+      colour = colour * glm::clamp<float>(angleOfIncidence, mainLight.shadow, 1.0f);
+
+      //adjust brightness for proximity lighting
+      float brightness = mainLight.intensity / powf(length(shadowRayDirection), 2);
+      colour = colour * glm::clamp<float>(brightness, mainLight.shadow, 1.0f);
+
+      if(intersection.intersectedTriangle.material.highlights > 0.0f) {
+        //TODO: make the colour of the highlights match the specular material colour
+        vec4 reflection = glm::normalize((-shadowRayDirection) - 2.0f * (glm::dot((-shadowRayDirection), normal) * normal));
+        float specular = pow(glm::dot(glm::normalize((-rayDirection)), reflection), intersection.intersectedTriangle.material.highlights);
+        colour = glm::min(colour + glm::clamp<float>(specular, 0, 1), 1.0f);
       }
+    }
 
-      if(intersection.intersectedTriangle.material.specular.red >= 0) {
-        if(depth < 2) {
-          vec4 mirrorRayDirection = glm::normalize(rayDirection - 2.0f * (glm::dot(rayDirection, normal) * normal));
-          mirrorRayDirection.w = 0;
-
-          RayTriangleIntersection mirrorIntersection = findClosestIntersection(intersection.intersectionPoint + (normal * 0.1f), model, mirrorRayDirection);
-          
-          return getPixelColour(mirrorIntersection, mainLight, rayDirection, model, depth + 1, i, j) + (intersection.intersectedTriangle.material.specular * 0.8f);
-        } else {
-          return intersection.intersectedTriangle.material.specular;
-        }
-      }
-
-      if(intersection.intersectedTriangle.name == mainLight.name) {
-        return intersection.intersectedTriangle.material.diffuse;
-      } else {
-        if(tex.dataVec != nullptr) {
-          ModelTriangle t = intersection.intersectedTriangle;
-          float q0 = intersection.u;
-          float q1 = intersection.v;
-          float q2 = 1 - q0 - q1;
-          float u = q2 * t.uvs[0].x + q0 * t.uvs[1].x + q1 * t.uvs[2].x;
-          float v = q2 * t.uvs[0].y + q0 * t.uvs[1].y + q1 * t.uvs[2].y;
-          u = mod(u, 1.0f);
-          v = mod(v, 1.0f);
-          vec3 texVec = getTexPoint(u, v, tex, bilinear);
-          colour = Colour(texVec.r * 255, texVec.g * 255, texVec.b * 255);
-        } else {
-          colour = intersection.intersectedTriangle.material.diffuse;
-        }
-
-        vec4 shadowRayDirection = mainLight.centre - intersection.intersectionPoint;
-        bool isInShadow = inShadow(model, shadowRayDirection, intersection);
-
-        if(isInShadow) colour = colour * mainLight.shadow;
-        else {
-          //calculate the angleOfIncidence between 0 and 1
-          float angleOfIncidence = glm::dot(glm::normalize(shadowRayDirection), normal);
-          colour = colour * glm::clamp<float>(angleOfIncidence, mainLight.shadow, 1);
-
-          //adjust brightness for proximity lighting
-          float brightness = mainLight.intensity/pow(length(shadowRayDirection),2);
-          colour = colour * glm::clamp<float>(brightness, mainLight.shadow, 1);
-
-          if(intersection.intersectedTriangle.material.highlights > 0) {
-            //TODO: make the colour of the highlights match the specular material colour
-            vec4 reflection = glm::normalize((-shadowRayDirection) - 2.0f * (glm::dot((-shadowRayDirection), normal) * normal));
-            float specular = pow(glm::dot(glm::normalize((-rayDirection)), reflection), intersection.intersectedTriangle.material.highlights);
-            colour = colour + (glm::clamp<float>(specular, 0, 1) * 255);
-          }
-        }
-
-        return colour; 
-      }
-      return colour;
+    return colour; 
+  }
+  return colour;
 }
 
 void raytrace(Camera camera, std::vector<Model*> models) {
   //idk what this does
-  Model model = Model(*models[0]);
-  for (unsigned int i = 1; i < models.size(); i++) {
-    for (auto tri : (*models[i]).tris) {
+  vector<ModelTriangle> tris;
+  for (unsigned int i = 0; i < models.size(); i++) {
+    for (auto& tri : (*models[i]).tris) {
       ModelTriangle newTri = ModelTriangle((*models[i]).transform * tri.vertices[0],
                             (*models[i]).transform * tri.vertices[1],
                             (*models[i]).transform * tri.vertices[2],
@@ -425,42 +404,50 @@ void raytrace(Camera camera, std::vector<Model*> models) {
       newTri.uvs[0] = tri.uvs[0];
       newTri.uvs[1] = tri.uvs[1];
       newTri.uvs[2] = tri.uvs[2];
+      newTri.name = tri.name;
       if (newTri.material.normal_map.dataVec != nullptr) {
         newTri.tangent = (*models[i]).transform * tri.tangent;
         newTri.TBN = mat3(toThree(newTri.tangent), toThree(cross(newTri.normal, newTri.tangent)), toThree(newTri.normal));
       }
-      model.tris.push_back(newTri);
+      tris.push_back(newTri);
     }
   }
 
   //setup the lights
   vector<ModelTriangle> lights = vector<ModelTriangle>();
-  for(ModelTriangle triangle : model.tris) {
+  for(ModelTriangle& triangle : tris) {
     if(triangle.name == "light") lights.push_back(triangle);
   }
 
   Light mainLight = Light("light", lights);
   mainLight.calculateCentre();
 
+  uint32_t *buffer = (SSAA) ? imageBuffer : window.pixelBuffer;
+  vector<vec2> offsets = generateRotatedGrid(SSAA_SCALE);
+
   //loop through each pixel in image plane
-  #pragma omp parallel for
-  for(int j = 0; j < HEIGHT; j++) {
-    for(int i = 0; i < WIDTH; i++) {
-      float angle = tanf(0.5f * glm::radians(camera.fov)); // just fov*0.5 converted to radians
-      //convert image plane cordinates into world space
-      vec2 NDC = vec2((i + 0.5) * (1 / (float) WIDTH), (j + 0.5) * (1 / (float) HEIGHT));
-      float x = (2 * (NDC.x) - 1) * angle * ASPECT_RATIO;
-      float y = (1 - 2 * (NDC.y)) * angle;
+  int num_s = (SSAA) ? SSAA_SAMPLES : 1;
+  for (int s = 0; s < num_s; s++) {
+    #pragma omp parallel for
+    for(int j = 0; j < HEIGHT; j++) {
+      for(int i = 0; i < WIDTH; i++) {
+        float angle = tanf(0.5f * glm::radians(camera.fov)); // just fov*0.5 converted to radians
+        //convert image plane cordinates into world space
+        vec2 NDC = vec2((i + offsets[s].x) * (1 / (float) WIDTH), (j + offsets[s].y) * (1 / (float) HEIGHT));
+        float x = (2 * (NDC.x) - 1) * angle * ASPECT_RATIO;
+        float y = (1 - 2 * (NDC.y)) * angle;
 
-      // the main camera ray
-      vec4 rayDirection = camera.transform * vec4(x, y, -1, 0);
+        // the main camera ray
+        vec4 rayDirection = camera.transform * vec4(x, y, -1.0f, 0.0f);
 
-      RayTriangleIntersection intersection = findClosestIntersection(camera.transform[3], model, rayDirection);
+        RayTriangleIntersection intersection = findClosestIntersection(camera.transform[3], tris, rayDirection);
 
-      window.setPixelColour(i, j, getPixelColour(intersection, mainLight, rayDirection, model, 0, i, j).toPackedInt());  
+        buffer[i + j * WIDTH] = vec3ToPackedInt(getPixelColour(intersection, mainLight, rayDirection, tris, 0, i, j));
+      }
     }
+    buffer += IMG_SIZE;
   }
-  savePPM("window.ppm", &window);
+  //savePPM("window.ppm", &window);
   cout << "Finished one frame!" << endl;
 }
 
@@ -523,27 +510,27 @@ int main(int argc, char *argv[])
   // cornellRB2.hasGravity = false;
   // updateQueue.push_back(&cornellRB2);
 
-  Model sphere = Model("blob");
-  sphere.setPosition(vec3(3,0.0f,0));
-  //sphere.rotate(vec3(1,0,0));
-  renderQueue.push_back(&sphere);
-  Rigidbody sphereRB = Rigidbody(&sphere);
-  updateQueue.push_back(&sphereRB);
-  sphereRB.positionFixed = false;
-  sphereRB.hasGravity = false;
-  sphereRB.collisionEnabled = true;
-  sphereRB.elasticity = 0.9f;
-  // sphereRB.applyForce(vec3(0,0.05f,0), vec3(0.5f,0,0));
-  sphereRB.applyForce(vec3(0.5f,0,0), vec3(0,0,0));
-  cout << "sphereRB address = " << &sphereRB << endl;
+  // Model sphere = Model("blob");
+  // sphere.setPosition(vec3(3,0.0f,0));
+  // //sphere.rotate(vec3(1,0,0));
+  // renderQueue.push_back(&sphere);
+  // Rigidbody sphereRB = Rigidbody(&sphere);
+  // updateQueue.push_back(&sphereRB);
+  // sphereRB.positionFixed = false;
+  // sphereRB.hasGravity = false;
+  // sphereRB.collisionEnabled = true;
+  // sphereRB.elasticity = 0.9f;
+  // // sphereRB.applyForce(vec3(0,0.05f,0), vec3(0.5f,0,0));
+  // sphereRB.applyForce(vec3(0.5f,0,0), vec3(0,0,0));
+  // cout << "sphereRB address = " << &sphereRB << endl;
 
-  Model angle = Model("tilted");
-  angle.scale(vec3(3,3,3));
-  angle.setPosition(vec3(0,0,0));
-  angle.furthestExtent = angle.calcExtent();
-  renderQueue.push_back(&angle);
-  Magnet mag = Magnet(&angle);
-  updateQueue.push_back(&mag);
+  // Model angle = Model("tilted");
+  // angle.scale(vec3(3,3,3));
+  // angle.setPosition(vec3(0,0,0));
+  // angle.furthestExtent = angle.calcExtent();
+  // renderQueue.push_back(&angle);
+  // Magnet mag = Magnet(&angle);
+  // updateQueue.push_back(&mag);
   // Rigidbody angleRB = Rigidbody(&angle);
   // updateQueue.push_back(&angleRB);
   // angleRB.positionFixed = true;
@@ -551,13 +538,13 @@ int main(int argc, char *argv[])
   // angleRB.collisionEnabled = true;
   // cout << "angleRB address = " << &angleRB << endl;
   
-  Model angle2 = Model("tilted");
-  angle2.scale(vec3(3,3,3));
-  angle2.setPosition(vec3(0,0,10));
-  angle2.furthestExtent = angle2.calcExtent();
-  renderQueue.push_back(&angle2);
-  Magnet mag2 = Magnet(&angle2);
-  updateQueue.push_back(&mag2);
+  // Model angle2 = Model("tilted");
+  // angle2.scale(vec3(3,3,3));
+  // angle2.setPosition(vec3(0,0,10));
+  // angle2.furthestExtent = angle2.calcExtent();
+  // renderQueue.push_back(&angle2);
+  // Magnet mag2 = Magnet(&angle2);
+  // updateQueue.push_back(&mag2);
 
   // cout << "normals: " << endl;
   // for (int i = 0; i < angle.tris.size(); i++) {
@@ -586,7 +573,7 @@ int main(int argc, char *argv[])
   // }
   Camera cam;
   cam.setProjection(90.0f, WIDTH / (float)HEIGHT, 0.1f, 100.0f);
-  cam.lookAt(vec3(5.0f, 20.0f, 0.0f), vec3(0.0f, 0, 0));
+  cam.lookAt(vec3(0.0f, 2.5f, 3.0f), vec3(0.0f, 2.5f, -3.0f));
   // cam.moves.push(Movement(cam.transform));
   // cam.moves.top().lookAt(cam.getPosition(), vec3(0, -2.5f, 0));
 
@@ -615,15 +602,13 @@ int main(int argc, char *argv[])
     update(cam, updateQueue);
     //std::vector<Model*> models{&cornell, &sphere};
     //std::cout << "about to render" << std::endl;
+    draw();
     if(toRaytrace) {
-      draw();
-      // raytraceOld(cam, renderQueue, 1);
       raytrace(cam, renderQueue);
     } else {
-      draw();
       drawTriangles(cam, renderQueue);
-      if (SSAA) downsample(imageBuffer, window.pixelBuffer, WIDTH, HEIGHT, SSAA_SAMPLES);
     }
+    if (SSAA) downsample(imageBuffer, window.pixelBuffer, WIDTH, HEIGHT, SSAA_SAMPLES);
     // Need to render the frame at the end, or nothing actually gets shown on
     // the screen !
     window.renderFrame();
@@ -719,10 +704,6 @@ void handleEvent(SDL_Event event, Camera &cam)
 
 inline float edgeFunction(const float v0_x, const float v0_y, const float v1_x, const float v1_y, const float p_x, const float p_y) {
   return (p_x - v0_x) * (v1_y - v0_y) - (p_y - v0_y) * (v1_x - v0_x);
-}
-
-inline int vec3ToPackedInt(vec3 colour) {
-  return ALPHA | (int(colour.r * 255.0f) << 16) | (int(colour.g * 255.0f) << 8) | int(colour.b * 255.0f);
 }
 
 // As described here: https://en.wikipedia.org/wiki/Phong_reflection_model
