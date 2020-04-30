@@ -63,6 +63,34 @@ bool toRaytrace = false;
 bool softShadows = false;
 DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
 
+vec3 bilinearInterpolate(vec3 tl, vec3 tr, vec3 bl, vec3 br, vec2 pos) {
+  float xy = pos.x * pos.y;
+  float a0 = xy - pos.x - pos.y + 1.0f;
+  float a1 = pos.y - xy;
+  float a2 = pos.x - xy;
+  float a3 = xy;
+  tl *= a0;
+  bl *= a1;
+  tr *= a2;
+  br *= a3;
+  return (tl + bl + tr + br);
+}
+
+vec3 getTexPoint(float u, float v, Texture& tex, bool bilinear) {
+  if (bilinear) {
+    float u_bi = u * (tex.width - 1);
+    float v_bi = v * (tex.height - 1);
+    int tl = (int)u_bi + (int)v_bi * tex.width;
+    int tr = tl + 1;
+    int bl = tl + tex.width;
+    int br = bl + 1;
+    return bilinearInterpolate(tex.dataVec[tl], tex.dataVec[tr], tex.dataVec[bl], tex.dataVec[br], vec2(mod(u_bi, 1.0f), mod(v_bi, 1.0f)));
+  }
+  else {
+    return tex.dataVec[(int)(u * tex.width) + (int)(v * tex.height) * tex.width];
+  }
+}
+
 void drawTriangles(Camera &cam, std::vector<Model *> models)
 {
   uint32_t *buffer = (SSAA) ? imageBuffer : window.pixelBuffer;
@@ -255,16 +283,8 @@ Colour getPixelColour(RayTriangleIntersection intersection, Light mainLight, vec
           float v = q2 * t.uvs[0].y + q0 * t.uvs[1].y + q1 * t.uvs[2].y;
           u = mod(u, 1.0f);
           v = mod(v, 1.0f);
-          u *= bumps.width;
-          v *= bumps.height;
-          // cout << t.name << endl;
-          // cout << "q0: " << q0 << ", q1: " << q1 << ", q2: " << q2 << endl;
-          // cout << "t.uvs[0]: " << t.uvs[0].x << ", " << t.uvs[0].y << endl;
-          // cout << "t.uvs[1]: " << t.uvs[1].x << ", " << t.uvs[1].y << endl;
-          // cout << "t.uvs[2]: " << t.uvs[2].x << ", " << t.uvs[2].y << endl;
-          vec3 bumpVec = bumps.dataVec[(int)u + (int)v * bumps.width];
+          vec3 bumpVec = getTexPoint(u, v, bumps, bilinear);
           normal = vec4(bumpVec.x, bumpVec.y, bumpVec.z, 0.0f);
-          // cout << "new normal: " << normal.x << ", " << normal.y << ", " << normal.z << endl;
         } else {
           normal = intersection.intersectedTriangle.normal;
         }
@@ -327,9 +347,7 @@ Colour getPixelColour(RayTriangleIntersection intersection, Light mainLight, vec
           float v = q2 * t.uvs[0].y + q0 * t.uvs[1].y + q1 * t.uvs[2].y;
           u = mod(u, 1.0f);
           v = mod(v, 1.0f);
-          u *= tex.width;
-          v *= tex.height;
-          vec3 texVec = tex.dataVec[(int)u + (int)v * tex.width];
+          vec3 texVec = getTexPoint(u, v, tex, bilinear);
           glassColour = Colour(texVec.r * 255, texVec.g * 255, texVec.b * 255);
         } else {
           glassColour = intersection.intersectedTriangle.material.diffuse;
@@ -363,14 +381,7 @@ Colour getPixelColour(RayTriangleIntersection intersection, Light mainLight, vec
           float v = q2 * t.uvs[0].y + q0 * t.uvs[1].y + q1 * t.uvs[2].y;
           u = mod(u, 1.0f);
           v = mod(v, 1.0f);
-          u *= tex.width;
-          v *= tex.height;
-          // cout << t.name << endl;
-          // cout << "q0: " << q0 << ", q1: " << q1 << ", q2: " << q2 << endl;
-          // cout << "t.uvs[0]: " << t.uvs[0].x << ", " << t.uvs[0].y << endl;
-          // cout << "t.uvs[1]: " << t.uvs[1].x << ", " << t.uvs[1].y << endl;
-          // cout << "t.uvs[2]: " << t.uvs[2].x << ", " << t.uvs[2].y << endl;
-          vec3 texVec = tex.dataVec[(int)u + (int)v * tex.width];
+          vec3 texVec = getTexPoint(u, v, tex, bilinear);
           colour = Colour(texVec.r * 255, texVec.g * 255, texVec.b * 255);
         } else {
           colour = intersection.intersectedTriangle.material.diffuse;
@@ -410,10 +421,14 @@ void raytrace(Camera camera, std::vector<Model*> models) {
       ModelTriangle newTri = ModelTriangle((*models[i]).transform * tri.vertices[0],
                             (*models[i]).transform * tri.vertices[1],
                             (*models[i]).transform * tri.vertices[2],
-                            tri.material, tri.normal);
+                            tri.material, (*models[i]).transform * tri.normal);
       newTri.uvs[0] = tri.uvs[0];
       newTri.uvs[1] = tri.uvs[1];
       newTri.uvs[2] = tri.uvs[2];
+      if (newTri.material.normal_map.dataVec != nullptr) {
+        newTri.tangent = (*models[i]).transform * tri.tangent;
+        newTri.TBN = mat3(toThree(newTri.tangent), toThree(cross(newTri.normal, newTri.tangent)), toThree(newTri.normal));
+      }
       model.tris.push_back(newTri);
     }
   }
@@ -706,19 +721,6 @@ inline float edgeFunction(const float v0_x, const float v0_y, const float v1_x, 
   return (p_x - v0_x) * (v1_y - v0_y) - (p_y - v0_y) * (v1_x - v0_x);
 }
 
-inline vec3 bilinearColour(vec3 tl, vec3 tr, vec3 bl, vec3 br, vec2 pos) {
-  float xy = pos.x * pos.y;
-  float a0 = xy - pos.x - pos.y + 1.0f;
-  float a1 = pos.y - xy;
-  float a2 = pos.x - xy;
-  float a3 = xy;
-  tl *= a0;
-  bl *= a1;
-  tr *= a2;
-  br *= a3;
-  return (tl + bl + tr + br);
-}
-
 inline int vec3ToPackedInt(vec3 colour) {
   return ALPHA | (int(colour.r * 255.0f) << 16) | (int(colour.g * 255.0f) << 8) | int(colour.b * 255.0f);
 }
@@ -796,33 +798,11 @@ void triangle(Triangle &t, bool filled, uint32_t *buffer, float *depthBuff, vec2
               v = mod(v, 1.0f);
             }
             if (textured) {
-              if (bilinear) {
-                float u_bi = u * (t.mat.texture.width - 1);
-                float v_bi = v * (t.mat.texture.height - 1);
-                int tl = (int)u_bi + (int)v_bi * t.mat.texture.width;
-                int tr = tl + 1;
-                int bl = tl + t.mat.texture.width;
-                int br = bl + 1;
-                Kd = bilinearColour(t.mat.texture.dataVec[tl], t.mat.texture.dataVec[tr], t.mat.texture.dataVec[bl], t.mat.texture.dataVec[br], vec2(mod(u_bi, 1.0f), mod(v_bi, 1.0f)));
-              }
-              else {
-                Kd = t.mat.texture.dataVec[(int)(u * t.mat.texture.width) + (int)(v * t.mat.texture.height) * t.mat.texture.width];
-              }
+              Kd = getTexPoint(u, v, t.mat.texture, bilinear);
               Ka = Kd;
             }
             if (bump_map) {
-              if (bilinear) {
-                float u_bi = u * (t.mat.normal_map.width - 1);
-                float v_bi = v * (t.mat.normal_map.height - 1);
-                int tl = (int)u_bi + (int)v_bi * t.mat.normal_map.width;
-                int tr = tl + 1;
-                int bl = tl + t.mat.normal_map.width;
-                int br = bl + 1;
-                N = bilinearColour(t.mat.normal_map.dataVec[tl], t.mat.normal_map.dataVec[tr], t.mat.normal_map.dataVec[bl], t.mat.normal_map.dataVec[br], vec2(mod(u_bi, 1.0f), mod(v_bi, 1.0f)));
-              }
-              else {
-                N = t.mat.normal_map.dataVec[(int)(u * t.mat.normal_map.width) + (int)(v * t.mat.normal_map.height) * t.mat.normal_map.width];
-              }
+              N = getTexPoint(u, v, t.mat.normal_map, bilinear);
               N = t.TBN * N;
             }
             else {
