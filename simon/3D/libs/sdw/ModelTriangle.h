@@ -10,6 +10,7 @@ class ModelTriangle
     glm::vec4 vertices[3];
     glm::vec2 uvs[3];
     glm::vec4 normal;
+    glm::vec4 tangent;
     glm::vec4 normals[3];
     float brightness[3];
     Material material;

@@ -80,9 +80,13 @@ void drawTriangles(Camera &cam, std::vector<Model *> models)
       tri.vertices[1].normal = normalize(model.transform * tri.vertices[1].normal);
       tri.vertices[2].normal = normalize(model.transform * tri.vertices[2].normal);
       tri.vertices[0].pos_3d = model.transform * tri.vertices[0].pos;
+      if (dot(tri.vertices[0].pos_3d - eye, tri.normal) >= 0.0f) continue;
       tri.vertices[1].pos_3d = model.transform * tri.vertices[1].pos;
       tri.vertices[2].pos_3d = model.transform * tri.vertices[2].pos;
-      if (dot(tri.vertices[0].pos_3d - eye, tri.normal) >= 0.0f) continue;
+      if (tri.mat.normal_map.dataVec != nullptr) {
+        tri.tangent = model.transform * tri.tangent;
+        tri.TBN = mat3(toThree(tri.tangent), toThree(cross(tri.normal, tri.tangent)), toThree(tri.normal));
+      }
       tri.vertices[0].pos = viewProjection * tri.vertices[0].pos_3d;
       tri.vertices[1].pos = viewProjection * tri.vertices[1].pos_3d;
       tri.vertices[2].pos = viewProjection * tri.vertices[2].pos_3d;
@@ -807,7 +811,19 @@ void triangle(Triangle &t, bool filled, uint32_t *buffer, float *depthBuff, vec2
               Ka = Kd;
             }
             if (bump_map) {
-              N = t.mat.normal_map.dataVec[(int)(u * t.mat.normal_map.width) + (int)(v * t.mat.normal_map.height) * t.mat.normal_map.width];
+              if (bilinear) {
+                float u_bi = u * (t.mat.normal_map.width - 1);
+                float v_bi = v * (t.mat.normal_map.height - 1);
+                int tl = (int)u_bi + (int)v_bi * t.mat.normal_map.width;
+                int tr = tl + 1;
+                int bl = tl + t.mat.normal_map.width;
+                int br = bl + 1;
+                N = bilinearColour(t.mat.normal_map.dataVec[tl], t.mat.normal_map.dataVec[tr], t.mat.normal_map.dataVec[bl], t.mat.normal_map.dataVec[br], vec2(mod(u_bi, 1.0f), mod(v_bi, 1.0f)));
+              }
+              else {
+                N = t.mat.normal_map.dataVec[(int)(u * t.mat.normal_map.width) + (int)(v * t.mat.normal_map.height) * t.mat.normal_map.width];
+              }
+              N = t.TBN * N;
             }
             else {
               N = toThree(q0 * t.vertices[0].normal + q1 * t.vertices[1].normal + q2 * t.vertices[2].normal);

@@ -12,13 +12,15 @@ Triangle::Triangle(ModelTriangle &tri) {
         vertices[i].normal = tri.normals[i];
     }
     normal = tri.normal;
+    tangent = tri.tangent;
     mat = tri.material;
 }
 
-Triangle::Triangle(const Vertex &v0, const Vertex &v1, const Vertex &v2, const Material &tMat, const glm::vec4 &tNormal) {
+Triangle::Triangle(const Vertex &v0, const Vertex &v1, const Vertex &v2, const Material &tMat, const glm::vec4 &tNormal, const glm::mat3 &tTBN) {
     vertices[0] = v0;
     vertices[1] = v1;
     vertices[2] = v2;
     mat = tMat;
     normal = tNormal;
+    TBN = tTBN;
 }
