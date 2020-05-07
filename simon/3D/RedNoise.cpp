@@ -34,6 +34,7 @@ using namespace glm;
 #define MOUSE_SENSITIVITY 0.0015f
 #define AMBIENCE 0.1f
 #define ASPECT_RATIO WIDTH/(float)HEIGHT
+#define MAX_DEPTH 10
 
 #ifndef M_PIf
 #define M_PIf 3.14159265358979323846f
@@ -255,24 +256,24 @@ vec3 getPixelColour(RayTriangleIntersection& intersection, Light& mainLight, vec
   Texture& bumps = intersection.intersectedTriangle.material.normal_map;
   vec4 normal;
 
-  // if(bumps.dataVec != nullptr) {
-  //   ModelTriangle& t = intersection.intersectedTriangle;
-  //   float q0 = intersection.u;
-  //   float q1 = intersection.v;
-  //   float q2 = 1.0f - q0 - q1;
-  //   float u = q2 * t.uvs[0].x + q0 * t.uvs[1].x + q1 * t.uvs[2].x;
-  //   float v = q2 * t.uvs[0].y + q0 * t.uvs[1].y + q1 * t.uvs[2].y;
-  //   u = mod(u, 1.0f);
-  //   v = mod(v, 1.0f);
-  //   vec3 bumpVec = getTexPoint(u, v, bumps, bilinear);
-  //   normal = vec4(bumpVec.x, bumpVec.y, bumpVec.z, 0.0f);
-  // } else {
+  if(bumps.dataVec != nullptr) {
+    ModelTriangle& t = intersection.intersectedTriangle;
+    float q0 = intersection.u;
+    float q1 = intersection.v;
+    float q2 = 1.0f - q0 - q1;
+    float u = q2 * t.uvs[0].x + q0 * t.uvs[1].x + q1 * t.uvs[2].x;
+    float v = q2 * t.uvs[0].y + q0 * t.uvs[1].y + q1 * t.uvs[2].y;
+    u = mod(u, 1.0f);
+    v = mod(v, 1.0f);
+    vec3 bumpVec = getTexPoint(u, v, bumps, bilinear);
+    normal = vec4(bumpVec.x, bumpVec.y, bumpVec.z, 0.0f);
+  } else {
     normal = intersection.intersectedTriangle.normal;
-  //}
+  }
 
   vec3 colour = vec3(0.0f, 0.0f, 0.0f);
 
-  if(intersection.intersectedTriangle.material.dissolve < 1.0f && depth < 2) {
+  if(intersection.intersectedTriangle.material.dissolve < 1.0f && depth < MAX_DEPTH) {
     // cout << "trying with normal " << normal.x << ", " << normal.y << ", " << normal.z << endl;
     vec4 refractedRay;
     float kr;
@@ -307,7 +308,7 @@ vec3 getPixelColour(RayTriangleIntersection& intersection, Light& mainLight, vec
     }
 
     vec3 reflectedColour = intersection.intersectedTriangle.material.diffuseVec;
-    if(depth < 2) {
+    if(depth < MAX_DEPTH) {
       vec4 mirrorRayDirection = glm::normalize(rayDirection - 2.0f * (glm::dot(rayDirection, normal) * normal));
       mirrorRayDirection.w = 0.0f;
 
@@ -333,11 +334,11 @@ vec3 getPixelColour(RayTriangleIntersection& intersection, Light& mainLight, vec
       glassColour = intersection.intersectedTriangle.material.diffuseVec;
     }
     
-    return glm::min(glm::min(glassColour * intersection.intersectedTriangle.material.dissolve, 1.0f) + glm::min(reflectedColour * kr, 1.0f) + glm::min(refractionColour * (1.0f - kr), 1.0f), 1.0f);
+    return glm::min((depth == 1 ? glassColour : vec3(0,0,0)) + glm::min(reflectedColour * kr, 1.0f) + glm::min(refractionColour * (1.0f - kr), 1.0f), 1.0f);
   }
 
   if(intersection.intersectedTriangle.material.specular.red >= 0) {
-    if(depth < 2) {
+    if(depth < MAX_DEPTH) {
       vec4 mirrorRayDirection = glm::normalize(rayDirection - 2.0f * (glm::dot(rayDirection, normal) * normal));
       mirrorRayDirection.w = 0;
 
