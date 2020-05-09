@@ -7,3 +7,5 @@ CMakeCache.txt
 *.cmake
 Makefile
 CMakeFiles
+render
+window.ppm
