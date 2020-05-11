@@ -13,6 +13,7 @@ class RayTriangleIntersection
     ModelTriangle intersectedTriangle;
     float u;
     float v;
+    bool wasFound = false;
 
     RayTriangleIntersection()
     {
