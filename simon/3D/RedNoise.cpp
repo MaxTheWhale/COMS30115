@@ -415,14 +415,16 @@ vec3 getPixelColour(RayTriangleIntersection& intersection, Light& mainLight, vec
     vec3 normalVec3 = vec3(normal.x, normal.y, normal.z);
     createCoordinateSystem(normalVec3, axis2, axis3);
 
-    std::default_random_engine generator; 
-    std::uniform_real_distribution<float> distribution(0, 1); 
+    static std::default_random_engine generator; 
+    std::uniform_real_distribution<float> distribution(0, 1);
 
     vec3 indirectColour = vec3(0,0,0);
 
     for(int n = 0; n < INDIRECT_SAMPLES; n++) {
       float r1 = distribution(generator);
       float r2 = distribution(generator);
+
+      cout << "r1: " << r1 << ", r2: " << r2 << endl;
 
       vec3 sample = uniformSampleHemisphere(r1, r2);
       vec4 adjustedSample = vec4(
@@ -437,7 +439,7 @@ vec3 getPixelColour(RayTriangleIntersection& intersection, Light& mainLight, vec
     indirectColour /= INDIRECT_SAMPLES * (1 / (2 * M_PIf));
 
     
-    colour = ((glm::min(directColour, 1.0f) / M_PIf) + (2.0f * glm::min(indirectColour, 1.0f))) * colour;
+    colour = ((glm::min(directColour, 1.0f) / M_PIf) + (2.0f * glm::min(indirectColour * 0.5f, 1.0f))) * colour;
 
     return glm::min(colour, 1.0f); 
   }
