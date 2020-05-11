@@ -269,7 +269,7 @@ void createCoordinateSystem(const vec3 &axis1, vec3 &axis2, vec3 &axis3) {
 
 vec3 uniformSampleHemisphere(float r1, float r2) {
   float sinTheta = sqrtf(1 - r1 * r1);
-  float phi = 2 * M_PI * r2;
+  float phi = 2 * M_PIf * r2;
   float x = sinTheta * cosf(phi);
   float z = sinTheta * sinf(phi);
   return vec3(x, r1, z);
@@ -411,35 +411,33 @@ vec3 getPixelColour(RayTriangleIntersection& intersection, Light& mainLight, vec
 
     //INDIRECT LIGHTING STARTS HERE
 
-    vec3 axis2, axis3;
-    vec3 normalVec3 = vec3(normal.x, normal.y, normal.z);
-    createCoordinateSystem(normalVec3, axis2, axis3);
+    // vec3 axis2, axis3;
+    // vec3 normalVec3 = vec3(normal.x, normal.y, normal.z);
+    // createCoordinateSystem(normalVec3, axis2, axis3);
 
-    static std::default_random_engine generator; 
-    std::uniform_real_distribution<float> distribution(0, 1);
+    // static std::default_random_engine generator; 
+    // std::uniform_real_distribution<float> distribution(0, 1); 
 
     vec3 indirectColour = vec3(0,0,0);
 
-    for(int n = 0; n < INDIRECT_SAMPLES; n++) {
-      float r1 = distribution(generator);
-      float r2 = distribution(generator);
+    // for(int n = 0; n < INDIRECT_SAMPLES; n++) {
+    //   float r1 = distribution(generator);
+    //   float r2 = distribution(generator);
 
-      cout << "r1: " << r1 << ", r2: " << r2 << endl;
+    //   vec3 sample = uniformSampleHemisphere(r1, r2);
+    //   vec4 adjustedSample = vec4(
+    //     sample.x * axis3.x + sample.y * normal.x + sample.z * axis2.x,
+    //     sample.x * axis3.y + sample.y * normal.y + sample.z * axis2.y,
+    //     sample.x * axis3.z + sample.y * normal.z + sample.z * axis2.z,
+    //     0);
+    //   RayTriangleIntersection indirectIntersection = findClosestIntersection(intersection.intersectionPoint + (normal * 0.01f), tris, adjustedSample);
+    //   indirectColour += r1 * getPixelColour(indirectIntersection, mainLight, adjustedSample, tris, depth + 1, i, j);
+    // }
 
-      vec3 sample = uniformSampleHemisphere(r1, r2);
-      vec4 adjustedSample = vec4(
-        sample.x * axis3.x + sample.y * normal.x + sample.z * axis2.x,
-        sample.x * axis3.y + sample.y * normal.y + sample.z * axis2.y,
-        sample.x * axis3.z + sample.y * normal.z + sample.z * axis2.z,
-        0);
-      RayTriangleIntersection indirectIntersection = findClosestIntersection(intersection.intersectionPoint + (normal * 0.01f), tris, adjustedSample);
-      indirectColour += r1 * getPixelColour(indirectIntersection, mainLight, adjustedSample, tris, depth + 1, i, j);
-    }
-
-    indirectColour /= INDIRECT_SAMPLES * (1 / (2 * M_PIf));
+    // indirectColour /= INDIRECT_SAMPLES * (1 / (2 * M_PIf));
 
     
-    colour = ((glm::min(directColour, 1.0f) / M_PIf) + (2.0f * glm::min(indirectColour * 0.5f, 1.0f))) * colour;
+    colour = ((glm::min(directColour / M_PIf, 1.0f)) + (2.0f * glm::min(indirectColour * 0.03f, 1.0f))) * colour;
 
     return glm::min(colour, 1.0f); 
   }
@@ -554,10 +552,10 @@ int main(int argc, char *argv[])
   // miku.move(vec3(1.0f, 0.0f, -4.5f));
   // renderQueue.push_back(&miku);
 
-  // Model bumpy = Model("bumpy");
-  // bumpy.scale(vec3(0.75f, 0.75f, 0.75f));
-  // bumpy.move(vec3(0.75f, 2.3f, -2.0f));
-  // renderQueue.push_back(&bumpy);
+  Model bumpy = Model("bumpy");
+  bumpy.scale(vec3(0.75f, 0.75f, 0.75f));
+  bumpy.move(vec3(0.75f, 2.3f, -2.0f));
+  renderQueue.push_back(&bumpy);
 
   // Model cornell2 = Model("cornell-box");
   // // cornell2.move(glm::vec3(0,1,0));
