@@ -35,8 +35,11 @@ using namespace glm;
 #define MOUSE_SENSITIVITY 0.0015f
 #define AMBIENCE 0.1f
 #define ASPECT_RATIO WIDTH/(float)HEIGHT
-#define MAX_DEPTH 5
+#define MAX_DEPTH 4
 #define INDIRECT_SAMPLES 2
+
+#define RENDER false
+#define RENDER_LENGTH 300
 
 #ifndef M_PIf
 #define M_PIf 3.14159265358979323846f
@@ -225,6 +228,7 @@ bool inShadow(vector<ModelTriangle>& tris, vec4 shadowRayDirection, RayTriangleI
     mat4 DEMatrix(-shadowRayDirection, e0, e1, vec4(1.0f, 1.0f, 1.0f, 1.0f));
     vec4 possibleSolution = glm::inverse(DEMatrix) * SPVector;
 
+    if (triangle.material.normal_map.dataVec != nullptr) continue; 
     //check if ray intersects triangle and not just triangle plane
     if(possibleSolution.y >= 0.0f && possibleSolution.y <= 1.0f && possibleSolution.z >= 0.0f && possibleSolution.z <= 1.0f && possibleSolution.y + possibleSolution.z <= 1.0f) {
       //I genuinely have no idea why doing the shadowBias this way works. without it the shadows are just everywhere???
@@ -501,8 +505,6 @@ void raytrace(Camera camera, std::vector<Model*> models) {
     }
     buffer += IMG_SIZE;
   }
-  //savePPM("window.ppm", &window);
-  cout << "Finished one frame!" << endl;
 }
 
 int main(int argc, char *argv[])
@@ -632,12 +634,18 @@ int main(int argc, char *argv[])
   Times::init();
   auto start = std::chrono::high_resolution_clock::now();
   int frameCount = 0;
+  int renderFrame = 0;
   while (true)
   {
     auto elapsed = std::chrono::high_resolution_clock::now() - start;
     long long millis = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
-    if (millis >= 1000) {
-      cout << "FPS: " << frameCount << '\n';
+    if ((millis >= 1000 && !toRaytrace) || (toRaytrace)) {
+      if (!toRaytrace) {
+        cout << "FPS: " << frameCount << '\n';
+      }
+      else {
+        cout << "Frame time: " << millis << "ms\n";
+      }
       start = std::chrono::high_resolution_clock::now();
       frameCount = 0;
     }
@@ -661,10 +669,20 @@ int main(int argc, char *argv[])
       drawTriangles(cam, renderQueue);
     }
     if (SSAA) downsample(imageBuffer, window.pixelBuffer, WIDTH, HEIGHT, SSAA_SAMPLES);
+    if (RENDER) {
+      char filename[20];
+      sprintf(filename, "render/%04d.ppm", renderFrame);
+      savePPM(string(filename), &window);
+    }
     // Need to render the frame at the end, or nothing actually gets shown on
     // the screen !
     window.renderFrame();
     frameCount++;
+    renderFrame++;
+
+    if (RENDER && renderFrame >= RENDER_LENGTH) {
+      exit(0);
+    }
   }
 }
 
