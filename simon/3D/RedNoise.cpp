@@ -269,7 +269,7 @@ void createCoordinateSystem(const vec3 &axis1, vec3 &axis2, vec3 &axis3) {
 
 vec3 uniformSampleHemisphere(float r1, float r2) {
   float sinTheta = sqrtf(1 - r1 * r1);
-  float phi = 2 * M_PI * r2;
+  float phi = 2 * M_PIf * r2;
   float x = sinTheta * cosf(phi);
   float z = sinTheta * sinf(phi);
   return vec3(x, r1, z);
@@ -415,7 +415,7 @@ vec3 getPixelColour(RayTriangleIntersection& intersection, Light& mainLight, vec
     vec3 normalVec3 = vec3(normal.x, normal.y, normal.z);
     createCoordinateSystem(normalVec3, axis2, axis3);
 
-    std::default_random_engine generator; 
+    static std::default_random_engine generator; 
     std::uniform_real_distribution<float> distribution(0, 1); 
 
     vec3 indirectColour = vec3(0,0,0);
@@ -437,7 +437,7 @@ vec3 getPixelColour(RayTriangleIntersection& intersection, Light& mainLight, vec
     indirectColour /= INDIRECT_SAMPLES * (1 / (2 * M_PIf));
 
     
-    colour = ((glm::min(directColour, 1.0f) / M_PIf) + (2.0f * glm::min(indirectColour, 1.0f))) * colour;
+    colour = ((glm::min(directColour, 1.0f) / M_PIf) + (2.0f * glm::min(indirectColour * 0.03f, 1.0f))) * colour;
 
     return glm::min(colour, 1.0f); 
   }
