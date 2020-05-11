@@ -437,7 +437,7 @@ vec3 getPixelColour(RayTriangleIntersection& intersection, Light& mainLight, vec
     indirectColour /= INDIRECT_SAMPLES * (1 / (2 * M_PIf));
 
     
-    colour = (glm::min(directColour, 1.0f) + glm::min(indirectColour, 1.0f)) * colour / M_PIf;
+    colour = ((glm::min(directColour, 1.0f) / M_PIf) + (2.0f * glm::min(indirectColour, 1.0f))) * colour;
 
     return glm::min(colour, 1.0f); 
   }
