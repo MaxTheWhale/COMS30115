@@ -16,8 +16,10 @@ class Rigidbody : public Updatable, Temporal {
         Model* model;
         std::vector<Rigidbody*> collidedWith; //all RBs that this RB has collided with this frame, ensuring that they do not collide twice
         float mass = 1;
+        void applyForce(vec3 force);
         void applyForce(vec3 force, vec3 position);
         float elasticity = 0.9; //how much energy is conserved in collisions
+        bool suckable = true; //can be moved by magnets
         static std::vector<Rigidbody*> allRBs;
     protected:
         //hack for the sake of efficiency

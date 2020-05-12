@@ -11,10 +11,10 @@
 
 using namespace std;
 
-class Animatable : public Transformable, public Updatable, Temporal {
+class Animatable : public Transformable, public Updatable, public Temporal {
     public:
         Animatable();
-        stack<Movement> moves;
+        stack<Movement*> moves;
         void update() override;
     protected:
         Movement previous;

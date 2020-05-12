@@ -15,7 +15,7 @@ Rigidbody::Rigidbody(Model* model) {
                                0,0,0,1);
 }
 
-glm::vec3 Rigidbody::gravity = glm::vec3(0, -0.1f, 0);
+glm::vec3 Rigidbody::gravity = glm::vec3(0, -0.9f, 0);
 
 
 void Rigidbody::update() {
@@ -37,7 +37,7 @@ void Rigidbody::update() {
 
     mat4 oldTransform = model->transform;
 
-    model->transform *= velocity;
+    model->transform *= velocity;// * timeStep();
     //disgusting hack to make linear velocity independent of angular
     model->transform[3] = oldTransform[3] + velocity[3];
     model->transform[3][3] = 1;
@@ -234,16 +234,16 @@ bool Rigidbody::collide(Rigidbody other) {
                         continue;
                     }
                     if (glm::length(this->lastCollision) > this->model->furthestExtent) { //collision apparently happened outside the bounds of the model
-                        cout << "illegal collision point = " << this->lastCollision << endl;
+                        // cout << "illegal collision point = " << this->lastCollision << endl;
                         continue;
                     }
-                    std::cout << "collision detected with " << &other << std::endl;
-                    cout << "normal = " << normal << endl;
+                    // std::cout << "collision detected with " << &other << std::endl;
+                    // cout << "normal = " << normal << endl;
                     float combinedElasticity = (this->elasticity + other.elasticity); //the average ratio of energy conserved
-                    cout << "total elasticity = " << combinedElasticity << endl;
+                    // cout << "total elasticity = " << combinedElasticity << endl;
                     vec3 force = toVec3(-combinedElasticity * dot(normalize(normal), normalize(velocity[3])) * normal);
-                    cout << "force = " << force << endl;
-                    cout << "collision point = " << this->lastCollision << endl;
+                    // cout << "force = " << force << endl;
+                    // cout << "collision point = " << this->lastCollision << endl;
                     applyForce(force, vec3(0,0,0));
                     // applyForce(force, this->lastCollision);
                     // this->positionFixed = true;
@@ -253,7 +253,7 @@ bool Rigidbody::collide(Rigidbody other) {
                     //         velocity[3][i] = 0;
                     //     }
                     // }
-                    cout << endl;
+                    // cout << endl;
                 //}
                 collidedWith.push_back(&other);
                 other.collidedWith.push_back(this);
@@ -288,9 +288,9 @@ glm::mat4 rotationFromEuler(const glm::vec3& rotation) {
 // }
 
 void Rigidbody::applyForce(vec3 force, vec3 position) {
-    vec3 scaledCenter = model->center * model->getScale();
+    // vec3 scaledCenter = model->center * model->getScale();
     // cout << "scaledCenter = " << scaledCenter << endl;
-    position += scaledCenter;
+    // position += scaledCenter;
     // cout << "adjusted position = " << position << endl;
     if (position == vec3(0,0,0)) {
         velocity[3] += vec4(force, 0);
@@ -323,4 +323,8 @@ void Rigidbody::applyForce(vec3 force, vec3 position) {
     velocity *= transpose(rot);
     velocity[3][3] = 1;
     // std::cout << "Velocity = " << velocity << endl;
+}
+
+void Rigidbody::applyForce(vec3 force) {
+    applyForce(force, vec3(0,0,0));
 }
