@@ -20,7 +20,7 @@ vector<ModelTriangle> Model::loadOBJ(string fileName,
   ifstream f;
   string s;
   string name = "";
-  Material material = Material("missing", Colour(0, 0, 0), Colour(255, 255, 255), Colour(0, 0, 0));
+  Material material = Material("missing", Colour(255, 255, 255), Colour(255, 255, 255), Colour(0, 0, 0));
   vector<glm::vec3> vertices;
   vector<glm::vec4> normals;
   vector<glm::vec2> uvs;
@@ -217,6 +217,7 @@ unordered_map<string, Material> Model::loadMTL(string fileName) {
         palette[key].texture.data = loadPPM(texture_file, palette[key].texture.width, palette[key].texture.height);
 
         palette[key].texture.dataVec = new glm::vec3[palette[key].texture.width * palette[key].texture.height];
+        cout << "PPM LOADED\n";
         for (int i = 0; i < palette[key].texture.width * palette[key].texture.height; i++) {
           palette[key].texture.dataVec[i].r = ((palette[key].texture.data[i] & 0xff0000) >> 16) / 255.0f;
           palette[key].texture.dataVec[i].g = ((palette[key].texture.data[i] & 0x00ff00) >> 8) / 255.0f;

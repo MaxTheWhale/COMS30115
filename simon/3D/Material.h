@@ -39,7 +39,10 @@ class Material
       name = n;
       ambient = a;
       diffuse = d;
-      specular = d;
+      specular = s;
+      ambientVec = glm::vec3(a.red / 255.0f, a.green / 255.0f, a.blue / 255.0f);
+      diffuseVec = glm::vec3(d.red / 255.0f, d.green / 255.0f, d.blue / 255.0f);
+      specularVec = glm::vec3(s.red / 255.0f, s.green / 255.0f, s.blue / 255.0f);
     }
 
 };

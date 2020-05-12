@@ -360,14 +360,15 @@ vec3 getPixelColour(RayTriangleIntersection& intersection, Light& mainLight, vec
     return glm::min((depth == 1 ? glassColour : vec3(0,0,0)) + glm::min(reflectedColour * kr, 1.0f) + glm::min(refractionColour * (1.0f - kr), 1.0f), 1.0f);
   }
 
-  if(intersection.intersectedTriangle.material.specular.red >= 0) {
-    vec4 mirrorRayDirection = glm::normalize(rayDirection - 2.0f * (glm::dot(rayDirection, normal) * normal));
-    mirrorRayDirection.w = 0;
+  // Why is this mirror stuff happening based on a specular check? am very confuse
+  // if(intersection.intersectedTriangle.material.specular.red >= 0) {
+  //   vec4 mirrorRayDirection = glm::normalize(rayDirection - 2.0f * (glm::dot(rayDirection, normal) * normal));
+  //   mirrorRayDirection.w = 0;
 
-    RayTriangleIntersection mirrorIntersection = findClosestIntersection(intersection.intersectionPoint + (normal * 0.1f), tris, mirrorRayDirection);
+  //   RayTriangleIntersection mirrorIntersection = findClosestIntersection(intersection.intersectionPoint + (normal * 0.1f), tris, mirrorRayDirection);
     
-    return glm::min(getPixelColour(mirrorIntersection, mainLight, rayDirection, tris, depth + 1, i, j) + (intersection.intersectedTriangle.material.specularVec * 0.8f), 1.0f);
-  }
+  //   return glm::min(getPixelColour(mirrorIntersection, mainLight, rayDirection, tris, depth + 1, i, j) + (intersection.intersectedTriangle.material.specularVec * 0.8f), 1.0f);
+  // }
 
   if(intersection.intersectedTriangle.name == mainLight.name) {
     return intersection.intersectedTriangle.material.diffuseVec;
@@ -795,8 +796,7 @@ int main(int argc, char *argv[])
   move.stareAt = true;
   move.stareTarget = vec3(1,1,1);
 
-  mat4 rotMatrix = Transformable::rotationFromEuler(vec3(0,0,0));
-  Movement spin = Movement(rotMatrix,2);
+  Movement spin = Movement(vec3(2.0f * M_PIf, 0, 0), 2);
 
   cam.moves.push(&spin);
   cam.moves.push(&move);

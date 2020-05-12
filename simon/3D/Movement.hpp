@@ -11,9 +11,13 @@ class Movement : public Transformable {
         Movement(glm::mat4 transform);
         Movement(float time);
         Movement(glm::mat4 transform, float time);
+        Movement(glm::vec3 rotation, float time);
         float time;
+        glm::vec3 rotation;
+        glm::vec3 prevRotation;
         int repeats = 1;
         virtual bool execute(Animatable* parent, Movement& previous);
         bool stareAt = false;
+        bool isRotation = false;
         glm::vec3 stareTarget;
 };
