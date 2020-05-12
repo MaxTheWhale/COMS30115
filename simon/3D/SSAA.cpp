@@ -4,14 +4,19 @@ enum COLOUR_MASK {ALPHA = 0xff000000, RED = 0x00ff0000, GREEN = 0x0000ff00, BLUE
 
 std::vector<glm::vec2> generateRotatedGrid(int gridSize) {
   std::vector<glm::vec2> result;
-  const int numSamples = gridSize * gridSize;
-  const float step = 1.0f / numSamples;
-  float x = (step * 0.5f) + step * (numSamples - gridSize);
-  for (float y = step * 0.5f; y < 1.0f; y += step) {
-    result.push_back(glm::vec2(x, y));
-    x -= step * gridSize;
-    if (x < 0)
-      x += step * (numSamples + 1);
+  if (gridSize <= 1) {
+    result.push_back(glm::vec2(0.5f, 0.5f));
+  }
+  else {
+    const int numSamples = gridSize * gridSize;
+    const float step = 1.0f / numSamples;
+    float x = (step * 0.5f) + step * (numSamples - gridSize);
+    for (float y = step * 0.5f; y < 1.0f; y += step) {
+      result.push_back(glm::vec2(x, y));
+      x -= step * gridSize;
+      if (x < 0)
+        x += step * (numSamples + 1);
+    }
   }
   return result;
 }

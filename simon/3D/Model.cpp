@@ -89,6 +89,9 @@ vector<ModelTriangle> Model::loadOBJ(string fileName,
             tri.normals[2] = normals[stoi(cs[2]) - 1];
           }
         }
+        if (material.normal_map.dataVec != nullptr) {
+          tri.tangent = calcTangent(tri);
+        }
         delete [] as;
         delete [] bs;
         delete [] cs;
@@ -286,4 +289,19 @@ float Model::calcExtent() {
     }
   }
   return value;
+}
+
+vec4 Model::calcTangent(ModelTriangle& tri) {
+  vec4 edge1 = tri.vertices[1] - tri.vertices[0];
+  vec4 edge2 = tri.vertices[2] - tri.vertices[0];
+  vec2 deltaUV1 = tri.uvs[1] - tri.uvs[0];
+  vec2 deltaUV2 = tri.uvs[2] - tri.uvs[0];
+  float f = 1.0f / (deltaUV1.x * deltaUV2.y - deltaUV2.x * deltaUV1.y);
+
+  vec4 tangent;
+  tangent.x = f * (deltaUV2.y * edge1.x - deltaUV1.y * edge2.x);
+  tangent.y = f * (deltaUV2.y * edge1.y - deltaUV1.y * edge2.y);
+  tangent.z = f * (deltaUV2.y * edge1.z - deltaUV1.y * edge2.z);
+  tangent.w = 0;
+  return normalize(tangent);
 }

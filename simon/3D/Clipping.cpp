@@ -50,7 +50,7 @@ int clipTriangle(list<Triangle>& tris, const vec4& normal) {
     temp = mixVertex((*tri).vertices[0], (*tri).vertices[2], (distances[0] / (distances[0] - distances[2])));
     if (nextInside) {
       (*tri).vertices[2] = mixVertex((*tri).vertices[1], (*tri).vertices[2], (distances[1] / (distances[1] - distances[2])));
-      Triangle newTri = Triangle((*tri).vertices[0], (*tri).vertices[2], temp, (*tri).mat, (*tri).normal);
+      Triangle newTri = Triangle((*tri).vertices[0], (*tri).vertices[2], temp, (*tri).mat, (*tri).normal, (*tri).TBN);
       tris.push_back(newTri);
     }
     else {
