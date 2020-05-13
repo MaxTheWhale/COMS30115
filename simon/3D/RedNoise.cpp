@@ -510,8 +510,6 @@ void raytrace(Camera camera, std::vector<Model*> models) {
   }
 }
 
-Rigidbody logoRB;
-
 int main(int argc, char *argv[])
 {
   SDL_Event event;
@@ -682,6 +680,8 @@ int main(int argc, char *argv[])
   // //     cout << "UVs for " << tri.name << ": " << tri.uvs[0].x << "," << tri.uvs[0].y << "  " << tri.uvs[1].x << "," << tri.uvs[1].y << "  " << tri.uvs[2].x << "," << tri.uvs[2].y << endl;
   // //   }
   // // }
+
+  vector<Rigidbody*> rbList;
   
   Model center = Model("HackspaceLogo/logo");
   renderQueue.push_back(&center);
@@ -693,7 +693,7 @@ int main(int argc, char *argv[])
   orbitor1.setScale(vec3(1.5f,1.5f,1.5f));
   renderQueue.push_back(&orbitor1);
   
-  Magnet mag = Magnet(&orbitor1);
+  Magnet mag = Magnet(&orbitor1, rbList);
   updateQueue.push_back(&mag);
 
   Transformable t = Transformable();
@@ -703,13 +703,13 @@ int main(int argc, char *argv[])
   orbit.time = 3;
   orbitor1.moves.push(&orbit);
   updateQueue.push_back(&orbitor1);
-
+ 
   Model orbitor2 = Model("tilted");
   orbitor2.setPosition(vec3(15,0,10));
   orbitor1.setScale(vec3(1,3,1));
   renderQueue.push_back(&orbitor2);
 
-  Magnet mag2 = Magnet(&orbitor2);
+  Magnet mag2 = Magnet(&orbitor2, rbList);
   updateQueue.push_back(&mag2);
   
   t.rotate(vec3(0.5f,0,0));
@@ -724,21 +724,15 @@ int main(int argc, char *argv[])
   orbitor1.setScale(vec3(3,3,3));
   renderQueue.push_back(&orbitor3);
 
-  Magnet mag3 = Magnet(&orbitor3);
+  Magnet mag3 = Magnet(&orbitor3, rbList);
   updateQueue.push_back(&mag3);
   
-  t.rotate(vec3(0.5f,0,0));
-  Orbit orbit3 = Orbit(t.transform, 0.5f);
-  orbit3.repeats = -1;
-  orbit3.time = -7;
-  orbitor3.moves.push(&orbit3);
-  updateQueue.push_back(&orbitor3);
 
   Model moon = Model("HackspaceLogo/logo");
   moon.scale(vec3(0.005f,0.005f,0.005));
   moon.setPosition(vec3(11,0,10));
   renderQueue.push_back(&moon);
-  Rigidbody moonRB = Rigidbody(&moon);
+  Rigidbody moonRB = Rigidbody(&moon, rbList);
   moonRB.collisionEnabled = false;
   moonRB.hasGravity = false;
   moonRB.positionFixed = false;
@@ -749,7 +743,7 @@ int main(int argc, char *argv[])
   moon2.scale(vec3(0.005f,0.005f,0.005));
   moon2.setPosition(vec3(10,0,10.5));
   renderQueue.push_back(&moon2);
-  Rigidbody moon2RB = Rigidbody(&moon2);
+  Rigidbody moon2RB = Rigidbody(&moon2, rbList);
   moon2RB.collisionEnabled = false;
   moon2RB.hasGravity = false;
   moon2RB.positionFixed = false;
@@ -760,7 +754,7 @@ int main(int argc, char *argv[])
   moon3.scale(vec3(0.005f,0.005f,0.005));
   moon3.setPosition(vec3(10,1,10.5));
   renderQueue.push_back(&moon3);
-  Rigidbody moon3RB = Rigidbody(&moon3);
+  Rigidbody moon3RB = Rigidbody(&moon3, rbList);
   moon3RB.collisionEnabled = false;
   moon3RB.hasGravity = false;
   moon3RB.positionFixed = false;
@@ -771,7 +765,7 @@ int main(int argc, char *argv[])
   moon4.scale(vec3(0.005f,0.005f,0.005));
   moon4.setPosition(vec3(10,1,0));
   renderQueue.push_back(&moon4);
-  Rigidbody moon4RB = Rigidbody(&moon4);
+  Rigidbody moon4RB = Rigidbody(&moon4, rbList);
   moon4RB.collisionEnabled = false;
   moon4RB.hasGravity = false;
   moon4RB.positionFixed = false;
@@ -782,7 +776,7 @@ int main(int argc, char *argv[])
   moon5.scale(vec3(0.005f,0.005f,0.005));
   moon5.setPosition(vec3(11,0,0));
   renderQueue.push_back(&moon5);
-  Rigidbody moon5RB = Rigidbody(&moon5);
+  Rigidbody moon5RB = Rigidbody(&moon5, rbList);
   moon5RB.collisionEnabled = false;
   moon5RB.hasGravity = false;
   moon5RB.positionFixed = false;
@@ -794,7 +788,7 @@ int main(int argc, char *argv[])
   Model cornell = Model("cornell-box");
   cornell.move(vec3(100,0,0));
   renderQueue.push_back(&cornell);
-  Rigidbody cornellRB = Rigidbody(&cornell);
+  Rigidbody cornellRB = Rigidbody(&cornell, rbList);
   cornellRB.hasGravity = false;
   cornellRB.suckable = false;
   updateQueue.push_back(&cornellRB);
@@ -804,7 +798,7 @@ int main(int argc, char *argv[])
   hs_logo.furthestExtent = hs_logo.calcExtent();
   hs_logo.move(vec3(100, 10.0f, -1));
   renderQueue.push_back(&hs_logo);
-  logoRB = Rigidbody(&hs_logo);
+  Rigidbody logoRB = Rigidbody(&hs_logo, rbList);
   logoRB.positionFixed = true;
   logoRB.suckable = false;
   logoRB.elasticity = 0.8f;
@@ -923,7 +917,7 @@ void update(Camera &cam, vector<Updatable*> updatables)
     updatables[i]->update();
   }
   if (Times::getFrameCount() / 60 == 7) {
-    logoRB.positionFixed = false;
+    //logoRB.positionFixed = false;
   }
   // cout << "Total force = " << Magnet::totalForce << endl;
 }

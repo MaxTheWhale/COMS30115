@@ -4,24 +4,23 @@
 
 using namespace glm;
 
-// std::vector<Rigidbody*> Rigidbody::allRBs = std::vector<Rigidbody*>();
-std::vector<Rigidbody*>& Rigidbody::getAllRBs() {
-    static std::vector<Rigidbody*> allRBs = std::vector<Rigidbody*>();
-    return allRBs;
-}
-
 const mat3 Rigidbody::collisionLayers = glm::mat3(1,1,1,
                                             1,0,0,
                                             1,0,0);
 
-Rigidbody::Rigidbody(Model* model) {
-    getAllRBs().push_back(this);
+Rigidbody::Rigidbody(Model* model, vector<Rigidbody*>& RBList) {
+    RBList.push_back(this);
+    this->allRBs = &RBList;
     this->model = model;
     this->velocity = mat4(1,0,0,0,
                                0,1,0,0,
                                0,0,1,0,
                                0,0,0,1);
 }
+
+Rigidbody::Rigidbody() {
+}
+
 
 glm::vec3 Rigidbody::gravity = glm::vec3(0, -0.9f, 0);
 
@@ -50,9 +49,9 @@ void Rigidbody::update() {
     model->transform[3] = oldTransform[3] + velocity[3];
     model->transform[3][3] = 1;
 
-    for(unsigned int i = 0; i < getAllRBs().size(); i++) {
-        if (getAllRBs()[i]->model != this->model) {
-            if(collide(*getAllRBs()[i])) {
+    for(unsigned int i = 0; i < (*allRBs).size(); i++) {
+        if ((*allRBs)[i]->model != this->model) {
+            if(collide(*(*allRBs)[i])) {
                 // hasGravity = false;
                 // velocity = mat4();
                 model->transform = oldTransform;
