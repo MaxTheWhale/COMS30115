@@ -31,7 +31,7 @@ using namespace glm;
 #define WIDTH 640
 #define HEIGHT 480
 #define IMG_SIZE (WIDTH*HEIGHT)
-#define SSAA true
+#define SSAA false
 #define SSAA_SCALE 3
 #define SSAA_SAMPLES (SSAA_SCALE*SSAA_SCALE)
 #define MOUSE_SENSITIVITY 0.0015f
@@ -40,7 +40,7 @@ using namespace glm;
 #define MAX_DEPTH 4
 #define INDIRECT_SAMPLES 2
 
-#define RENDER true
+#define RENDER false
 #define RENDER_LENGTH 300
 
 #ifndef M_PIf
