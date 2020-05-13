@@ -36,21 +36,37 @@ float mat4Dist(mat4 &a, mat4 &b)
     return result;
 }
 
+void Movement::finish(Animatable* parent) {
+    parent->transform = transform;
+    parent->transform = rotationFromEuler(rotation) * parent->transform;
+}
+
 bool Movement::execute(Animatable* parent, Movement& previous) {
     // cout << "delta = deltaTime (" << Times::deltaTime() << ") * (previous transform (" << this->previous.transform << ") - next transform (" << moves.top().transform << "))" << endl;
+    if (time <= 0) {
+        finish(parent);
+        return true;
+    }
+    elapsed += parent->timeStep();
+    if (elapsed >= time) {
+        // finish(parent);
+        return true;
+    }
     float scale = -parent->timeStep() / time;
-    cout << "scale = " << scale << '\n';
+    // cout << "scale = " << scale << '\n';
 
     if (isRotation) {
         vec3 rotDelta = -scale * rotation;
         if (((length(prevRotation + rotDelta) >= length(rotation)) && (length(prevRotation) < length(rotation))) ||
             ((length(prevRotation + rotDelta) <= length(rotation)) && (length(prevRotation) > length(rotation)))) {
-                return true;
+                // finish(parent);
+                // return true;
             }
         else {
             prevRotation += rotDelta;
             cout << "prevRot: " << prevRotation << '\n';
-            parent->transform = rotationFromEuler(rotDelta) * parent->transform;
+            cout << "parent transform: " << parent->transform << endl;
+            parent->transform = parent->transform * rotationFromEuler(rotDelta);
             //return false;
         }
     }
@@ -59,8 +75,8 @@ bool Movement::execute(Animatable* parent, Movement& previous) {
     mat4 newTransform = parent->transform;
     newTransform[3] += delta;
     if (stareAt) {
-        cout << "stare target: " << stareTarget << endl;
-        parent->lookAt(parent->getPosition(), stareTarget);
+        // cout << "stare target: " << stareTarget << endl;
+        parent->lookAt(parent->getPosition(), stareTarget->getPosition());
     }
     //would the move take us further from our goal
     float currentDist = distance(parent->transform[3], transform[3]);
@@ -73,7 +89,8 @@ bool Movement::execute(Animatable* parent, Movement& previous) {
         // else {
         //     parent->transform = transform;
         // }
-        return true;
+        // finish(parent);
+        // return true;
     }
     else {
         parent->transform[3] += delta;

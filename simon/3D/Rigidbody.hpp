@@ -12,6 +12,7 @@ class Rigidbody : public Updatable, Temporal {
         bool collisionEnabled = true;
         bool positionFixed = true;
         static glm::vec3 gravity;
+        Rigidbody(){};
         Rigidbody(Model* model);
         Model* model;
         std::vector<Rigidbody*> collidedWith; //all RBs that this RB has collided with this frame, ensuring that they do not collide twice

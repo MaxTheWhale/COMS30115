@@ -19,5 +19,8 @@ class Movement : public Transformable {
         virtual bool execute(Animatable* parent, Movement& previous);
         bool stareAt = false;
         bool isRotation = false;
-        glm::vec3 stareTarget;
+        Transformable* stareTarget;
+    private:
+        void finish(Animatable* parent);
+        float elapsed = 0;
 };

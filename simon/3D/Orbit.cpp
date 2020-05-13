@@ -19,11 +19,11 @@ Orbit::Orbit(mat4 transform, float startPosition) {
 bool Orbit::execute(Animatable* parent, Movement& previous) {
     if (radius < 0) {
         radius = distance(getPosition(), parent->getPosition());
-        cout << "radius set to " << radius << endl;
+        // cout << "radius set to " << radius << endl;
     }
     float x = radius * cos(progress);
     float y = radius * sin(progress);
-    cout << "x,y = " << x << "," << y << endl << transform << endl;
+    // cout << "x,y = " << x << "," << y << endl << transform << endl;
     // parent->setPosition(getPosition() + vec3(x,y,0));
     float scale = parent->timeStep() / time;
     parent->transform[3] = transform[3] + normalize(transform[0]) * x + normalize(transform[1]) * y;

@@ -4,6 +4,7 @@ class Times {
     public:
         static unsigned long long getTime();
         static float deltaTime();
+        static int getFrameCount();
         static void update();
         static void init();
     private:

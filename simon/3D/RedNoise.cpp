@@ -510,6 +510,8 @@ void raytrace(Camera camera, std::vector<Model*> models) {
   }
 }
 
+Rigidbody logoRB;
+
 int main(int argc, char *argv[])
 {
   SDL_Event event;
@@ -787,6 +789,28 @@ int main(int argc, char *argv[])
   moon5RB.velocity *= Transformable::rotationFromEuler(vec3(0,0.05f,0));
   updateQueue.push_back(&moon5RB);
 
+  //second scene
+
+  Model cornell = Model("cornell-box");
+  cornell.move(vec3(100,0,0));
+  renderQueue.push_back(&cornell);
+  Rigidbody cornellRB = Rigidbody(&cornell);
+  cornellRB.hasGravity = false;
+  cornellRB.suckable = false;
+  updateQueue.push_back(&cornellRB);
+
+  Model hs_logo = Model("HackspaceLogo/logo");
+  hs_logo.scale(vec3(0.005f, 0.005f, 0.005f));
+  hs_logo.furthestExtent = hs_logo.calcExtent();
+  hs_logo.move(vec3(100, 10.0f, -1));
+  renderQueue.push_back(&hs_logo);
+  logoRB = Rigidbody(&hs_logo);
+  logoRB.positionFixed = true;
+  logoRB.suckable = false;
+  logoRB.elasticity = 0.8f;
+  updateQueue.push_back(&logoRB);
+  // logoRB.applyForce(vec3(0,0,1));
+
   Camera cam;
   cam.setProjection(90.0f, WIDTH / (float)HEIGHT, 0.1f, 100.0f);
   cam.lookAt(vec3(20.0f, 30.0f, 0.0f), vec3(0.0f, 0, 0));
@@ -794,10 +818,30 @@ int main(int argc, char *argv[])
   Movement move = Movement(cam.transform, 3);
   move.transform[3] = vec4(0,15,0,1);
   move.stareAt = true;
-  move.stareTarget = vec3(1,1,1);
+  move.stareTarget = &center;
 
-  Movement spin = Movement(vec3(0, 2.0f * M_PIf, 0), 2);
+  Movement spin = Movement(vec3(0,0, 2.0f * M_PIf), 2);
+  // spin.transform[3] = vec4()
+  spin.isRotation = true;
 
+  Transformable target = Transformable();
+  target.move(vec3(100,0,0));
+
+  Movement teleprot = Movement(target.transform, 0);
+
+  target.move(vec3(10,10,10));
+  Movement zoom = Movement(target.transform, 2);
+  zoom.isRotation = true;
+  zoom.rotation = vec3(0,M_PIf/4,0);
+
+  Movement track = Movement(target.transform, 4);
+  track.stareAt = true;
+  track.stareTarget = &hs_logo;
+
+  // cam.moves.push(&turn);
+  cam.moves.push(&track);
+  cam.moves.push(&zoom);
+  cam.moves.push(&teleprot);
   cam.moves.push(&spin);
   cam.moves.push(&move);
 
@@ -873,10 +917,13 @@ void update(Camera &cam, vector<Updatable*> updatables)
 {
   // Function for performing animation (shifting artifacts or moving the camera)
   cam.update();
-  cout << "cam transform: " << cam.transform << endl;
+  // cout << "cam transform: " << cam.transform << endl;
   for (unsigned int i = 0; i < updatables.size(); i++)
   {
     updatables[i]->update();
+  }
+  if (Times::getFrameCount() / 60 == 7) {
+    logoRB.positionFixed = false;
   }
   // cout << "Total force = " << Magnet::totalForce << endl;
 }

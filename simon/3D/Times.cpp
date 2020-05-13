@@ -37,3 +37,7 @@ float Times::getDeltaTime()
     long long ms = getTime() - lastFrameTime;
     return (float)ms / (float)1000;
 }
+
+int Times::getFrameCount() {
+    return frameCount;
+}
