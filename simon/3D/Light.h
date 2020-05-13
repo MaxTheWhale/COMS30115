@@ -6,7 +6,7 @@
 #include <ModelTriangle.h>
 #include <glm/glm.hpp>
 
-class Light
+class LightOld
 {
   public:
     std::string name;
@@ -16,11 +16,11 @@ class Light
     float intensity = 10.0f;
     float shadow = 0.1f;
 
-    Light()
+    LightOld()
     {
     }
 
-    Light(std::string n, vector<ModelTriangle> tris)
+    LightOld(std::string n, vector<ModelTriangle> tris)
     {
         name = n;
         triangles = tris;

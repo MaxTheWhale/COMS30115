@@ -21,6 +21,7 @@
 #include "VectorUtil.hpp"
 #include "Rigidbody.hpp"
 #include "Light.h"
+#include "Light.hpp"
 #include "Magnet.hpp"
 #include "Orbit.hpp"
 
@@ -30,7 +31,7 @@ using namespace glm;
 #define WIDTH 640
 #define HEIGHT 480
 #define IMG_SIZE (WIDTH*HEIGHT)
-#define SSAA false
+#define SSAA true
 #define SSAA_SCALE 3
 #define SSAA_SAMPLES (SSAA_SCALE*SSAA_SCALE)
 #define MOUSE_SENSITIVITY 0.0015f
@@ -39,7 +40,7 @@ using namespace glm;
 #define MAX_DEPTH 4
 #define INDIRECT_SAMPLES 2
 
-#define RENDER false
+#define RENDER true
 #define RENDER_LENGTH 300
 
 #ifndef M_PIf
@@ -49,7 +50,7 @@ using namespace glm;
 enum COLOUR_MASK {ALPHA = 0xff000000, RED = 0x00ff0000, GREEN = 0x0000ff00, BLUE = 0x000000ff};
 
 void draw();
-void triangle(Triangle &t, bool filled, uint32_t *buffer, float *depthBuff, vec2 offset, vec4 &eye_pos);
+void triangle(Triangle &t, bool filled, uint32_t *buffer, float *depthBuff, vec2 offset, vec4 &eye_pos, vector<Light*>& lights);
 int *loadPPM(string fileName, int &width, int &height);
 void savePPM(string fileName, DrawingWindow *window);
 void skipHashWS(ifstream &f);
@@ -63,7 +64,7 @@ uint32_t imageBuffer[IMG_SIZE * SSAA_SAMPLES];
 float depthBuffer[IMG_SIZE];
 uint32_t imageBuffer[IMG_SIZE];
 #endif
-bool wireframe;
+bool wireframe = true;
 bool bilinear = true;
 bool perspective = true;
 bool toRaytrace = false;
@@ -102,7 +103,7 @@ vec3 getTexPoint(float u, float v, Texture& tex, bool bilinear) {
   }
 }
 
-void drawTriangles(Camera &cam, std::vector<Model *> models)
+void drawTriangles(Camera &cam, std::vector<Model *> models, vector<Light*> lights)
 {
   uint32_t *buffer = (SSAA) ? imageBuffer : window.pixelBuffer;
   vector<vec2> offsets = generateRotatedGrid(SSAA_SCALE);
@@ -145,10 +146,10 @@ void drawTriangles(Camera &cam, std::vector<Model *> models)
         #if SSAA
         #pragma omp parallel for
         for (int s = 0; s < SSAA_SAMPLES; s++) {
-          triangle(t, wireframe, buffer + (IMG_SIZE * s), depthBuffer + (IMG_SIZE * s), offsets[s], eye);
+          triangle(t, wireframe, buffer + (IMG_SIZE * s), depthBuffer + (IMG_SIZE * s), offsets[s], eye, lights);
         }
         #else
-        triangle(t, wireframe, buffer, depthBuffer, vec2(0.5f, 0.5f), eye);
+        triangle(t, wireframe, buffer, depthBuffer, vec2(0.5f, 0.5f), eye, lights);
         #endif
       }
     }
@@ -276,7 +277,7 @@ vec3 uniformSampleHemisphere(float r1, float r2) {
   return vec3(x, r1, z);
 }
 
-vec3 getPixelColour(RayTriangleIntersection& intersection, Light& mainLight, vec4 rayDirection, vector<ModelTriangle>& tris, int depth, int i, int j) {
+vec3 getPixelColour(RayTriangleIntersection& intersection, LightOld& mainLight, vec4 rayDirection, vector<ModelTriangle>& tris, int depth, int i, int j) {
   vec3 colour = vec3(0.0f, 0.0f, 0.0f);
 
   if(depth > MAX_DEPTH) return colour;
@@ -480,7 +481,7 @@ void raytrace(Camera camera, std::vector<Model*> models) {
     if(triangle.name == "light") lights.push_back(triangle);
   }
 
-  Light mainLight = Light("light", lights);
+  LightOld mainLight = LightOld("light", lights);
   mainLight.calculateCentre();
 
   uint32_t *buffer = (SSAA) ? imageBuffer : window.pixelBuffer;
@@ -517,6 +518,22 @@ int main(int argc, char *argv[])
 
   vector<Model*> renderQueue = vector<Model*>();
   vector<Updatable*> updateQueue = vector<Updatable*>();
+  vector<Light*> lights;
+
+  Light mainLight = Light(vec3(200.0f, 200.0f, 200.0f), vec3(1.0f, 1.0f, 1.0f));
+  mainLight.setPosition(vec3(-0.234f, 5.2f, -3.043f));
+  lights.push_back(&mainLight);
+
+  Light otherLight = Light(vec3(0.0f, 50.0f, 0.0f), vec3(1.0f, 1.0f, 1.0f));
+  otherLight.setPosition(vec3(0.0f, 3.0f, 0.0f));
+  Transformable lightT = Transformable();
+  lightT.setRotation(vec3(M_PIf/2,0,0));
+  Orbit lightOrbit = Orbit(lightT.transform);
+  lightOrbit.repeats = -1;
+  lightOrbit.time = 1;
+  otherLight.moves.push(&lightOrbit);
+  updateQueue.push_back(&otherLight);
+  lights.push_back(&otherLight);
 
   // Model cornell = Model("cornell-box");
   // //cornell.rotate(glm::vec3(45,0,0));
@@ -785,25 +802,25 @@ int main(int argc, char *argv[])
 
   //second scene
 
-  Model cornell = Model("cornell-box");
-  cornell.move(vec3(100,0,0));
-  renderQueue.push_back(&cornell);
-  Rigidbody cornellRB = Rigidbody(&cornell, rbList);
-  cornellRB.hasGravity = false;
-  cornellRB.suckable = false;
-  updateQueue.push_back(&cornellRB);
+  // Model cornell = Model("cornell-box");
+  // cornell.move(vec3(100,0,0));
+  // renderQueue.push_back(&cornell);
+  // Rigidbody cornellRB = Rigidbody(&cornell, rbList);
+  // cornellRB.hasGravity = false;
+  // cornellRB.suckable = false;
+  // updateQueue.push_back(&cornellRB);
 
-  Model hs_logo = Model(center);
-  hs_logo.scale(vec3(0.005f, 0.005f, 0.005f));
-  hs_logo.furthestExtent = hs_logo.calcExtent();
-  hs_logo.move(vec3(100, 10.0f, -1));
-  renderQueue.push_back(&hs_logo);
-  Rigidbody logoRB = Rigidbody(&hs_logo, rbList);
-  logoRB.positionFixed = true;
-  logoRB.suckable = false;
-  logoRB.elasticity = 0.8f;
-  updateQueue.push_back(&logoRB);
-  // logoRB.applyForce(vec3(0,0,1));
+  // Model hs_logo = Model(center);
+  // hs_logo.scale(vec3(0.005f, 0.005f, 0.005f));
+  // hs_logo.furthestExtent = hs_logo.calcExtent();
+  // hs_logo.move(vec3(100, 10.0f, -1));
+  // renderQueue.push_back(&hs_logo);
+  // Rigidbody logoRB = Rigidbody(&hs_logo, rbList);
+  // logoRB.positionFixed = true;
+  // logoRB.suckable = false;
+  // logoRB.elasticity = 0.8f;
+  // updateQueue.push_back(&logoRB);
+  // // logoRB.applyForce(vec3(0,0,1));
 
   Camera cam;
   cam.setProjection(90.0f, WIDTH / (float)HEIGHT, 0.1f, 100.0f);
@@ -821,21 +838,21 @@ int main(int argc, char *argv[])
   Transformable target = Transformable();
   target.move(vec3(100,0,0));
 
-  Movement teleprot = Movement(target.transform, 0);
+  // Movement teleprot = Movement(target.transform, 0);
 
-  target.move(vec3(10,10,10));
-  Movement zoom = Movement(target.transform, 2);
-  zoom.isRotation = true;
-  zoom.rotation = vec3(0,M_PIf/4,0);
+  // target.move(vec3(10,10,10));
+  // Movement zoom = Movement(target.transform, 2);
+  // zoom.isRotation = true;
+  // zoom.rotation = vec3(0,M_PIf/4,0);
 
-  Movement track = Movement(target.transform, 4);
-  track.stareAt = true;
-  track.stareTarget = &hs_logo;
+  // Movement track = Movement(target.transform, 4);
+  // track.stareAt = true;
+  // track.stareTarget = &hs_logo;
 
   // cam.moves.push(&turn);
-  cam.moves.push(&track);
-  cam.moves.push(&zoom);
-  cam.moves.push(&teleprot);
+  // cam.moves.push(&track);
+  // cam.moves.push(&zoom);
+  // cam.moves.push(&teleprot);
   cam.moves.push(&spin);
   cam.moves.push(&move);
 
@@ -874,7 +891,7 @@ int main(int argc, char *argv[])
     if(toRaytrace) {
       raytrace(cam, renderQueue);
     } else {
-      drawTriangles(cam, renderQueue);
+      drawTriangles(cam, renderQueue, lights);
     }
     if (SSAA) downsample(imageBuffer, window.pixelBuffer, WIDTH, HEIGHT, SSAA_SAMPLES);
     if (RENDER) {
@@ -994,14 +1011,12 @@ inline vec3 phongReflection(vec3 &Ks, vec3 &Kd, vec3 &Ka, int &alpha, vec3 &Is, 
   return (Kd * glm::max(dot(Lm, N), 0.0f) * Id) + (Ks * powf(dot(Rm, V), alpha) * Is) + Ka * Ia;
 }
 
-void triangle(Triangle &t, bool filled, uint32_t *buffer, float *depthBuff, vec2 offset, vec4 &eye_pos)
+void triangle(Triangle &t, bool filled, uint32_t *buffer, float *depthBuff, vec2 offset, vec4 &eye_pos, vector<Light*>& lights)
 {
-  vec4 light_pos = vec4(-0.234f, 5.2f, -3.043f, 1.0f);
-  vec3 Ia = vec3(0.2f, 0.2f, 0.2f);
-  vec3 Is = vec3(1.0f, 1.0f, 1.0f);
   vec3 Kd = t.mat.diffuseVec;
   vec3 Ks = t.mat.specularVec;
   vec3 Ka = t.mat.ambientVec;
+  vec3 Ia = vec3(0.2, 0.2, 0.2);
   int alpha = t.mat.highlights;
   if (filled)
   {
@@ -1073,15 +1088,19 @@ void triangle(Triangle &t, bool filled, uint32_t *buffer, float *depthBuff, vec2
               N = toThree(q0 * t.vertices[0].normal + q1 * t.vertices[1].normal + q2 * t.vertices[2].normal);
             }
             vec4 pos_3d = q0 * t.vertices[0].pos_3d + q1 * t.vertices[1].pos_3d + q2 * t.vertices[2].pos_3d;
-            float radius = distance(light_pos, pos_3d);
-            vec3 Id = vec3(200.0f, 200.0f, 200.0f) / (4.0f * M_PIf * radius * radius);
             vec3 V = toThree(normalize(eye_pos - pos_3d));
-            vec3 Lm = toThree(normalize(light_pos - pos_3d));
-            vec3 Rm = normalize(2.0f * N * dot(Lm, N) - Lm);
+            vec3 reflectedLight = vec3(0, 0, 0);
             if (t.mat.illum < 2) {
               Ks = vec3(0.0f);
             }
-            vec3 reflectedLight = glm::min(phongReflection(Ks, Kd, Ka, alpha, Is, Id, Ia, Lm, N, Rm, V), 1.0f);
+            for (auto& light : lights) {
+              float radius = distance((*light).transform[3], pos_3d);
+              vec3 Id = (*light).diffuseIntensity / (4.0f * M_PIf * radius * radius);
+              vec3 Lm = toThree(normalize((*light).transform[3] - pos_3d));
+              vec3 Rm = normalize(2.0f * N * dot(Lm, N) - Lm);
+              reflectedLight += phongReflection(Ks, Kd, Ka, alpha, (*light).specularIntensity, Id, Ia, Lm, N, Rm, V);
+            }
+            reflectedLight = glm::min(reflectedLight, 1.0f);
             buffer[y * WIDTH + x] = vec3ToPackedInt(reflectedLight);
           }
         }
