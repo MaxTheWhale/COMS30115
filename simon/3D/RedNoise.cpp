@@ -704,7 +704,7 @@ int main(int argc, char *argv[])
   orbitor1.moves.push(&orbit);
   updateQueue.push_back(&orbitor1);
  
-  Model orbitor2 = Model("tilted");
+  Model orbitor2 = Model(orbitor1);
   orbitor2.setPosition(vec3(15,0,10));
   orbitor1.setScale(vec3(1,3,1));
   renderQueue.push_back(&orbitor2);
@@ -719,7 +719,7 @@ int main(int argc, char *argv[])
   orbitor2.moves.push(&orbit2);
   updateQueue.push_back(&orbitor2);
 
-  Model orbitor3 = Model("tilted");
+  Model orbitor3 = Model(orbitor1);
   orbitor3.setPosition(vec3(10,0,10));
   orbitor1.setScale(vec3(3,3,3));
   renderQueue.push_back(&orbitor3);
@@ -728,8 +728,8 @@ int main(int argc, char *argv[])
   updateQueue.push_back(&mag3);
   
 
-  Model moon = Model("HackspaceLogo/logo");
-  moon.scale(vec3(0.005f,0.005f,0.005));
+  Model moon = Model("Moon2K");
+  //moon.scale(vec3(0.005f,0.005f,0.005));
   moon.setPosition(vec3(11,0,10));
   renderQueue.push_back(&moon);
   Rigidbody moonRB = Rigidbody(&moon, rbList);
@@ -739,8 +739,8 @@ int main(int argc, char *argv[])
   moonRB.velocity *= Transformable::rotationFromEuler(vec3(0,0.05f,0));
   updateQueue.push_back(&moonRB);
 
-  Model moon2 = Model("HackspaceLogo/logo");
-  moon2.scale(vec3(0.005f,0.005f,0.005));
+  Model moon2 = Model(moon);
+  //moon2.scale(vec3(0.005f,0.005f,0.005));
   moon2.setPosition(vec3(10,0,10.5));
   renderQueue.push_back(&moon2);
   Rigidbody moon2RB = Rigidbody(&moon2, rbList);
@@ -750,8 +750,8 @@ int main(int argc, char *argv[])
   moon2RB.velocity *= Transformable::rotationFromEuler(vec3(0,0.05f,0));
   updateQueue.push_back(&moon2RB);
 
-  Model moon3 = Model("HackspaceLogo/logo");
-  moon3.scale(vec3(0.005f,0.005f,0.005));
+  Model moon3 = Model(moon);
+  //moon3.scale(vec3(0.005f,0.005f,0.005));
   moon3.setPosition(vec3(10,1,10.5));
   renderQueue.push_back(&moon3);
   Rigidbody moon3RB = Rigidbody(&moon3, rbList);
@@ -761,8 +761,8 @@ int main(int argc, char *argv[])
   moon3RB.velocity *= Transformable::rotationFromEuler(vec3(0,0.05f,0));
   updateQueue.push_back(&moon3RB);
 
-  Model moon4 = Model("HackspaceLogo/logo");
-  moon4.scale(vec3(0.005f,0.005f,0.005));
+  Model moon4 = Model(moon);
+  //moon4.scale(vec3(0.005f,0.005f,0.005));
   moon4.setPosition(vec3(10,1,0));
   renderQueue.push_back(&moon4);
   Rigidbody moon4RB = Rigidbody(&moon4, rbList);
@@ -772,8 +772,8 @@ int main(int argc, char *argv[])
   moon4RB.velocity *= Transformable::rotationFromEuler(vec3(0,0.05f,0));
   updateQueue.push_back(&moon4RB);
 
-  Model moon5 = Model("HackspaceLogo/logo");
-  moon5.scale(vec3(0.005f,0.005f,0.005));
+  Model moon5 = Model(moon);
+  //moon5.scale(vec3(0.005f,0.005f,0.005));
   moon5.setPosition(vec3(11,0,0));
   renderQueue.push_back(&moon5);
   Rigidbody moon5RB = Rigidbody(&moon5, rbList);
@@ -793,7 +793,7 @@ int main(int argc, char *argv[])
   cornellRB.suckable = false;
   updateQueue.push_back(&cornellRB);
 
-  Model hs_logo = Model("HackspaceLogo/logo");
+  Model hs_logo = Model(center);
   hs_logo.scale(vec3(0.005f, 0.005f, 0.005f));
   hs_logo.furthestExtent = hs_logo.calcExtent();
   hs_logo.move(vec3(100, 10.0f, -1));

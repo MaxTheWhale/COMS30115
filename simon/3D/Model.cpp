@@ -14,6 +14,13 @@ Model::Model(string filename) {
     cout << "Model " << this << " extent: " << furthestExtent << endl;
 }
 
+Model::Model(const Model& original) {
+    palette = original.palette;
+    tris = original.tris;
+    furthestExtent = original.furthestExtent;
+    center = original.center;
+}
+
 vector<ModelTriangle> Model::loadOBJ(string fileName,
                               unordered_map<string, Material> palette)
 {
@@ -203,8 +210,9 @@ unordered_map<string, Material> Model::loadMTL(string fileName) {
         palette[key].illum = (int)illum;
       }
       if (s == "d") {
-        f >> s;
-        palette[key].dissolve = stof(s);
+        float dissolve;
+        f >> dissolve;
+        palette[key].dissolve = dissolve;
       }
       if (s == "map_Kd") {
         string texture_file;
@@ -225,6 +233,7 @@ unordered_map<string, Material> Model::loadMTL(string fileName) {
         }
       }
       if (s == "map_bump" || s == "bump") {
+        cout << "BUMPY BOI\n";
         string texture_file;
         f >> texture_file;
         size_t pos = fileName.find('/');
