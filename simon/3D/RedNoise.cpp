@@ -796,7 +796,7 @@ int main(int argc, char *argv[])
   move.stareAt = true;
   move.stareTarget = vec3(1,1,1);
 
-  Movement spin = Movement(vec3(2.0f * M_PIf, 0, 0), 2);
+  Movement spin = Movement(vec3(0, 2.0f * M_PIf, 0), 2);
 
   cam.moves.push(&spin);
   cam.moves.push(&move);

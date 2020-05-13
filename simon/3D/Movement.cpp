@@ -51,53 +51,33 @@ bool Movement::execute(Animatable* parent, Movement& previous) {
             prevRotation += rotDelta;
             cout << "prevRot: " << prevRotation << '\n';
             parent->transform = rotationFromEuler(rotDelta) * parent->transform;
-            return false;
+            //return false;
         }
+    }
+    vec4 delta = scale * (previous.transform[3] - transform[3]);
+    // cout << "previous = " << previous.transform << endl << "target = " << moves.top().transform << endl << "delta = " << delta << endl;
+    mat4 newTransform = parent->transform;
+    newTransform[3] += delta;
+    if (stareAt) {
+        cout << "stare target: " << stareTarget << endl;
+        parent->lookAt(parent->getPosition(), stareTarget);
+    }
+    //would the move take us further from our goal
+    float currentDist = distance(parent->transform[3], transform[3]);
+    float newDist = distance(newTransform[3], transform[3]);
+    // cout << "currentDist = " << currentDist << " newDist = " << newDist << endl;
+    if (currentDist < newDist) {
+        // if (stareAt) {
+        //     parent->transform[3] = transform[3];
+        // }
+        // else {
+        //     parent->transform = transform;
+        // }
+        return true;
     }
     else {
-        mat4 delta = scale * (previous.transform - transform);
-        if (stareAt) {
-            for (int i = 0; i < 3; i++) {
-                delta[i] = vec4(0,0,0,0);
-            }
-        }
-        // cout << "previous = " << previous.transform << endl << "target = " << moves.top().transform << endl << "delta = " << delta << endl;
-        mat4 newTransform = mat4();
-        for (int i = 0; i < 4; i++)
-        {
-            newTransform[i] = parent->transform[i] + delta[i];
-        }
-        if (stareAt) {
-            cout << "stare target: " << stareTarget << endl;
-            parent->lookAt(parent->getPosition(), stareTarget);
-        }
-        //would the move take us further from our goal
-        float currentDist;
-        float newDist;
-        if (stareAt) {
-            currentDist = distance(parent->transform[3], transform[3]);
-            newDist = distance(newTransform[3], transform[3]);
-        }
-        else {
-            currentDist = mat4Dist(parent->transform, transform);
-            newDist = mat4Dist(newTransform, transform);
-        }
-        // cout << "currentDist = " << currentDist << " newDist = " << newDist << endl;
-        if (currentDist < newDist) {
-            // if (stareAt) {
-            //     parent->transform[3] = transform[3];
-            // }
-            // else {
-            //     parent->transform = transform;
-            // }
-            return true;
-        }
-        else {
-            for (int i = 0; i < 4; i++) {
-                parent->transform[i] += delta[i];
-            }
-        }
-        return false;
+        parent->transform[3] += delta;
     }
+    return false;
 
 }
