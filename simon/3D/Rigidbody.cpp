@@ -4,10 +4,18 @@
 
 using namespace glm;
 
-std::vector<Rigidbody*> Rigidbody::allRBs = std::vector<Rigidbody*>();
+// std::vector<Rigidbody*> Rigidbody::allRBs = std::vector<Rigidbody*>();
+std::vector<Rigidbody*>& Rigidbody::getAllRBs() {
+    static std::vector<Rigidbody*> allRBs = std::vector<Rigidbody*>();
+    return allRBs;
+}
+
+const mat3 Rigidbody::collisionLayers = glm::mat3(1,1,1,
+                                            1,0,0,
+                                            1,0,0);
 
 Rigidbody::Rigidbody(Model* model) {
-    allRBs.push_back(this);
+    getAllRBs().push_back(this);
     this->model = model;
     this->velocity = mat4(1,0,0,0,
                                0,1,0,0,
@@ -42,9 +50,9 @@ void Rigidbody::update() {
     model->transform[3] = oldTransform[3] + velocity[3];
     model->transform[3][3] = 1;
 
-    for(unsigned int i = 0; i < allRBs.size(); i++) {
-        if (allRBs[i]->model != this->model) {
-            if(collide(*allRBs[i])) {
+    for(unsigned int i = 0; i < getAllRBs().size(); i++) {
+        if (getAllRBs()[i]->model != this->model) {
+            if(collide(*getAllRBs()[i])) {
                 // hasGravity = false;
                 // velocity = mat4();
                 model->transform = oldTransform;
@@ -213,7 +221,8 @@ bool isBasis(vec4 vec) {
 }
 
 bool Rigidbody::collide(Rigidbody other) {
-    if (positionFixed || !collisionEnabled || !other.collisionEnabled) {
+    if (positionFixed || !collisionEnabled || !other.collisionEnabled ||
+        collisionLayers[collisionLayer][other.collisionLayer] == 0) {
         return false;
     }
     float dist = glm::distance(toVec3(this->model->transform[3]), toVec3(other.model->transform[3]));
@@ -241,7 +250,7 @@ bool Rigidbody::collide(Rigidbody other) {
                     // cout << "normal = " << normal << endl;
                     float combinedElasticity = (this->elasticity + other.elasticity); //the average ratio of energy conserved
                     // cout << "total elasticity = " << combinedElasticity << endl;
-                    vec3 force = toVec3(-combinedElasticity * dot(normalize(normal), normalize(velocity[3])) * normal);
+                    vec3 force = toVec3(vec4() - combinedElasticity * dot(normalize(normal), normalize(velocity[3])) * normal);
                     // cout << "force = " << force << endl;
                     // cout << "collision point = " << this->lastCollision << endl;
                     applyForce(force, vec3(0,0,0));

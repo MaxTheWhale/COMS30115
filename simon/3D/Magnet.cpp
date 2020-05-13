@@ -11,15 +11,15 @@ Magnet::Magnet(Transformable* center) {
 }
 
 void Magnet::update() {
-    for (unsigned int i = 0; i < Rigidbody::allRBs.size(); i++) {
-        // Rigidbody* rb = Rigidbody::allRBs[i];
-        if (!Rigidbody::allRBs[i]->suckable || Rigidbody::allRBs[i]->model->transform == this->center->transform) { 
+    for (unsigned int i = 0; i < Rigidbody::getAllRBs().size(); i++) {
+        Rigidbody* rb = Rigidbody::getAllRBs()[i];
+        if (!rb->suckable || rb->model->transform == this->center->transform) { 
             continue;
         }
-        vec3 dist = center->getPosition() - Rigidbody::allRBs[i]->model->getPosition();
+        vec3 dist = center->getPosition() - rb->model->getPosition();
         vec3 force = timeStep() * attractionStrength * dist / (length(dist) * length(dist));
         // cout << "force = " << force << endl;
         totalForce += force;
-        Rigidbody::allRBs[i]->applyForce(force, vec3(0,0,0));
+        rb->applyForce(force, vec3(0,0,0));
     }
 }
