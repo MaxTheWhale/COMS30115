@@ -43,7 +43,7 @@ using namespace glm;
 #define NUM_TILES_Y (HEIGHT / TILE_SIZE)
 #define NUM_TILES (NUM_TILES_X * NUM_TILES_Y)
 
-#define RENDER false
+#define RENDER true
 #define RENDER_LENGTH 300
 
 #ifndef M_PIf
@@ -76,7 +76,7 @@ uint32_t imageBuffer[IMG_SIZE];
 bool wireframe = true;
 bool bilinear = true;
 bool perspective = true;
-bool toRaytrace = true;
+bool toRaytrace = false;
 bool softShadows = false;
 DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
 

@@ -82,7 +82,6 @@ bool checkSign(const float dists[3]) {
     }
     else if (dists[0] == 0 && dists[1] == 0 && dists[2] == 0) { //all points on plane
         //coplanar
-        std::cout << "coplanar" << std::endl;
     }
     return true;
 }

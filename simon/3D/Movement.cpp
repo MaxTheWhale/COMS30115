@@ -42,7 +42,6 @@ void Movement::finish(Animatable* parent) {
 }
 
 bool Movement::execute(Animatable* parent, Movement& previous) {
-    // cout << "delta = deltaTime (" << Times::deltaTime() << ") * (previous transform (" << this->previous.transform << ") - next transform (" << moves.top().transform << "))" << endl;
     if (time <= 0) {
         finish(parent);
         return true;
@@ -60,8 +59,6 @@ bool Movement::execute(Animatable* parent, Movement& previous) {
             }
         else {
             prevRotation += rotDelta;
-            cout << "prevRot: " << prevRotation << '\n';
-            cout << "parent transform: " << parent->transform << endl;
             parent->transform = parent->transform * rotationFromEuler(rotDelta);
         }
     }
