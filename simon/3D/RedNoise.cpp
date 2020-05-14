@@ -42,7 +42,7 @@ using namespace glm;
 #define NUM_TILES_Y (HEIGHT / TILE_SIZE)
 #define NUM_TILES (NUM_TILES_X * NUM_TILES_Y)
 
-#define RENDER true
+#define RENDER false
 #define RENDER_LENGTH 300
 
 #ifndef M_PIf
@@ -359,7 +359,7 @@ vec3 getPixelColour(RayTriangleIntersection& intersection, vector<Light*> lights
     u = mod(u, 1.0f);
     v = mod(v, 1.0f);
     vec3 bumpVec = getTexPoint(u, v, bumps, bilinear);
-    normal = vec4(bumpVec.x, bumpVec.y, bumpVec.z, 0.0f);
+    normal = vec4(normalize(t.TBN * bumpVec), 0.0f);
   } else {
     normal = intersection.intersectedTriangle.normal;
   }
@@ -1114,6 +1114,7 @@ void triangle(Triangle &t, bool filled, uint32_t *buffer, float *depthBuff, vec2
               else {
                 N = toThree(q0 * t.vertices[0].normal + q1 * t.vertices[1].normal + q2 * t.vertices[2].normal);
               }
+              N = normalize(N);
               vec4 pos_3d = q0 * t.vertices[0].pos_3d + q1 * t.vertices[1].pos_3d + q2 * t.vertices[2].pos_3d;
               vec3 V = toThree(normalize(eye_pos - pos_3d));
               vec3 reflectedLight = vec3(0, 0, 0);
