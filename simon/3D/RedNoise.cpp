@@ -63,7 +63,7 @@ void draw();
 void triangle(Triangle &t, bool filled, uint32_t *buffer, float *depthBuff, vec2 offset, vec4 &eye_pos, vector<Light*>& lights, bool doLighting);
 void savePPM(string fileName, DrawingWindow *window);
 void skipHashWS(ifstream &f);
-void update(Camera &cam, vector<Updatable*>& updatables, vector<Model*>& renderQueue);
+void update(Camera &cam, vector<Updatable*> &updatables, vector<Model*> *renderQueue);
 void handleEvent(SDL_Event event, Camera &cam);
 
 #if SSAA
@@ -594,6 +594,8 @@ void raytrace(Camera camera, std::vector<Model*> models, vector<Light*> lights, 
 
 Rigidbody* unfreeze = 0;
 vector<Transformable*> scene1 = vector<Transformable*>();
+vector<Model*> scene2 = vector<Model*>();
+Light* sunlight;
 
 int main(int argc, char *argv[])
 {
@@ -627,13 +629,13 @@ int main(int argc, char *argv[])
   // center.fullBright = true;
   scene1.push_back(&center);
 
-  Light mainLight = Light(vec3(2550.0f, 250.0f, 1130.0f), vec3(1.0f, 1.0f, 1.0f));
-  mainLight.setPosition(vec3(19,29,1.0f));
-  lights.push_back(&mainLight);
-  scene1.push_back(&mainLight);
+  // Light mainLight = Light(vec3(2550.0f, 250.0f, 1130.0f), vec3(1.0f, 1.0f, 1.0f));
+  // mainLight.setPosition(vec3(19,29,1.0f));
+  // lights.push_back(&mainLight);
+  // scene1.push_back(&mainLight);
 
-  Light blueLight = Light(vec3(250.0f, 1170.0f, 2550.0f), vec3(1.0f, 1.0f, 1.0f));
-  blueLight.setPosition(vec3(-19,29,-1.0f));
+  Light blueLight = Light(vec3(250.0f, 1170.0f, 2550.0f)/2.0f, vec3(1.0f, 1.0f, 1.0f));
+  blueLight.setPosition(vec3(25,20,-5.0f));
   lights.push_back(&blueLight);
   scene1.push_back(&blueLight);
 
@@ -651,7 +653,8 @@ int main(int argc, char *argv[])
   vector<Rigidbody*> rbList;
 
   Model ground = Model("ground");
-  renderQueue.push_back(&ground);
+  // renderQueue.push_back(&ground);
+  scene2.push_back(&ground);
   ground.scale(vec3(30.0f, 30.0f, 30.0f));
   ground.setPosition(vec3(100,0,0));
 
@@ -805,15 +808,18 @@ int main(int argc, char *argv[])
   // moon.fullBright = true;
   // renderQueue.push_back(&moon);
 
-  Light sunlight = Light(vec3(2550.f, 1840.f, 1010.f), vec3(1.0f, 1.0f, 1.0f));
-  sunlight.setPosition(vec3(0,2,0));
-  lights.push_back(&sunlight);
+  Light sun = Light(vec3(2550.f, 1840.f, 1010.f), vec3(1.0f, 1.0f, 1.0f));
+  sun.setPosition(vec3(0,2,0));
+  lights.push_back(&sun);
+  sunlight = &sun;
+  updateQueue.push_back(sunlight);
 
   //second scene
 
   Model cornell = Model("cornell-box");
   cornell.move(vec3(100,0,0));
-  renderQueue.push_back(&cornell);
+  // renderQueue.push_back(&cornell);
+  scene2.push_back(&cornell);
   Rigidbody cornellRB = Rigidbody(&cornell, rbList);
   cornellRB.hasGravity = false;
   cornellRB.suckable = false;
@@ -823,7 +829,8 @@ int main(int argc, char *argv[])
   bounce1.scale(vec3(0.005f, 0.005f, 0.005f));
   bounce1.furthestExtent = bounce1.calcExtent();
   bounce1.move(vec3(99, 10.0f, -1));
-  renderQueue.push_back(&bounce1);
+  // renderQueue.push_back(&bounce1);
+  scene2.push_back(&bounce1);
   Rigidbody bounce1RB = Rigidbody(&bounce1, rbList);
   bounce1RB.collisionLayer = 2;
   bounce1RB.positionFixed = false;
@@ -835,7 +842,8 @@ int main(int argc, char *argv[])
   bounce2.scale(vec3(0.005f, 0.005f, 0.005f));
   bounce2.furthestExtent = bounce2.calcExtent();
   bounce2.move(vec3(90, 10.0f, 1));
-  renderQueue.push_back(&bounce2);
+  // renderQueue.push_back(&bounce2);
+  scene2.push_back(&bounce2);
   Rigidbody bounce2RB = Rigidbody(&bounce2, rbList);
   unfreeze = &bounce2RB;
   bounce2RB.collisionLayer = 2;
@@ -847,11 +855,11 @@ int main(int argc, char *argv[])
 
   Model tilt = Model("tilted");
   tilt.move(vec3(90, 3, 0));
-  renderQueue.push_back(&tilt);
+  // renderQueue.push_back(&tilt);
+  scene2.push_back(&tilt);
   Rigidbody tiltRB = Rigidbody(&tilt, rbList);
   tiltRB.elasticity = 0.1f;
   updateQueue.push_back(&tiltRB);
-
   // Model 
 
   Camera cam;
@@ -889,7 +897,7 @@ int main(int argc, char *argv[])
   zoom.isRotation = true;
   zoom.rotation = vec3(0,M_PIf/4,0);
 
-  Movement track = Movement(target.transform, -1);
+  Movement track = Movement(target.transform, 1);
   track.stareAt = true;
   track.stareTarget = &bounce2;
 
@@ -935,7 +943,7 @@ int main(int argc, char *argv[])
     if (window.pollForInputEvents(&event))
       handleEvent(event, cam);
     // cout << "hs_logo pos: " << hs_logo.getPosition() << endl;
-    update(cam, updateQueue, renderQueue);
+    update(cam, updateQueue, &renderQueue);
     draw();
     if(toRaytrace) {
       raytrace(cam, renderQueue, lights, background);
@@ -973,7 +981,7 @@ void draw()
 
 int moveStage = 0;
 
-void update(Camera &cam, vector<Updatable*> &updatables, vector<Model*> &renderQueue)
+void update(Camera &cam, vector<Updatable*> &updatables, vector<Model*> *renderQueue)
 {
   // Function for performing animation (shifting artifacts or moving the camera)
   cam.update();
@@ -982,20 +990,30 @@ void update(Camera &cam, vector<Updatable*> &updatables, vector<Model*> &renderQ
   {
     updatables[i]->update();
   }
-  int seconds = Times::getFrameCount() / 60;
-  switch (seconds)
-  {
-  case 9:
+  float seconds = Times::getFrameCount() / 60.0f;
+  if (seconds == 9.0f) {
     unfreeze->positionFixed = false;
-    break;
-  case 7:
-    std::remove_if(renderQueue.begin(),renderQueue.end(),[](Model* pointer){
-      return std::find(scene1.begin(), scene1.end(), pointer) != scene1.end();
-    });
-  default:
-    break;
-  } {
-    
+  }
+  else if (seconds == 7.0f) {
+    cout << "switching scenes" << endl;
+    // cout << "size before: " << renderQueue->size() << endl;
+    // renderQueue->erase(std::remove_if(renderQueue->begin(),renderQueue->end(),[](Model* pointer){
+    //   bool result = std::find(scene1.begin(), scene1.end(), pointer) != scene1.end();
+    //   if (result) {
+    //     cout << "removing pointer" << endl;
+    //   }
+    //   return result;
+    // }));
+    // cout << "size after: " << renderQueue->size() << endl;
+    renderQueue->clear();
+    renderQueue->insert(renderQueue->end(), scene2.begin(), scene2.end());
+    sunlight->setPosition(vec3(95, 20, 20));
+    sunlight->diffuseIntensity *= 5;
+    Transformable t = Transformable();
+    t.transform = sunlight->transform;
+    t.move(vec3(10,0,0));
+    Movement* move = new Movement(t.transform,2.0f);
+    sunlight->moves.push(move);
   }
 }
 
