@@ -1,0 +1,6 @@
+newmtl Moon
+Ns 96.078443
+Ks 0.500000 0.500000 0.500000
+#illum 2
+map_bump MoonBump.ppm
+map_Kd MoonTex.ppm

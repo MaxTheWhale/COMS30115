@@ -13,6 +13,7 @@ class Model : public Animatable {
     std::vector<ModelTriangle> tris;
     std::unordered_map<std::string, Material> palette;
     Model(std::string filename);
+    Model(const Model& original);
     vec3 center;
     float furthestExtent = -1.0f;
     float calcExtent();
