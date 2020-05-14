@@ -605,20 +605,24 @@ int main(int argc, char *argv[])
   center.scale(vec3(0.015f,0.015f,0.015f));
   center.rotate(vec3(M_PIf/2,0,0));
 
-  Light mainLight = Light(vec3(200.0f, 200.0f, 200.0f), vec3(1.0f, 1.0f, 1.0f));
-  mainLight.setPosition(vec3(-0.234f, 5.2f, -3.043f));
+  Light mainLight = Light(vec3(2550.0f, 250.0f, 1130.0f), vec3(1.0f, 1.0f, 1.0f));
+  mainLight.setPosition(vec3(19,29,1.0f));
   lights.push_back(&mainLight);
 
-  Light otherLight = Light(vec3(0.0f, 50.0f, 0.0f), vec3(1.0f, 1.0f, 1.0f));
-  otherLight.setPosition(vec3(0.0f, 3.0f, 0.0f));
-  Transformable lightT = Transformable();
-  lightT.setRotation(vec3(M_PIf/2,0,0));
-  Orbit lightOrbit = Orbit(&center);
-  lightOrbit.repeats = -1;
-  lightOrbit.time = 1;
-  otherLight.moves.push(&lightOrbit);
-  updateQueue.push_back(&otherLight);
-  lights.push_back(&otherLight);
+  Light blueLight = Light(vec3(250.0f, 1170.0f, 2550.0f), vec3(1.0f, 1.0f, 1.0f));
+  blueLight.setPosition(vec3(-19,29,-1.0f));
+  lights.push_back(&blueLight);
+
+  // Light otherLight = Light(vec3(0.0f, 50.0f, 0.0f), vec3(1.0f, 1.0f, 1.0f));
+  // otherLight.setPosition(vec3(0.0f, 3.0f, 0.0f));
+  // Transformable lightT = Transformable();
+  // lightT.setRotation(vec3(M_PIf/2,0,0));
+  // Orbit lightOrbit = Orbit(lightT.transform);
+  // lightOrbit.repeats = -1;
+  // lightOrbit.time = 1;
+  // otherLight.moves.push(&lightOrbit);
+  // updateQueue.push_back(&otherLight);
+  // lights.push_back(&otherLight);
 
   // Model cornell = Model("cornell-box");
   // //cornell.rotate(glm::vec3(45,0,0));
@@ -928,9 +932,9 @@ int main(int argc, char *argv[])
   // moon.fullBright = true;
   // renderQueue.push_back(&moon);
 
-  // Light moonLight = Light(vec3(10000.0f, 10000.0f, 10000.0f), vec3(1.0f, 1.0f, 1.0f));
-  // moonLight.setPosition(vec3(19,29,1.0f));
-  // lights.push_back(&moonLight);
+  // Light sunlight = Light(vec3(2550.f, 1840.f, 310.f), vec3(1.0f, 1.0f, 1.0f));
+  // sunlight.setPosition(vec3(0,3,0));
+  // lights.push_back(&sunlight);
 
   //second scene
 
