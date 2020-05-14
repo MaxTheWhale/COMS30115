@@ -682,9 +682,8 @@ int main(int argc, char *argv[])
   Model ground = Model("ground");
   // renderQueue.push_back(&ground);
   scene2.push_back(&ground);
-  ground.scale(vec3(30.0f, 30.0f, 30.0f));
+  ground.scale(vec3(300.0f, 300.0f, 300.0f));
   ground.setPosition(vec3(90,-1,0));
-
 
   Model iss = Model("iss");
   renderQueue.push_back(&iss);
