@@ -20,7 +20,6 @@
 #include "Times.hpp"
 #include "VectorUtil.hpp"
 #include "Rigidbody.hpp"
-#include "Light.h"
 #include "Light.hpp"
 #include "Magnet.hpp"
 #include "Orbit.hpp"
@@ -56,11 +55,12 @@ struct TriangleGroup {
   vector<ModelTriangle> tris;
   float radius_sq;
   vec4 centre;
+  bool castShadow;
+  bool fullBright;
 };
 
 void draw();
-void triangle(Triangle &t, bool filled, uint32_t *buffer, float *depthBuff, vec2 offset, vec4 &eye_pos, vector<Light*>& lights);
-int *loadPPM(string fileName, int &width, int &height);
+void triangle(Triangle &t, bool filled, uint32_t *buffer, float *depthBuff, vec2 offset, vec4 &eye_pos, vector<Light*>& lights, bool doLighting);
 void savePPM(string fileName, DrawingWindow *window);
 void skipHashWS(ifstream &f);
 void update(Camera &cam, vector<Updatable*> updatables);
@@ -125,6 +125,7 @@ void drawTriangles(Camera &cam, std::vector<Model *> models, vector<Light*> ligh
   for (unsigned int i = 0; i < models.size(); i++)
   {
     Model &model = *models[i];
+    bool doLighting = !model.fullBright;
     for (auto& modelTri : model.tris)
     {
       Triangle tri = Triangle(modelTri);
@@ -159,10 +160,10 @@ void drawTriangles(Camera &cam, std::vector<Model *> models, vector<Light*> ligh
         #if SSAA
         #pragma omp parallel for
         for (int s = 0; s < SSAA_SAMPLES; s++) {
-          triangle(t, wireframe, buffer + (IMG_SIZE * s), depthBuffer + (IMG_SIZE * s), offsets[s], eye, lights);
+          triangle(t, wireframe, buffer + (IMG_SIZE * s), depthBuffer + (IMG_SIZE * s), offsets[s], eye, lights, doLighting);
         }
         #else
-        triangle(t, wireframe, buffer, depthBuffer, vec2(0.5f, 0.5f), eye, lights);
+        triangle(t, wireframe, buffer, depthBuffer, vec2(0.5f, 0.5f), eye, lights, doLighting);
         #endif
       }
     }
@@ -262,7 +263,7 @@ bool inShadow(vector<TriangleGroup>& triGroups, vec4 shadowRayDirection, RayTria
 
   //check if the ray is in shadow. 
   for (auto& group : triGroups) {
-    if (intersectSphere(shadowRayDirection, intersection.intersectionPoint, group.radius_sq, group.centre)) {
+    if (group.castShadow && intersectSphere(shadowRayDirection, intersection.intersectionPoint, group.radius_sq, group.centre)) {
       for(ModelTriangle& triangle : group.tris) {
         vec4 e0 = triangle.vertices[1] - triangle.vertices[0];
         vec4 e1 = triangle.vertices[2] - triangle.vertices[0];
@@ -325,12 +326,28 @@ vec3 getPixelColour(RayTriangleIntersection& intersection, vector<Light*> lights
   if(depth > MAX_DEPTH) return colour;
   if(!intersection.wasFound) {
     return background.dataVec[i + j * background.width];
-    return colour;
   }
 
   Texture& tex = intersection.intersectedTriangle.material.texture;
   Texture& bumps = intersection.intersectedTriangle.material.normal_map;
   vec4 normal;
+
+  if (intersection.intersectedTriangle.fullBright) {
+    if(tex.dataVec != nullptr) {
+      ModelTriangle& t = intersection.intersectedTriangle;
+      float q0 = intersection.u;
+      float q1 = intersection.v;
+      float q2 = 1 - q0 - q1;
+      float u = q2 * t.uvs[0].x + q0 * t.uvs[1].x + q1 * t.uvs[2].x;
+      float v = q2 * t.uvs[0].y + q0 * t.uvs[1].y + q1 * t.uvs[2].y;
+      u = mod(u, 1.0f);
+      v = mod(v, 1.0f);
+      colour = getTexPoint(u, v, tex, bilinear);
+    } else {
+      colour = intersection.intersectedTriangle.material.diffuseVec;
+    }
+    return colour;
+  }
 
   if(bumps.dataVec != nullptr) {
     ModelTriangle& t = intersection.intersectedTriangle;
@@ -407,7 +424,7 @@ vec3 getPixelColour(RayTriangleIntersection& intersection, vector<Light*> lights
   }
 
   // Why is this mirror stuff happening based on a specular check? am very confuse
-  if(intersection.intersectedTriangle.material.specular.red >= 0) {
+  if(intersection.intersectedTriangle.material.illum == 3) {
     vec4 mirrorRayDirection = glm::normalize(rayDirection - 2.0f * (glm::dot(rayDirection, normal) * normal));
     mirrorRayDirection.w = 0;
 
@@ -447,7 +464,7 @@ vec3 getPixelColour(RayTriangleIntersection& intersection, vector<Light*> lights
 
         //adjust brightness for proximity lighting
         vec3 brightness = (*light).diffuseIntensity / powf(length(shadowRayDirection), 2);
-        directColour += glm::clamp<float>(brightness / 10.0f, (*light).shadow, 1.0f);
+        directColour += glm::clamp(brightness / 10.0f, (*light).shadow, 1.0f);
 
         if(intersection.intersectedTriangle.material.highlights > 0.0f) {
           //TODO: make the colour of the highlights match the specular material colour
@@ -493,14 +510,6 @@ vec3 getPixelColour(RayTriangleIntersection& intersection, vector<Light*> lights
   }
 }
 
-vec3 colourToVec(Colour colour) {
-  return vec3(colour.red / 255.0f, colour.green / 255.0f, colour.blue / 255.0f);
-}
-
-Colour vecToColour(vec3 colour) {
-  return Colour(colour.r * 255.0f, colour.g * 255.0f, colour.b * 255.0f);
-}
-
 void raytrace(Camera camera, std::vector<Model*> models, vector<Light*> lights, Texture &background) {
   vector<TriangleGroup> triGroups;
   for (unsigned int i = 0; i < models.size(); i++) {
@@ -515,6 +524,7 @@ void raytrace(Camera camera, std::vector<Model*> models, vector<Light*> lights, 
       newTri.uvs[1] = tri.uvs[1];
       newTri.uvs[2] = tri.uvs[2];
       newTri.name = tri.name;
+      newTri.fullBright = models[i]->fullBright;
       if (newTri.material.normal_map.dataVec != nullptr) {
         newTri.tangent = (*models[i]).transform * tri.tangent;
         newTri.TBN = mat3(toThree(newTri.tangent), toThree(cross(newTri.normal, newTri.tangent)), toThree(newTri.normal));
@@ -528,7 +538,7 @@ void raytrace(Camera camera, std::vector<Model*> models, vector<Light*> lights, 
       }
       tris.push_back(newTri);
     }
-    triGroups.push_back({tris, radius_sq, (*models[i]).transform[3]});
+    triGroups.push_back({tris, radius_sq, models[i]->transform[3], models[i]->castShadow, models[i]->fullBright});
   }
 
   uint32_t *buffer = (SSAA) ? imageBuffer : window.pixelBuffer;
@@ -910,6 +920,18 @@ int main(int argc, char *argv[])
   asteroid5RB.velocity *= Transformable::rotationFromEuler(vec3(0,0.05f,0.05f));
   updateQueue.push_back(&asteroid5RB);
 
+  // Model moon = Model("Moon2K");
+  // moon.rotate(vec3(M_PIf/2,0,0));
+  // moon.scale(vec3(0.5f,0.5f,0.5f));
+  // moon.setPosition(vec3(19,29,1.0f));
+  // moon.castShadow = false;
+  // moon.fullBright = true;
+  // renderQueue.push_back(&moon);
+
+  // Light moonLight = Light(vec3(10000.0f, 10000.0f, 10000.0f), vec3(1.0f, 1.0f, 1.0f));
+  // moonLight.setPosition(vec3(19,29,1.0f));
+  // lights.push_back(&moonLight);
+
   //second scene
 
   Model cornell = Model("cornell-box");
@@ -1003,11 +1025,7 @@ int main(int argc, char *argv[])
   cam.moves.push(&diag);
 
   Texture background;
-  background.data = loadPPM("stars.ppm", background.width, background.height);
-  background.dataVec = new vec3[background.width * background.height];
-  for (int p = 0; p < background.width * background.height; p++) {
-    background.dataVec[p] = packedIntToVec3(background.data[p]);
-  }
+  background.dataVec = loadPPM("stars.ppm", background.width, background.height);
 
   Times::init();
   auto start = std::chrono::high_resolution_clock::now();
@@ -1151,11 +1169,11 @@ inline float edgeFunction(const float v0_x, const float v0_y, const float v1_x, 
 }
 
 // As described here: https://en.wikipedia.org/wiki/Phong_reflection_model
-inline vec3 phongReflection(vec3 &Ks, vec3 &Kd, vec3 &Ka, int &alpha, vec3 &Is, vec3 &Id, vec3 &Ia, vec3 &Lm, vec3 &N, vec3 &Rm, vec3 &V) {
-  return (Kd * glm::max(dot(Lm, N), 0.0f) * Id) + (Ks * powf(dot(Rm, V), alpha) * Is) + Ka * Ia;
+inline vec3 phongReflection(vec3 &Ks, vec3 &Kd, int &alpha, vec3 &Is, vec3 &Id, vec3 &Lm, vec3 &N, vec3 &Rm, vec3 &V) {
+  return (Kd * glm::max(dot(Lm, N), 0.0f) * Id) + (Ks * powf(dot(Rm, V), alpha) * Is);
 }
 
-void triangle(Triangle &t, bool filled, uint32_t *buffer, float *depthBuff, vec2 offset, vec4 &eye_pos, vector<Light*>& lights)
+void triangle(Triangle &t, bool filled, uint32_t *buffer, float *depthBuff, vec2 offset, vec4 &eye_pos, vector<Light*>& lights, bool doLighting)
 {
   vec3 Kd = t.mat.diffuseVec;
   vec3 Ks = t.mat.specularVec;
@@ -1224,28 +1242,34 @@ void triangle(Triangle &t, bool filled, uint32_t *buffer, float *depthBuff, vec2
               Kd = getTexPoint(u, v, t.mat.texture, bilinear);
               Ka = Kd;
             }
-            if (bump_map) {
-              N = getTexPoint(u, v, t.mat.normal_map, bilinear);
-              N = t.TBN * N;
+            if (doLighting) {
+              if (bump_map) {
+                N = getTexPoint(u, v, t.mat.normal_map, bilinear);
+                N = t.TBN * N;
+              }
+              else {
+                N = toThree(q0 * t.vertices[0].normal + q1 * t.vertices[1].normal + q2 * t.vertices[2].normal);
+              }
+              vec4 pos_3d = q0 * t.vertices[0].pos_3d + q1 * t.vertices[1].pos_3d + q2 * t.vertices[2].pos_3d;
+              vec3 V = toThree(normalize(eye_pos - pos_3d));
+              vec3 reflectedLight = vec3(0, 0, 0);
+              if (t.mat.illum != 2) {
+                Ks = vec3(0.0f);
+              }
+              for (auto& light : lights) {
+                float radius = distance((*light).transform[3], pos_3d);
+                vec3 Id = (*light).diffuseIntensity / (4.0f * M_PIf * radius * radius);
+                vec3 Lm = toThree(normalize((*light).transform[3] - pos_3d));
+                vec3 Rm = normalize(2.0f * N * dot(Lm, N) - Lm);
+                reflectedLight += phongReflection(Ks, Kd, alpha, (*light).specularIntensity, Id, Lm, N, Rm, V);
+              }
+              reflectedLight += Ka * Ia;
+              reflectedLight = glm::min(reflectedLight, 1.0f);
+              buffer[y * WIDTH + x] = vec3ToPackedInt(reflectedLight);
             }
             else {
-              N = toThree(q0 * t.vertices[0].normal + q1 * t.vertices[1].normal + q2 * t.vertices[2].normal);
+              buffer[y * WIDTH + x] = vec3ToPackedInt(Kd);
             }
-            vec4 pos_3d = q0 * t.vertices[0].pos_3d + q1 * t.vertices[1].pos_3d + q2 * t.vertices[2].pos_3d;
-            vec3 V = toThree(normalize(eye_pos - pos_3d));
-            vec3 reflectedLight = vec3(0, 0, 0);
-            if (t.mat.illum < 2) {
-              Ks = vec3(0.0f);
-            }
-            for (auto& light : lights) {
-              float radius = distance((*light).transform[3], pos_3d);
-              vec3 Id = (*light).diffuseIntensity / (4.0f * M_PIf * radius * radius);
-              vec3 Lm = toThree(normalize((*light).transform[3] - pos_3d));
-              vec3 Rm = normalize(2.0f * N * dot(Lm, N) - Lm);
-              reflectedLight += phongReflection(Ks, Kd, Ka, alpha, (*light).specularIntensity, Id, Ia, Lm, N, Rm, V);
-            }
-            reflectedLight = glm::min(reflectedLight, 1.0f);
-            buffer[y * WIDTH + x] = vec3ToPackedInt(reflectedLight);
           }
         }
         w0 += w0_step_x;
@@ -1259,9 +1283,9 @@ void triangle(Triangle &t, bool filled, uint32_t *buffer, float *depthBuff, vec2
   }
   else
   {
-    line(t.vertices[0].pos, t.vertices[1].pos, t.mat.diffuse.toPackedInt(), buffer, WIDTH, HEIGHT, offset);
-    line(t.vertices[1].pos, t.vertices[2].pos, t.mat.diffuse.toPackedInt(), buffer, WIDTH, HEIGHT, offset);
-    line(t.vertices[2].pos, t.vertices[0].pos, t.mat.diffuse.toPackedInt(), buffer, WIDTH, HEIGHT, offset);
+    line(t.vertices[0].pos, t.vertices[1].pos, vec3ToPackedInt(t.mat.diffuseVec), buffer, WIDTH, HEIGHT, offset);
+    line(t.vertices[1].pos, t.vertices[2].pos, vec3ToPackedInt(t.mat.diffuseVec), buffer, WIDTH, HEIGHT, offset);
+    line(t.vertices[2].pos, t.vertices[0].pos, vec3ToPackedInt(t.mat.diffuseVec), buffer, WIDTH, HEIGHT, offset);
   }
 }
 

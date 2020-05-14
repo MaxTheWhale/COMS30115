@@ -27,7 +27,7 @@ vector<ModelTriangle> Model::loadOBJ(string fileName,
   ifstream f;
   string s;
   string name = "";
-  Material material = Material("missing", Colour(255, 255, 255), Colour(255, 255, 255), Colour(0, 0, 0));
+  Material material = Material("missing", vec3(1, 1, 1), vec3(1, 1, 1), vec3(0, 0, 0));
   vector<glm::vec3> vertices;
   vector<glm::vec4> normals;
   vector<glm::vec2> uvs;
@@ -125,7 +125,7 @@ void skipHashWS(ifstream &f)
   }
 }
 
-int *loadPPM(string fileName, int &width, int &height)
+glm::vec3 *loadPPM(string fileName, int &width, int &height)
 {
   cout << "loading PPM " << fileName << endl;
   ifstream f;
@@ -141,13 +141,16 @@ int *loadPPM(string fileName, int &width, int &height)
   skipHashWS(f);
   f >> s;
   f.seekg(1, f.cur);
-  int *buff = new int[width * height];
+  vec3 *buff = new vec3[width * height];
   for (int i = 0; i < width * height; i++)
   {
-    buff[i] = 0xff000000;
-    f.read(((char*)&buff[i]) + 2, 1);
-    f.read(((char*)&buff[i]) + 1, 1);
-    f.read((char*)&buff[i], 1);
+    unsigned char r, g, b;
+    f.read((char*)&r, 1);
+    f.read((char*)&g, 1);
+    f.read((char*)&b, 1);
+    buff[i].r = r / 255.0f;
+    buff[i].g = g / 255.0f;
+    buff[i].b = b / 255.0f;
   }
   return buff;
 }
@@ -177,7 +180,6 @@ unordered_map<string, Material> Model::loadMTL(string fileName) {
         f >> g;
         f >> b;
         palette[key].ambientVec = glm::vec3(stof(r), stof(g), stof(b));
-        palette[key].ambient = Colour(key, stof(r) * 255, stof(g) * 255, stof(b) * 255);
       }
       if (s == "Kd") {
         string r, g, b;
@@ -185,9 +187,7 @@ unordered_map<string, Material> Model::loadMTL(string fileName) {
         f >> g;
         f >> b;
         palette[key].diffuseVec = glm::vec3(stof(r), stof(g), stof(b));
-        palette[key].diffuse = Colour(key, stof(r) * 255, stof(g) * 255, stof(b) * 255);
-        if (palette[key].ambient.red == -1) {
-          palette[key].ambient = palette[key].diffuse;
+        if (palette[key].ambientVec.r < 0) {
           palette[key].ambientVec = palette[key].diffuseVec;
         }
       }
@@ -197,7 +197,6 @@ unordered_map<string, Material> Model::loadMTL(string fileName) {
         f >> g;
         f >> b;
         palette[key].specularVec = glm::vec3(stof(r), stof(g), stof(b));
-        palette[key].specular = Colour(key, stof(r) * 255, stof(g) * 255, stof(b) * 255);
       }
       if (s == "Ns") {
         float Ns;
@@ -222,14 +221,7 @@ unordered_map<string, Material> Model::loadMTL(string fileName) {
           fileName.erase(pos + 1);
           texture_file = fileName + texture_file;
         }
-        palette[key].texture.data = loadPPM(texture_file, palette[key].texture.width, palette[key].texture.height);
-
-        palette[key].texture.dataVec = new glm::vec3[palette[key].texture.width * palette[key].texture.height];
-        for (int i = 0; i < palette[key].texture.width * palette[key].texture.height; i++) {
-          palette[key].texture.dataVec[i].r = ((palette[key].texture.data[i] & 0xff0000) >> 16) / 255.0f;
-          palette[key].texture.dataVec[i].g = ((palette[key].texture.data[i] & 0x00ff00) >> 8) / 255.0f;
-          palette[key].texture.dataVec[i].b = (palette[key].texture.data[i] & 0x0000ff) / 255.0f;
-        }
+        palette[key].texture.dataVec = loadPPM(texture_file, palette[key].texture.width, palette[key].texture.height);
       }
       if (s == "map_bump" || s == "bump") {
         string texture_file;
@@ -239,13 +231,9 @@ unordered_map<string, Material> Model::loadMTL(string fileName) {
           fileName.erase(pos + 1);
           texture_file = fileName + texture_file;
         }
-        palette[key].normal_map.data = loadPPM(texture_file, palette[key].normal_map.width, palette[key].normal_map.height);
+        palette[key].normal_map.dataVec = loadPPM(texture_file, palette[key].normal_map.width, palette[key].normal_map.height);
 
-        palette[key].normal_map.dataVec = new glm::vec3[palette[key].normal_map.width * palette[key].normal_map.height];
         for (int i = 0; i < palette[key].normal_map.width * palette[key].normal_map.height; i++) {
-          palette[key].normal_map.dataVec[i].x = ((palette[key].normal_map.data[i] & 0xff0000) >> 16) / 255.0f;
-          palette[key].normal_map.dataVec[i].y = ((palette[key].normal_map.data[i] & 0x00ff00) >> 8) / 255.0f;
-          palette[key].normal_map.dataVec[i].z = (palette[key].normal_map.data[i] & 0x0000ff) / 255.0f;
           palette[key].normal_map.dataVec[i].x *= 2.0f;
           palette[key].normal_map.dataVec[i].x -= 1.0f;
           palette[key].normal_map.dataVec[i].y *= 2.0f;

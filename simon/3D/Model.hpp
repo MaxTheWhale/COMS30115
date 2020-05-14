@@ -16,6 +16,8 @@ class Model : public Animatable {
     Model(const Model& original);
     vec3 center;
     float furthestExtent = -1.0f;
+    bool castShadow = true;
+    bool fullBright = false;
     float calcExtent();
     vec4 calcTangent(ModelTriangle& tri);
   protected:
@@ -24,3 +26,5 @@ class Model : public Animatable {
     std::vector<ModelTriangle> loadOBJ(std::string filename,
                               std::unordered_map<std::string, Material> palette);
 };
+
+glm::vec3 *loadPPM(string fileName, int &width, int &height);

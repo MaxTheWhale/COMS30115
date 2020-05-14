@@ -30,7 +30,7 @@ bool Orbit::execute(Animatable* parent, Movement& previous) {
     //parameter increased by timeStep fraction of 2pi scaled by period
     progress += scale * 2 * M_PIf;
     if (progress > 2 * M_PIf + startPosition) {
-        progress = 0;
+        progress = startPosition;
         return true;
     }
     return false;
