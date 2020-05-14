@@ -14,6 +14,7 @@ class ModelTriangle
     glm::vec4 normals[3];
     glm::mat3 TBN;
     float brightness[3];
+    bool fullBright = false;
     Material material;
     std::string name = "";
 

@@ -1,5 +1,5 @@
 newmtl Moon
-Ns 96.078443
+#Ns 50.0
 Kd 0.500000 0.500000 0.500000
 #illum 2
 map_bump MoonBump.ppm
