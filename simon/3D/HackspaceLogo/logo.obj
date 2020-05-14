@@ -1,6 +1,7 @@
 # This file uses centimeters as units for non-parametric coordinates.
 mtllib logo.mtl
 
+usemtl Leopard
 v -241.000000 58.000000 25.000000
 v -140.000000 -114.000000 25.000000
 v -211.000000 109.000000 25.000000
