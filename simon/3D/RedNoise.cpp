@@ -84,6 +84,10 @@ inline int vec3ToPackedInt(vec3 colour) {
   return ALPHA | (int(colour.r * 255.0f) << 16) | (int(colour.g * 255.0f) << 8) | int(colour.b * 255.0f);
 }
 
+inline vec3 packedIntToVec3(int colour) {
+  return vec3(((colour & 0xff0000) >> 16) / 255.0f, ((colour & 0x00ff00) >> 8) / 255.0f, (colour & 0x0000ff) / 255.0f);
+}
+
 vec3 bilinearInterpolate(vec3 tl, vec3 tr, vec3 bl, vec3 br, vec2 pos) {
   float xy = pos.x * pos.y;
   float a0 = xy - pos.x - pos.y + 1.0f;
@@ -315,13 +319,13 @@ vec3 uniformSampleHemisphere(float r1, float r2) {
   return vec3(x, r1, z);
 }
 
-vec3 getPixelColour(RayTriangleIntersection& intersection, vector<Light*> lights, vec4 rayDirection, vector<TriangleGroup>& triGroups, int depth, int i, int j, int* background) {
+vec3 getPixelColour(RayTriangleIntersection& intersection, vector<Light*> lights, vec4 rayDirection, vector<TriangleGroup>& triGroups, int depth, int i, int j, Texture &background) {
   vec3 colour = vec3(0.0f, 0.0f, 0.0f);
 
   if(depth > MAX_DEPTH) return colour;
   if(!intersection.wasFound) {
-    int bgc = background[i + 3877 * j];
-    return vec3((bgc & 0xff0000) >> 16, (bgc & 0x00ff00) >> 8, bgc & 0x0000ff);
+    return background.dataVec[i + j * background.width];
+    return colour;
   }
 
   Texture& tex = intersection.intersectedTriangle.material.texture;
@@ -497,7 +501,7 @@ Colour vecToColour(vec3 colour) {
   return Colour(colour.r * 255.0f, colour.g * 255.0f, colour.b * 255.0f);
 }
 
-void raytrace(Camera camera, std::vector<Model*> models, vector<Light*> lights) {
+void raytrace(Camera camera, std::vector<Model*> models, vector<Light*> lights, Texture &background) {
   vector<TriangleGroup> triGroups;
   for (unsigned int i = 0; i < models.size(); i++) {
     vector<ModelTriangle> tris;
@@ -526,9 +530,6 @@ void raytrace(Camera camera, std::vector<Model*> models, vector<Light*> lights) 
     }
     triGroups.push_back({tris, radius_sq, (*models[i]).transform[3]});
   }
-
-  int bg_width = 3877, bg_height = 2482;
-  int* background = loadPPM("stars.ppm", bg_width, bg_height);
 
   uint32_t *buffer = (SSAA) ? imageBuffer : window.pixelBuffer;
   vector<vec2> offsets = generateRotatedGrid(SSAA_SCALE);
@@ -779,6 +780,11 @@ int main(int argc, char *argv[])
   center.scale(vec3(0.02f,0.02f,0.02f));
   center.rotate(vec3(M_PIf/2,0,0));
 
+  Model iss = Model("iss");
+  renderQueue.push_back(&iss);
+  iss.scale(vec3(0.2f,0.2f,0.2f));
+  iss.setPosition(vec3(0,10,0));
+
   Model orbitor1 = Model("tilted");
   orbitor1.setPosition(vec3(10,0,0));
   orbitor1.setScale(vec3(1.5f,1.5f,1.5f));
@@ -998,6 +1004,13 @@ int main(int argc, char *argv[])
   cam.moves.push(&move);
   cam.moves.push(&slow);
 
+  Texture background;
+  background.data = loadPPM("stars.ppm", background.width, background.height);
+  background.dataVec = new vec3[background.width * background.height];
+  for (int p = 0; p < background.width * background.height; p++) {
+    background.dataVec[p] = packedIntToVec3(background.data[p]);
+  }
+
   Times::init();
   auto start = std::chrono::high_resolution_clock::now();
   int frameCount = 0;
@@ -1024,7 +1037,7 @@ int main(int argc, char *argv[])
     update(cam, updateQueue);
     draw();
     if(toRaytrace) {
-      raytrace(cam, renderQueue, lights);
+      raytrace(cam, renderQueue, lights, background);
     } else {
       drawTriangles(cam, renderQueue, lights);
     }
