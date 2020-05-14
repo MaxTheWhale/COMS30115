@@ -604,6 +604,8 @@ int main(int argc, char *argv[])
   renderQueue.push_back(&center);
   center.scale(vec3(0.015f,0.015f,0.015f));
   center.rotate(vec3(M_PIf/2,0,0));
+  center.castShadow = false;
+  // center.fullBright = true;
 
   Light mainLight = Light(vec3(2550.0f, 250.0f, 1130.0f), vec3(1.0f, 1.0f, 1.0f));
   mainLight.setPosition(vec3(19,29,1.0f));
@@ -791,8 +793,9 @@ int main(int argc, char *argv[])
 
   Model ground = Model("ground");
   renderQueue.push_back(&ground);
-  ground.scale(vec3(10.0f, 10.0f, 10.0f));
-  ground.setPosition(vec3(0,-10,0));
+  ground.scale(vec3(30.0f, 30.0f, 30.0f));
+  ground.setPosition(vec3(100,0,0));
+
 
   Model iss = Model("iss");
   renderQueue.push_back(&iss);
@@ -800,10 +803,10 @@ int main(int argc, char *argv[])
   iss.setPosition(vec3(25,15,1.0f));
   iss.rotate(vec3(0,M_PIf - 0.4f,1.2f));
 
-  Model orbitor1 = Model("earth/earth");
-  orbitor1.setPosition(vec3(10,0,0));
-  orbitor1.setScale(vec3(0.000003f,0.000003f,0.000003f));
-  orbitor1.rotate(vec3(M_PIf/2,0,0));
+  Model orbitor1 = Model("earth/earth2");
+  orbitor1.setPosition(vec3(9,0,0));
+  // orbitor1.setScale(vec3(0.000003f,0.000003f,0.000003f));
+  // orbitor1.rotate(vec3(M_PIf/2,0,0));
   renderQueue.push_back(&orbitor1);
   
   Magnet mag = Magnet(&orbitor1, rbList);
@@ -820,37 +823,37 @@ int main(int argc, char *argv[])
 
   Model moon = Model("Moon2k");
   moon.setPosition(orbitor1.getPosition() + vec3(4,0,0));
-  moon.scale(vec3(0.6f,0.6f,0.6f));
+  moon.scale(vec3(0.7f,0.7f,0.7f));
   renderQueue.push_back(&moon);
 
   Orbit lunarOrbit = Orbit(&orbitor1);
   lunarOrbit.time = 1;
   lunarOrbit.repeats = -1;
-  // lunarOrbit.rotation = rot;
+  lunarOrbit.rotation = rot;
   moon.moves.push(&lunarOrbit);
   updateQueue.push_back(&moon);
  
-  Model orbitor2 = Model("saturn/saturn");
+  Model orbitor2 = Model("uranus/uranus");
   orbitor2.setPosition(vec3(10,0,10));
-  orbitor2.rotate(vec3(M_PIf/2,0,0));
-  orbitor2.setScale(vec3(0.000003f,0.000003f,0.000003f));
+  orbitor2.rotate(vec3(0,M_PIf/2,0));
+  orbitor2.setScale(vec3(0.006f,0.006f,0.006f));
   renderQueue.push_back(&orbitor2);
 
   Magnet mag2 = Magnet(&orbitor2, rbList);
   updateQueue.push_back(&mag2);
   
   // t.rotate(vec3(0.5f,0,0));
-  Orbit orbit2 = Orbit(&center, M_PIf);
+  Orbit orbit2 = Orbit(&center);
   orbit2.repeats = -1;
   orbit2.time = 5;
-  // orbit2.rotation = rot;
+  orbit2.rotation = rot;
   orbitor2.moves.push(&orbit2);
   updateQueue.push_back(&orbitor2);
 
-  Model orbitor3 = Model("mars/mars");
-  orbitor3.setPosition(vec3(0,0,7));
+  Model orbitor3 = Model("mars/mars2");
+  orbitor3.setPosition(vec3(12,0,0));
   orbitor3.rotate(vec3(M_PIf/2,0,0));
-  orbitor3.setScale(vec3(0.000003f,0.000003f,0.000003f));
+  orbitor3.setScale(vec3(0.0035f,0.0035f,0.0035f));
   renderQueue.push_back(&orbitor3);
 
   Magnet mag3 = Magnet(&orbitor3, rbList);
@@ -932,9 +935,9 @@ int main(int argc, char *argv[])
   // moon.fullBright = true;
   // renderQueue.push_back(&moon);
 
-  // Light sunlight = Light(vec3(2550.f, 1840.f, 310.f), vec3(1.0f, 1.0f, 1.0f));
-  // sunlight.setPosition(vec3(0,3,0));
-  // lights.push_back(&sunlight);
+  Light sunlight = Light(vec3(2550.f, 1840.f, 1010.f), vec3(1.0f, 1.0f, 1.0f));
+  sunlight.setPosition(vec3(0,2,0));
+  lights.push_back(&sunlight);
 
   //second scene
 
@@ -1096,7 +1099,7 @@ void update(Camera &cam, vector<Updatable*> updatables)
 {
   // Function for performing animation (shifting artifacts or moving the camera)
   cam.update();
-  cout << "camera pos: " << cam.getPosition() << endl;
+  // cout << "camera pos: " << cam.getPosition() << endl;
   for (unsigned int i = 0; i < updatables.size(); i++)
   {
     updatables[i]->update();
