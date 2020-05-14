@@ -138,7 +138,7 @@ void drawTriangles(Camera &cam, std::vector<Model *> models, vector<Light*> ligh
       tri.vertices[1].pos_3d = model.transform * tri.vertices[1].pos;
       tri.vertices[2].pos_3d = model.transform * tri.vertices[2].pos;
       if (tri.mat.normal_map.dataVec != nullptr) {
-        tri.tangent = model.transform * tri.tangent;
+        tri.tangent = normalize(model.transform * tri.tangent);
         tri.TBN = mat3(toThree(tri.tangent), toThree(cross(tri.normal, tri.tangent)), toThree(tri.normal));
       }
       tri.vertices[0].pos = viewProjection * tri.vertices[0].pos_3d;
@@ -544,7 +544,7 @@ void raytrace(Camera camera, std::vector<Model*> models, vector<Light*> lights, 
       ModelTriangle newTri = ModelTriangle((*models[i]).transform * tri.vertices[0],
                             (*models[i]).transform * tri.vertices[1],
                             (*models[i]).transform * tri.vertices[2],
-                            tri.material, (*models[i]).transform * tri.normal);
+                            tri.material, normalize((*models[i]).transform * tri.normal));
       newTri.uvs[0] = tri.uvs[0];
       newTri.uvs[1] = tri.uvs[1];
       newTri.uvs[2] = tri.uvs[2];
@@ -554,7 +554,7 @@ void raytrace(Camera camera, std::vector<Model*> models, vector<Light*> lights, 
       newTri.name = tri.name;
       newTri.fullBright = models[i]->fullBright;
       if (newTri.material.normal_map.dataVec != nullptr) {
-        newTri.tangent = (*models[i]).transform * tri.tangent;
+        newTri.tangent = normalize((*models[i]).transform * tri.tangent);
         newTri.TBN = mat3(toThree(newTri.tangent), toThree(cross(newTri.normal, newTri.tangent)), toThree(newTri.normal));
       }
       for (int v = 0; v < 3; v++) {
@@ -622,6 +622,7 @@ Rigidbody* unfreeze = 0;
 vector<Transformable*> scene1 = vector<Transformable*>();
 vector<Model*> scene2 = vector<Model*>();
 Light* sunlight;
+Model* iss_p;
 
 int main(int argc, char *argv[])
 {
@@ -691,6 +692,8 @@ int main(int argc, char *argv[])
   // iss.setPosition(vec3(25,15,1.0f));
   // iss.rotate(vec3(0,M_PIf - 0.4f,1.2f));
   // scene1.push_back(&iss);
+  // iss_p = &iss;
+  // updateQueue.push_back(iss_p);
 
   // Model orbitor1 = Model("earth/earth2");
   // orbitor1.setPosition(vec3(9,0,0));
@@ -961,9 +964,9 @@ int main(int argc, char *argv[])
     Times::update();
     // Quick and dirty animated water
     // for (auto& tri : ground.tris) {
-    //   tri.uvs[0].x += 0.1f * Times::deltaTime();
-    //   tri.uvs[1].x += 0.1f * Times::deltaTime();
-    //   tri.uvs[2].x += 0.1f * Times::deltaTime();
+    //   tri.uvs[0].x += 0.1f * (1.0f / 60.0f);
+    //   tri.uvs[1].x += 0.1f * (1.0f / 60.0f);
+    //   tri.uvs[2].x += 0.1f * (1.0f / 60.0f);
     // }
     // We MUST poll for events - otherwise the window will freeze !
     if (window.pollForInputEvents(&event))
@@ -1040,6 +1043,13 @@ void update(Camera &cam, vector<Updatable*> &updatables, vector<Model*> *renderQ
     t.move(vec3(10,0,0));
     Movement* move = new Movement(t.transform,2.0f);
     sunlight->moves.push(move);
+  }
+  else if (seconds == 2.1f) {
+    Movement* move = new Movement(2.5f);
+    move->move(vec3(-3,3,-5));
+    move->isRotation = true;
+    move->rotation = vec3(M_PIf/4 + 0.1f, M_PIf,0.2f);
+    iss_p->moves.push(move);
   }
 }
 
