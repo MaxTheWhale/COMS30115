@@ -1,9 +1,7 @@
 #include "Transformable.hpp"
-#include <iostream>
 #include "VectorUtil.hpp"
 
 Transformable::Transformable() {
-    //std::cout << "Transformable constructor called" << std::endl;
     this->transform= glm::mat4(1, 0, 0, 0,
                             0, 1, 0, 0,
                             0, 0, 1, 0,
@@ -17,7 +15,6 @@ void Transformable::move(const glm::vec3& delta) {
 }
 void Transformable::rotate(const glm::vec3& delta) {
     glm::mat4 rot = rotationFromEuler(delta);
-    //std::cout << "rotation matrix = " << rot << std::endl;
     transform *= glm::transpose(rot);
 }
 void Transformable::scale(const glm::vec3& delta) {

@@ -16,7 +16,4 @@ class Transformable {
     void lookAt(const glm::vec3& from, const glm::vec3& to);
     Transformable();
     static glm::mat4 rotationFromEuler(const glm::vec3& rotation);
-  protected:
-    //glm::mat4 positionMat, rotationMat, scaleMat;
-    //virtual void updateTransform();
 };

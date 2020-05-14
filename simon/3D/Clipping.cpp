@@ -16,9 +16,9 @@ int clipTriangle(list<Triangle>& tris, const vec4& normal) {
   int n = tris.size();
   for (int i = 0; (i < n) && tri != tris.end(); i++) {
     vector<float> distances;
-    distances.push_back(dot((*tri).vertices[0].pos, normal));
-    distances.push_back(dot((*tri).vertices[1].pos, normal));
-    distances.push_back(dot((*tri).vertices[2].pos, normal));
+    distances.push_back(dot(tri->vertices[0].pos, normal));
+    distances.push_back(dot(tri->vertices[1].pos, normal));
+    distances.push_back(dot(tri->vertices[2].pos, normal));
     if (distances[0] >= 0.0f && distances[1] >= 0.0f && distances[2] >= 0.0f) {
       tri++;
       continue;
@@ -30,32 +30,32 @@ int clipTriangle(list<Triangle>& tris, const vec4& normal) {
     bool nextInside;
     if (distances[1] >= 0.0f && distances[0] < 0.0f) {
       nextInside = (distances[2] >= 0.0f);
-      temp = (*tri).vertices[0];
-      (*tri).vertices[0] = (*tri).vertices[1];
-      (*tri).vertices[1] = (*tri).vertices[2];
-      (*tri).vertices[2] = temp;
+      temp = tri->vertices[0];
+      tri->vertices[0] = tri->vertices[1];
+      tri->vertices[1] = tri->vertices[2];
+      tri->vertices[2] = temp;
       rotate(distances.begin(),distances.begin()+1,distances.end());
     }
     else if (distances[2] >= 0.0f && distances[1] < 0.0f) {
       nextInside = (distances[0] >= 0.0f);
-      temp = (*tri).vertices[2];
-      (*tri).vertices[2] = (*tri).vertices[1];
-      (*tri).vertices[1] = (*tri).vertices[0];
-      (*tri).vertices[0] = temp;
+      temp = tri->vertices[2];
+      tri->vertices[2] = tri->vertices[1];
+      tri->vertices[1] = tri->vertices[0];
+      tri->vertices[0] = temp;
       rotate(distances.begin(),distances.begin()+2,distances.end());
     }
     else {
       nextInside = (distances[1] >= 0.0f);
     }
-    temp = mixVertex((*tri).vertices[0], (*tri).vertices[2], (distances[0] / (distances[0] - distances[2])));
+    temp = mixVertex(tri->vertices[0], tri->vertices[2], (distances[0] / (distances[0] - distances[2])));
     if (nextInside) {
-      (*tri).vertices[2] = mixVertex((*tri).vertices[1], (*tri).vertices[2], (distances[1] / (distances[1] - distances[2])));
-      Triangle newTri = Triangle((*tri).vertices[0], (*tri).vertices[2], temp, (*tri).mat, (*tri).normal, (*tri).TBN);
+      tri->vertices[2] = mixVertex(tri->vertices[1], tri->vertices[2], (distances[1] / (distances[1] - distances[2])));
+      Triangle newTri = Triangle(tri->vertices[0], tri->vertices[2], temp, tri->mat, tri->normal, tri->TBN);
       tris.push_back(newTri);
     }
     else {
-      (*tri).vertices[1] = mixVertex((*tri).vertices[0], (*tri).vertices[1], (distances[0] / (distances[0] - distances[1])));
-      (*tri).vertices[2] = temp;
+      tri->vertices[1] = mixVertex(tri->vertices[0], tri->vertices[1], (distances[0] / (distances[0] - distances[1])));
+      tri->vertices[2] = temp;
     }
     tri++;
   }

@@ -23,11 +23,13 @@ unsigned long long Times::getTime()
         (unsigned long long)(tv.tv_usec) / 1000;
     return millisecondsSinceEpoch;
 }
+
 void Times::update() {
     delta = getDeltaTime();
     lastFrameTime = getTime();
     frameCount++;
 }
+
 float Times::deltaTime() {
     return delta;
 }
@@ -36,4 +38,8 @@ float Times::getDeltaTime()
 {
     long long ms = getTime() - lastFrameTime;
     return (float)ms / (float)1000;
+}
+
+int Times::getFrameCount() {
+    return frameCount;
 }

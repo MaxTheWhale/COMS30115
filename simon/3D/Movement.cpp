@@ -19,6 +19,12 @@ Movement::Movement(glm::mat4 transform, float time) {
     this->time = time;
     this->transform = transform;
 }
+Movement::Movement(glm::vec3 rotation, float time) {
+    this->time = time;
+    this->rotation = rotation;
+    this->prevRotation = glm::vec3(0, 0, 0);
+    this->isRotation = true;
+}
 
 float mat4Dist(mat4 &a, mat4 &b)
 {
@@ -30,37 +36,41 @@ float mat4Dist(mat4 &a, mat4 &b)
     return result;
 }
 
+void Movement::finish(Animatable* parent) {
+    parent->transform = transform;
+    parent->transform = rotationFromEuler(rotation) * parent->transform;
+}
+
 bool Movement::execute(Animatable* parent, Movement& previous) {
-    // cout << "delta = deltaTime (" << Times::deltaTime() << ") * (previous transform (" << this->previous.transform << ") - next transform (" << moves.top().transform << "))" << endl;
+    if (time <= 0) {
+        finish(parent);
+        return true;
+    }
+    elapsed += parent->timeStep();
+    if (elapsed >= time) {
+        return true;
+    }
     float scale = -parent->timeStep() / time;
-    mat4 delta = scale * (previous.transform - transform);
-    if (stareAt) {
-        for (int i = 0; i < 3; i++) {
-            delta[i] = vec4(0,0,0,0);
+
+    if (isRotation) {
+        vec3 rotDelta = -scale * rotation;
+        if (((length(prevRotation + rotDelta) >= length(rotation)) && (length(prevRotation) < length(rotation))) ||
+            ((length(prevRotation + rotDelta) <= length(rotation)) && (length(prevRotation) > length(rotation)))) {
+            }
+        else {
+            prevRotation += rotDelta;
+            parent->transform = parent->transform * rotationFromEuler(rotDelta);
         }
     }
-    // cout << "previous = " << previous.transform << endl << "target = " << moves.top().transform << endl << "delta = " << delta << endl;
-    mat4 newTransform = mat4();
-    for (int i = 0; i < 4; i++)
-    {
-        newTransform[i] = parent->transform[i] + delta[i];
-    }
+    vec4 delta = scale * (previous.transform[3] - transform[3]);
+    mat4 newTransform = parent->transform;
+    newTransform[3] += delta;
     if (stareAt) {
-        cout << "stare target: " << stareTarget << endl;
-        parent->lookAt(parent->getPosition(), stareTarget);
+        parent->lookAt(parent->getPosition(), stareTarget->getPosition());
     }
     //would the move take us further from our goal
-    float currentDist;
-    float newDist;
-    if (stareAt) {
-        currentDist = distance(parent->transform[3], transform[3]);
-        newDist = distance(newTransform[3], transform[3]);
-    }
-    else {
-        currentDist = mat4Dist(parent->transform, transform);
-        newDist = mat4Dist(newTransform, transform);
-    }
-    // cout << "currentDist = " << currentDist << " newDist = " << newDist << endl;
+    float currentDist = distance(parent->transform[3], transform[3]);
+    float newDist = distance(newTransform[3], transform[3]);
     if (currentDist < newDist) {
         // if (stareAt) {
         //     parent->transform[3] = transform[3];
@@ -68,12 +78,12 @@ bool Movement::execute(Animatable* parent, Movement& previous) {
         // else {
         //     parent->transform = transform;
         // }
-        return true;
+        // finish(parent);
+        // return true;
     }
     else {
-        for (int i = 0; i < 4; i++) {
-            parent->transform[i] += delta[i];
-        }
+        parent->transform[3] += delta;
     }
     return false;
+
 }

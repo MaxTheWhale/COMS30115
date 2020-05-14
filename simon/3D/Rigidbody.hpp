@@ -1,3 +1,5 @@
+#pragma once
+
 #include <glm/glm.hpp>
 #include "Model.hpp"
 #include "Updatable.hpp"
@@ -12,7 +14,8 @@ class Rigidbody : public Updatable, Temporal {
         bool collisionEnabled = true;
         bool positionFixed = true;
         static glm::vec3 gravity;
-        Rigidbody(Model* model);
+        Rigidbody(Model* model, vector<Rigidbody*>& RBList);
+        Rigidbody();
         Model* model;
         std::vector<Rigidbody*> collidedWith; //all RBs that this RB has collided with this frame, ensuring that they do not collide twice
         float mass = 1;
@@ -20,8 +23,10 @@ class Rigidbody : public Updatable, Temporal {
         void applyForce(vec3 force, vec3 position);
         float elasticity = 0.9; //how much energy is conserved in collisions
         bool suckable = true; //can be moved by magnets
-        static std::vector<Rigidbody*> allRBs;
+        std::vector<Rigidbody*>* allRBs;
+        int collisionLayer = 0;
     protected:
+        static const glm::mat3 collisionLayers;
         //hack for the sake of efficiency
         //set every time there is a collision to the model-relative 3D coordinates of the vertex assumed to have caused it
         glm::vec3 lastCollision;

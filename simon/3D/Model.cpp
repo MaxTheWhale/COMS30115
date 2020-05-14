@@ -11,7 +11,13 @@ Model::Model(string filename) {
     palette = loadMTL(filename + ".mtl");
     tris = loadOBJ(filename + ".obj", palette);
     this->furthestExtent = calcExtent();
-    cout << "Model " << this << " extent: " << furthestExtent << endl;
+}
+
+Model::Model(const Model& original) {
+    palette = original.palette;
+    tris = original.tris;
+    furthestExtent = original.furthestExtent;
+    center = original.center;
 }
 
 vector<ModelTriangle> Model::loadOBJ(string fileName,
@@ -20,7 +26,7 @@ vector<ModelTriangle> Model::loadOBJ(string fileName,
   ifstream f;
   string s;
   string name = "";
-  Material material = Material("missing", Colour(0, 0, 0), Colour(255, 255, 255), Colour(0, 0, 0));
+  Material material = Material("missing", Colour(255, 255, 255), Colour(255, 255, 255), Colour(0, 0, 0));
   vector<glm::vec3> vertices;
   vector<glm::vec4> normals;
   vector<glm::vec2> uvs;
@@ -203,8 +209,9 @@ unordered_map<string, Material> Model::loadMTL(string fileName) {
         palette[key].illum = (int)illum;
       }
       if (s == "d") {
-        f >> s;
-        palette[key].dissolve = stof(s);
+        float dissolve;
+        f >> dissolve;
+        palette[key].dissolve = dissolve;
       }
       if (s == "map_Kd") {
         string texture_file;
@@ -256,7 +263,6 @@ unordered_map<string, Material> Model::loadMTL(string fileName) {
 vec3 Model::centerOfMass() {
   float totalVolume = 0;
   vec3 center;
-  cout << "triangle: " << tris[6] << endl;
   for (unsigned int i = 0; i < tris.size(); i++) {
     //maaaaaaaaaths
     float currentVolume = (tris[i].vertices[0][0]*tris[i].vertices[1][1]*tris[i].vertices[2][2] -

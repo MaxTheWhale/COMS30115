@@ -8,7 +8,7 @@
 #include "Transformable.hpp"
 #include "Animatable.hpp"
 
-class Light : public Animatable
+class LightOld
 {
   public:
     std::string name;
@@ -18,11 +18,11 @@ class Light : public Animatable
     float intensity = 10.0f;
     float shadow = 0.1f;
 
-    Light()
+    LightOld()
     {
     }
 
-    Light(std::string n, vector<ModelTriangle> tris)
+    LightOld(std::string n, vector<ModelTriangle> tris)
     {
         name = n;
         triangles = tris;
@@ -50,5 +50,3 @@ class Light : public Animatable
     }
 
 };
-
-std::ostream& operator<<(std::ostream& os, const Colour& colour);
