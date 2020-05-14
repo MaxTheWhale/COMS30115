@@ -972,6 +972,8 @@ int main(int argc, char *argv[])
     if (window.pollForInputEvents(&event))
       handleEvent(event, cam);
     // cout << "hs_logo pos: " << hs_logo.getPosition() << endl;
+    //call update twice to account for 30-60 fps difference
+    update(cam, updateQueue, &renderQueue);
     update(cam, updateQueue, &renderQueue);
     draw();
     if(toRaytrace) {
@@ -1048,7 +1050,7 @@ void update(Camera &cam, vector<Updatable*> &updatables, vector<Model*> *renderQ
     Movement* move = new Movement(2.5f);
     move->move(vec3(-3,3,-5));
     move->isRotation = true;
-    move->rotation = vec3(M_PIf/4 + 0.1f, M_PIf,-0.5f);
+    move->rotation = vec3(M_PIf/4 + 0.1f, M_PIf * 3/4,-0.3f);
     iss_p->moves.push(move);
   }
 }

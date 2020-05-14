@@ -5,6 +5,6 @@
 class Temporal {
     public:
         bool realTime = false;
-        float frameRate = 30.0f;
+        float frameRate = 60.0f;
         float timeStep();
 };
