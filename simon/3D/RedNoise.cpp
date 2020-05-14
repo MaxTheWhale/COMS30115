@@ -1038,9 +1038,9 @@ void update(Camera &cam, vector<Updatable*> &updatables, vector<Model*> *renderQ
   }
   else if (seconds == 2.1f) {
     Movement* move = new Movement(2.5f);
-    move->move(vec3(-3,4,-5));
+    move->move(vec3(-3,3,-5));
     move->isRotation = true;
-    move->rotation = vec3(M_PIf/4 + 0.1f, M_PIf,0);
+    move->rotation = vec3(M_PIf/4 + 0.1f, M_PIf,0.2f);
     iss_p->moves.push(move);
   }
 }
