@@ -1,4 +1,4 @@
 newmtl Leopard
 Kd 0.000000 0.000000 0.000000
-d 0.0
+illum 3
 #map_Kd texture.ppm
