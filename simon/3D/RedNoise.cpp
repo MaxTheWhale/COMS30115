@@ -43,7 +43,7 @@ using namespace glm;
 #define NUM_TILES_Y (HEIGHT / TILE_SIZE)
 #define NUM_TILES (NUM_TILES_X * NUM_TILES_Y)
 
-#define RENDER false
+#define RENDER true
 #define RENDER_LENGTH 300
 
 #ifndef M_PIf
@@ -779,6 +779,11 @@ int main(int argc, char *argv[])
   renderQueue.push_back(&center);
   center.scale(vec3(0.02f,0.02f,0.02f));
   center.rotate(vec3(M_PIf/2,0,0));
+
+  Model iss = Model("iss");
+  renderQueue.push_back(&iss);
+  iss.scale(vec3(0.2f,0.2f,0.2f));
+  iss.setPosition(vec3(0,10,0));
 
   Model orbitor1 = Model("tilted");
   orbitor1.setPosition(vec3(10,0,0));
