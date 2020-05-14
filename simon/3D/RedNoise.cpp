@@ -375,7 +375,7 @@ vec3 getPixelColour(RayTriangleIntersection& intersection, vec4 start, vector<Li
     normal = normalize(q2 * t.normals[0] + q0 * t.normals[1] + q1 * t.normals[2]);
   }
 
-  if(intersection.intersectedTriangle.material.dissolve < 1.0f) {
+  if(intersection.intersectedTriangle.material.illum == 4) {
     vec4 refractedRay;
     float kr;
 
@@ -431,7 +431,7 @@ vec3 getPixelColour(RayTriangleIntersection& intersection, vec4 start, vector<Li
       glassColour = intersection.intersectedTriangle.material.diffuseVec;
     }
     
-    return glm::min((depth == 1 ? glassColour : vec3(0,0,0)) + glm::min(reflectedColour * kr, 1.0f) + glm::min(refractionColour * (1.0f - kr), 1.0f), 1.0f);
+    return glm::min(glassColour + glm::min(reflectedColour * kr, 1.0f) + glm::min(refractionColour * (1.0f - kr), 1.0f), 1.0f);
   }
 
   // Why is this mirror stuff happening based on a specular check? am very confuse
@@ -458,6 +458,14 @@ vec3 getPixelColour(RayTriangleIntersection& intersection, vec4 start, vector<Li
     Ks = vec3(0.0f);
   }
   for (auto& light : lights) {
+    vec4 shadowRayDirection = (*light).transform[3] - intersection.intersectionPoint;
+    bool isInShadow = inShadow(triGroups, shadowRayDirection, intersection);
+
+    if(isInShadow) {
+      reflectedLight += (*light).shadow;
+      break;
+    }
+
     float radius = distance((*light).transform[3], pos_3d);
     vec3 Id = (*light).diffuseIntensity / (4.0f * M_PIf * radius * radius);
     vec3 Lm = toThree(normalize((*light).transform[3] - pos_3d));
@@ -627,308 +635,308 @@ int main(int argc, char *argv[])
 
   // STANDARD CORNELL LAYOUT
   
-  // Model cornell = Model("cornell-box");
-  // renderQueue.push_back(&cornell);
-  // Camera cam;
-  // cam.setProjection(90.0f, WIDTH / (float)HEIGHT, 0.1f, 100.0f);
-  // cam.lookAt(vec3(0.0f, 2.5f, 3.0f), vec3(0.0f, 2.5f, 0.0));
-  // Light cornellLight = Light(vec3(200.0f, 200.0f, 200.0f), vec3(1.0f, 1.0f, 1.0f));
-  // cornellLight.setPosition(vec3(-0.234f, 5.0f, -3.043f));
-  // lights.push_back(&cornellLight);
+  Model cornell = Model("cornell-box");
+  renderQueue.push_back(&cornell);
+  Camera cam;
+  cam.setProjection(90.0f, WIDTH / (float)HEIGHT, 0.1f, 100.0f);
+  cam.lookAt(vec3(0.0f, 2.5f, 3.0f), vec3(0.0f, 2.5f, 0.0));
+  Light cornellLight = Light(vec3(200.0f, 200.0f, 200.0f), vec3(1.0f, 1.0f, 1.0f));
+  cornellLight.setPosition(vec3(-0.234f, 5.0f, -3.043f));
+  lights.push_back(&cornellLight);
 
   // END STANDARD CORNELL LAYOUT
 
   // ANIMATION LAYOUT
 
-  Model center = Model("HackspaceLogo/logo");
-  renderQueue.push_back(&center);
-  center.scale(vec3(0.015f,0.015f,0.015f));
-  center.rotate(vec3(M_PIf/2,0,0));
-  center.castShadow = false;
-  center.fullBright = true;
-  scene1.push_back(&center);
+  // Model center = Model("HackspaceLogo/logo");
+  // renderQueue.push_back(&center);
+  // center.scale(vec3(0.015f,0.015f,0.015f));
+  // center.rotate(vec3(M_PIf/2,0,0));
+  // center.castShadow = false;
+  // center.fullBright = true;
+  // scene1.push_back(&center);
 
-  // Light mainLight = Light(vec3(2550.0f, 250.0f, 1130.0f), vec3(1.0f, 1.0f, 1.0f));
-  // mainLight.setPosition(vec3(19,29,1.0f));
-  // lights.push_back(&mainLight);
-  // scene1.push_back(&mainLight);
+  // // Light mainLight = Light(vec3(2550.0f, 250.0f, 1130.0f), vec3(1.0f, 1.0f, 1.0f));
+  // // mainLight.setPosition(vec3(19,29,1.0f));
+  // // lights.push_back(&mainLight);
+  // // scene1.push_back(&mainLight);
 
-  Light blueLight = Light(vec3(250.0f, 1170.0f, 2550.0f)/2.0f, vec3(1.0f, 1.0f, 1.0f));
-  blueLight.setPosition(vec3(25,20,-5.0f));
-  lights.push_back(&blueLight);
-  scene1.push_back(&blueLight);
+  // Light blueLight = Light(vec3(250.0f, 1170.0f, 2550.0f)/2.0f, vec3(1.0f, 1.0f, 1.0f));
+  // blueLight.setPosition(vec3(25,20,-5.0f));
+  // lights.push_back(&blueLight);
+  // scene1.push_back(&blueLight);
 
-  // Light otherLight = Light(vec3(0.0f, 50.0f, 0.0f), vec3(1.0f, 1.0f, 1.0f));
-  // otherLight.setPosition(vec3(0.0f, 3.0f, 0.0f));
-  // Transformable lightT = Transformable();
-  // lightT.setRotation(vec3(M_PIf/2,0,0));
-  // Orbit lightOrbit = Orbit(lightT.transform);
-  // lightOrbit.repeats = -1;
-  // lightOrbit.time = 1;
-  // otherLight.moves.push(&lightOrbit);
-  // updateQueue.push_back(&otherLight);
-  // lights.push_back(&otherLight);
+  // // Light otherLight = Light(vec3(0.0f, 50.0f, 0.0f), vec3(1.0f, 1.0f, 1.0f));
+  // // otherLight.setPosition(vec3(0.0f, 3.0f, 0.0f));
+  // // Transformable lightT = Transformable();
+  // // lightT.setRotation(vec3(M_PIf/2,0,0));
+  // // Orbit lightOrbit = Orbit(lightT.transform);
+  // // lightOrbit.repeats = -1;
+  // // lightOrbit.time = 1;
+  // // otherLight.moves.push(&lightOrbit);
+  // // updateQueue.push_back(&otherLight);
+  // // lights.push_back(&otherLight);
 
-  vector<Rigidbody*> rbList;
+  // vector<Rigidbody*> rbList;
 
-  Model ground = Model("ground");
-  // renderQueue.push_back(&ground);
-  scene2.push_back(&ground);
-  ground.scale(vec3(30.0f, 30.0f, 30.0f));
-  ground.setPosition(vec3(100,0,0));
+  // Model ground = Model("ground");
+  // // renderQueue.push_back(&ground);
+  // scene2.push_back(&ground);
+  // ground.scale(vec3(30.0f, 30.0f, 30.0f));
+  // ground.setPosition(vec3(100,0,0));
 
 
-  Model iss = Model("iss");
-  renderQueue.push_back(&iss);
-  iss.scale(vec3(0.1f,0.1f,0.1f));
-  iss.setPosition(vec3(25,15,1.0f));
-  iss.rotate(vec3(0,M_PIf - 0.4f,1.2f));
-  scene1.push_back(&iss);
-  iss_p = &iss;
-  updateQueue.push_back(iss_p);
+  // Model iss = Model("iss");
+  // renderQueue.push_back(&iss);
+  // iss.scale(vec3(0.1f,0.1f,0.1f));
+  // iss.setPosition(vec3(25,15,1.0f));
+  // iss.rotate(vec3(0,M_PIf - 0.4f,1.2f));
+  // scene1.push_back(&iss);
+  // iss_p = &iss;
+  // updateQueue.push_back(iss_p);
 
-  Model orbitor1 = Model("earth/earth2");
-  orbitor1.setPosition(vec3(9,0,0));
-  // orbitor1.setScale(vec3(0.000003f,0.000003f,0.000003f));
-  // orbitor1.rotate(vec3(M_PIf/2,0,0));
-  renderQueue.push_back(&orbitor1);
-  scene1.push_back(&orbitor1);
+  // Model orbitor1 = Model("earth/earth2");
+  // orbitor1.setPosition(vec3(9,0,0));
+  // // orbitor1.setScale(vec3(0.000003f,0.000003f,0.000003f));
+  // // orbitor1.rotate(vec3(M_PIf/2,0,0));
+  // renderQueue.push_back(&orbitor1);
+  // scene1.push_back(&orbitor1);
 
-  Magnet mag = Magnet(&orbitor1, rbList);
-  updateQueue.push_back(&mag);
+  // Magnet mag = Magnet(&orbitor1, rbList);
+  // updateQueue.push_back(&mag);
 
-  // Transformable t = Transformable();
-  vec3 rot = vec3(M_PIf/2,0,0);
-  Orbit orbit = Orbit(&center);
-  orbit.repeats = -1;
-  orbit.time = 3;
-  // orbit.rotation = rot;
-  orbitor1.moves.push(&orbit);
-  updateQueue.push_back(&orbitor1);
+  // // Transformable t = Transformable();
+  // vec3 rot = vec3(M_PIf/2,0,0);
+  // Orbit orbit = Orbit(&center);
+  // orbit.repeats = -1;
+  // orbit.time = 3;
+  // // orbit.rotation = rot;
+  // orbitor1.moves.push(&orbit);
+  // updateQueue.push_back(&orbitor1);
 
-  Model moon = Model("Moon2k");
-  moon.setPosition(orbitor1.getPosition() + vec3(4,0,0));
-  moon.scale(vec3(0.7f,0.7f,0.7f));
-  renderQueue.push_back(&moon);
-  scene1.push_back(&moon);
-
-  Orbit lunarOrbit = Orbit(&orbitor1);
-  lunarOrbit.time = 1;
-  lunarOrbit.repeats = -1;
-  lunarOrbit.rotation = rot;
-  moon.moves.push(&lunarOrbit);
-  updateQueue.push_back(&moon);
- 
-  Model orbitor2 = Model("uranus/uranus");
-  orbitor2.setPosition(vec3(10,0,10));
-  orbitor2.rotate(vec3(0,M_PIf/2,0));
-  orbitor2.setScale(vec3(0.006f,0.006f,0.006f));
-  renderQueue.push_back(&orbitor2);
-  scene1.push_back(&orbitor2);
-
-  Magnet mag2 = Magnet(&orbitor2, rbList);
-  updateQueue.push_back(&mag2);
-  
-  // t.rotate(vec3(0.5f,0,0));
-  Orbit orbit2 = Orbit(&center);
-  orbit2.repeats = -1;
-  orbit2.time = 5;
-  orbit2.rotation = rot;
-  orbitor2.moves.push(&orbit2);
-  updateQueue.push_back(&orbitor2);
-
-  Model orbitor3 = Model("mars/mars2");
-  orbitor3.setPosition(vec3(12,0,0));
-  //orbitor3.rotate(vec3(M_PIf/2,0,0));
-  orbitor3.setScale(vec3(0.0035f,0.0035f,0.0035f));
-  renderQueue.push_back(&orbitor3);
-  scene1.push_back(&orbitor3);
-
-  Magnet mag3 = Magnet(&orbitor3, rbList);
-  updateQueue.push_back(&mag3);
-
-  // t.rotate(vec3(-0.5f,0,0));
-  Orbit orbit3 = Orbit(&center, 6);
-  orbit3.repeats = -1;
-  orbit3.time = 5;
-  // orbit3.rotation = rot;
-  orbitor3.moves.push(&orbit3);
-  updateQueue.push_back(&orbitor3);
-  
-  Model asteroid = Model("asteroid/asteroid");
-  asteroid.rotate(vec3(M_PIf/2,0,0));
-  asteroid.scale(vec3(0.001f,0.001f,0.001f));
-  asteroid.setPosition(vec3(5,2,1.0f));
-  renderQueue.push_back(&asteroid);
-  scene1.push_back(&asteroid);
-
-  Rigidbody asteroidRB = Rigidbody(&asteroid, rbList);
-  asteroidRB.collisionEnabled = false;
-  asteroidRB.hasGravity = false;
-  asteroidRB.positionFixed = false;
-  asteroidRB.velocity *= Transformable::rotationFromEuler(vec3(0,0.05f,0.05f));
-  updateQueue.push_back(&asteroidRB);
-
-  Model asteroid2 = Model(asteroid);
-  //asteroid2.scale(vec3(0.005f,0.005f,0.005));
-  asteroid2.setPosition(vec3(10,0,10.5));
-  asteroid2.setScale(vec3(0.001f,0.001f,0.001f));
-  renderQueue.push_back(&asteroid2);
-  Rigidbody asteroid2RB = Rigidbody(&asteroid2, rbList);
-  asteroid2RB.collisionEnabled = false;
-  asteroid2RB.hasGravity = false;
-  asteroid2RB.positionFixed = false;
-  asteroid2RB.velocity *= Transformable::rotationFromEuler(vec3(0.05f,0.05f,0));
-  updateQueue.push_back(&asteroid2RB);
-  scene1.push_back(&asteroid2);
-
-  Model asteroid3 = Model(asteroid);
-  //asteroid3.scale(vec3(0.005f,0.005f,0.005));
-  asteroid3.setScale(vec3(0.001f,0.001f,0.001f));
-  asteroid3.setPosition(vec3(10,1,10.5));
-  renderQueue.push_back(&asteroid3);
-  Rigidbody asteroid3RB = Rigidbody(&asteroid3, rbList);
-  asteroid3RB.collisionEnabled = false;
-  asteroid3RB.hasGravity = false;
-  asteroid3RB.positionFixed = false;
-  asteroid3RB.velocity *= Transformable::rotationFromEuler(vec3(0.05f,0,0.05f));
-  updateQueue.push_back(&asteroid3RB);
-  scene1.push_back(&asteroid3);
-
-  Model asteroid4 = Model(asteroid);
-  //asteroid4.scale(vec3(0.005f,0.005f,0.005));
-  asteroid4.setScale(vec3(0.001f,0.001f,0.001f));
-  asteroid4.setPosition(vec3(10,1,0));
-  renderQueue.push_back(&asteroid4);
-  Rigidbody asteroid4RB = Rigidbody(&asteroid4, rbList);
-  asteroid4RB.collisionEnabled = false;
-  asteroid4RB.hasGravity = false;
-  asteroid4RB.positionFixed = false;
-  asteroid4RB.velocity *= Transformable::rotationFromEuler(vec3(0.05f,0.05f,0));
-  updateQueue.push_back(&asteroid4RB);
-  scene1.push_back(&asteroid4);
-
-  Model asteroid5 = Model(asteroid);
-  //asteroid5.scale(vec3(0.005f,0.005f,0.005));
-  asteroid5.setScale(vec3(0.001f,0.001f,0.001f));
-  asteroid5.setPosition(vec3(11,0,0));
-  renderQueue.push_back(&asteroid5);
-  Rigidbody asteroid5RB = Rigidbody(&asteroid5, rbList);
-  asteroid5RB.collisionEnabled = false;
-  asteroid5RB.hasGravity = false;
-  asteroid5RB.positionFixed = false;
-  asteroid5RB.velocity *= Transformable::rotationFromEuler(vec3(0,0.05f,0.05f));
-  updateQueue.push_back(&asteroid5RB);
-  scene1.push_back(&asteroid5);
-
-  // Model moon = Model("Moon2K");
-  // moon.rotate(vec3(M_PIf/2,0,0));
-  // moon.scale(vec3(0.5f,0.5f,0.5f));
-  // moon.setPosition(vec3(19,29,1.0f));
-  // moon.castShadow = false;
-  // moon.fullBright = true;
+  // Model moon = Model("Moon2k");
+  // moon.setPosition(orbitor1.getPosition() + vec3(4,0,0));
+  // moon.scale(vec3(0.7f,0.7f,0.7f));
   // renderQueue.push_back(&moon);
+  // scene1.push_back(&moon);
 
-  Light sun = Light(vec3(2550.f, 1840.f, 1010.f), vec3(1.0f, 1.0f, 1.0f));
-  sun.setPosition(vec3(0,2,0));
-  lights.push_back(&sun);
-  sunlight = &sun;
-  updateQueue.push_back(sunlight);
+  // Orbit lunarOrbit = Orbit(&orbitor1);
+  // lunarOrbit.time = 1;
+  // lunarOrbit.repeats = -1;
+  // lunarOrbit.rotation = rot;
+  // moon.moves.push(&lunarOrbit);
+  // updateQueue.push_back(&moon);
+ 
+  // Model orbitor2 = Model("uranus/uranus");
+  // orbitor2.setPosition(vec3(10,0,10));
+  // orbitor2.rotate(vec3(0,M_PIf/2,0));
+  // orbitor2.setScale(vec3(0.006f,0.006f,0.006f));
+  // renderQueue.push_back(&orbitor2);
+  // scene1.push_back(&orbitor2);
 
-  //second scene
+  // Magnet mag2 = Magnet(&orbitor2, rbList);
+  // updateQueue.push_back(&mag2);
+  
+  // // t.rotate(vec3(0.5f,0,0));
+  // Orbit orbit2 = Orbit(&center);
+  // orbit2.repeats = -1;
+  // orbit2.time = 5;
+  // orbit2.rotation = rot;
+  // orbitor2.moves.push(&orbit2);
+  // updateQueue.push_back(&orbitor2);
 
-  Model cornell = Model("cornell-box");
-  cornell.move(vec3(100,0,0));
-  // renderQueue.push_back(&cornell);
-  scene2.push_back(&cornell);
-  Rigidbody cornellRB = Rigidbody(&cornell, rbList);
-  cornellRB.hasGravity = false;
-  cornellRB.suckable = false;
-  updateQueue.push_back(&cornellRB);
+  // Model orbitor3 = Model("mars/mars2");
+  // orbitor3.setPosition(vec3(12,0,0));
+  // //orbitor3.rotate(vec3(M_PIf/2,0,0));
+  // orbitor3.setScale(vec3(0.0035f,0.0035f,0.0035f));
+  // renderQueue.push_back(&orbitor3);
+  // scene1.push_back(&orbitor3);
 
-  Model bounce1 = Model("HackspaceLogo/logo");
-  bounce1.scale(vec3(0.005f, 0.005f, 0.005f));
-  bounce1.furthestExtent = bounce1.calcExtent();
-  bounce1.move(vec3(99, 10.0f, -1));
-  // renderQueue.push_back(&bounce1);
-  scene2.push_back(&bounce1);
-  Rigidbody bounce1RB = Rigidbody(&bounce1, rbList);
-  bounce1RB.collisionLayer = 2;
-  bounce1RB.positionFixed = false;
-  bounce1RB.suckable = false;
-  bounce1RB.elasticity = 1.1f;
-  updateQueue.push_back(&bounce1RB);
+  // Magnet mag3 = Magnet(&orbitor3, rbList);
+  // updateQueue.push_back(&mag3);
 
-  Model bounce2 = Model(center);
-  bounce2.scale(vec3(0.005f, 0.005f, 0.005f));
-  bounce2.furthestExtent = bounce2.calcExtent();
-  bounce2.move(vec3(90, 10.0f, 1));
-  // renderQueue.push_back(&bounce2);
-  scene2.push_back(&bounce2);
-  Rigidbody bounce2RB = Rigidbody(&bounce2, rbList);
-  unfreeze = &bounce2RB;
-  bounce2RB.collisionLayer = 2;
-  bounce2RB.positionFixed = true;
-  bounce2RB.suckable = false;
-  bounce2RB.elasticity = 0.9f;
-  bounce2RB.maxCollisions = 1;
-  updateQueue.push_back(&bounce2RB);
+  // // t.rotate(vec3(-0.5f,0,0));
+  // Orbit orbit3 = Orbit(&center, 6);
+  // orbit3.repeats = -1;
+  // orbit3.time = 5;
+  // // orbit3.rotation = rot;
+  // orbitor3.moves.push(&orbit3);
+  // updateQueue.push_back(&orbitor3);
+  
+  // Model asteroid = Model("asteroid/asteroid");
+  // asteroid.rotate(vec3(M_PIf/2,0,0));
+  // asteroid.scale(vec3(0.001f,0.001f,0.001f));
+  // asteroid.setPosition(vec3(5,2,1.0f));
+  // renderQueue.push_back(&asteroid);
+  // scene1.push_back(&asteroid);
 
-  Model tilt = Model("tilted");
-  tilt.move(vec3(90, 3, 0));
-  // renderQueue.push_back(&tilt);
-  scene2.push_back(&tilt);
-  Rigidbody tiltRB = Rigidbody(&tilt, rbList);
-  tiltRB.elasticity = 0.1f;
-  updateQueue.push_back(&tiltRB);
-  // Model 
+  // Rigidbody asteroidRB = Rigidbody(&asteroid, rbList);
+  // asteroidRB.collisionEnabled = false;
+  // asteroidRB.hasGravity = false;
+  // asteroidRB.positionFixed = false;
+  // asteroidRB.velocity *= Transformable::rotationFromEuler(vec3(0,0.05f,0.05f));
+  // updateQueue.push_back(&asteroidRB);
 
-  Camera cam;
-  cam.setProjection(90.0f, WIDTH / (float)HEIGHT, 0.1f, 100.0f);
-  // cam.lookAt(vec3(100.0f, 10.0f, 10.0f), vec3(100.0f, 0, 0));
-  cam.lookAt(iss.getPosition() + vec3(0,0,4), iss.getPosition());
+  // Model asteroid2 = Model(asteroid);
+  // //asteroid2.scale(vec3(0.005f,0.005f,0.005));
+  // asteroid2.setPosition(vec3(10,0,10.5));
+  // asteroid2.setScale(vec3(0.001f,0.001f,0.001f));
+  // renderQueue.push_back(&asteroid2);
+  // Rigidbody asteroid2RB = Rigidbody(&asteroid2, rbList);
+  // asteroid2RB.collisionEnabled = false;
+  // asteroid2RB.hasGravity = false;
+  // asteroid2RB.positionFixed = false;
+  // asteroid2RB.velocity *= Transformable::rotationFromEuler(vec3(0.05f,0.05f,0));
+  // updateQueue.push_back(&asteroid2RB);
+  // scene1.push_back(&asteroid2);
 
-  Movement diag = Movement(cam.transform, 1);
-  diag.move(vec3(5/1.3,3/1.3,-4));
-  diag.stareAt = true;
-  diag.stareTarget = &iss;
+  // Model asteroid3 = Model(asteroid);
+  // //asteroid3.scale(vec3(0.005f,0.005f,0.005));
+  // asteroid3.setScale(vec3(0.001f,0.001f,0.001f));
+  // asteroid3.setPosition(vec3(10,1,10.5));
+  // renderQueue.push_back(&asteroid3);
+  // Rigidbody asteroid3RB = Rigidbody(&asteroid3, rbList);
+  // asteroid3RB.collisionEnabled = false;
+  // asteroid3RB.hasGravity = false;
+  // asteroid3RB.positionFixed = false;
+  // asteroid3RB.velocity *= Transformable::rotationFromEuler(vec3(0.05f,0,0.05f));
+  // updateQueue.push_back(&asteroid3RB);
+  // scene1.push_back(&asteroid3);
 
-  Movement slow = Movement(diag.transform, 1);
-  // slow.move(vec3(-5/1.3,-3/1.3,-1));
-  slow.setPosition(vec3(25,15,0));
-  // slow.rotation = vec3(0,-M_PIf/6,0);
-  slow.isRotation = true;
+  // Model asteroid4 = Model(asteroid);
+  // //asteroid4.scale(vec3(0.005f,0.005f,0.005));
+  // asteroid4.setScale(vec3(0.001f,0.001f,0.001f));
+  // asteroid4.setPosition(vec3(10,1,0));
+  // renderQueue.push_back(&asteroid4);
+  // Rigidbody asteroid4RB = Rigidbody(&asteroid4, rbList);
+  // asteroid4RB.collisionEnabled = false;
+  // asteroid4RB.hasGravity = false;
+  // asteroid4RB.positionFixed = false;
+  // asteroid4RB.velocity *= Transformable::rotationFromEuler(vec3(0.05f,0.05f,0));
+  // updateQueue.push_back(&asteroid4RB);
+  // scene1.push_back(&asteroid4);
 
-  Movement move = Movement(cam.transform, 3);
-  move.transform[3] = vec4(0,15,0,1);
-  move.stareAt = true;
-  move.stareTarget = &center;
+  // Model asteroid5 = Model(asteroid);
+  // //asteroid5.scale(vec3(0.005f,0.005f,0.005));
+  // asteroid5.setScale(vec3(0.001f,0.001f,0.001f));
+  // asteroid5.setPosition(vec3(11,0,0));
+  // renderQueue.push_back(&asteroid5);
+  // Rigidbody asteroid5RB = Rigidbody(&asteroid5, rbList);
+  // asteroid5RB.collisionEnabled = false;
+  // asteroid5RB.hasGravity = false;
+  // asteroid5RB.positionFixed = false;
+  // asteroid5RB.velocity *= Transformable::rotationFromEuler(vec3(0,0.05f,0.05f));
+  // updateQueue.push_back(&asteroid5RB);
+  // scene1.push_back(&asteroid5);
 
-  Movement spin = Movement(vec3(0,0, 2.0f * M_PIf), 2);
-  // spin.transform[3] = vec4()
-  spin.isRotation = true;
+  // // Model moon = Model("Moon2K");
+  // // moon.rotate(vec3(M_PIf/2,0,0));
+  // // moon.scale(vec3(0.5f,0.5f,0.5f));
+  // // moon.setPosition(vec3(19,29,1.0f));
+  // // moon.castShadow = false;
+  // // moon.fullBright = true;
+  // // renderQueue.push_back(&moon);
 
-  Transformable target = Transformable();
-  target.move(vec3(100,0,0));
+  // Light sun = Light(vec3(2550.f, 1840.f, 1010.f), vec3(1.0f, 1.0f, 1.0f));
+  // sun.setPosition(vec3(0,2,0));
+  // lights.push_back(&sun);
+  // sunlight = &sun;
+  // updateQueue.push_back(sunlight);
 
-  Movement teleprot = Movement(target.transform, 0);
+  // //second scene
 
-  target.move(vec3(0,10,10));
-  Movement zoom = Movement(target.transform, 2);
-  zoom.isRotation = true;
-  zoom.rotation = vec3(0,M_PIf/4,0);
+  // Model cornell = Model("cornell-box");
+  // cornell.move(vec3(100,0,0));
+  // // renderQueue.push_back(&cornell);
+  // scene2.push_back(&cornell);
+  // Rigidbody cornellRB = Rigidbody(&cornell, rbList);
+  // cornellRB.hasGravity = false;
+  // cornellRB.suckable = false;
+  // updateQueue.push_back(&cornellRB);
 
-  Movement track = Movement(target.transform, 1);
-  track.stareAt = true;
-  track.stareTarget = &bounce2;
+  // Model bounce1 = Model("HackspaceLogo/logo");
+  // bounce1.scale(vec3(0.005f, 0.005f, 0.005f));
+  // bounce1.furthestExtent = bounce1.calcExtent();
+  // bounce1.move(vec3(99, 10.0f, -1));
+  // // renderQueue.push_back(&bounce1);
+  // scene2.push_back(&bounce1);
+  // Rigidbody bounce1RB = Rigidbody(&bounce1, rbList);
+  // bounce1RB.collisionLayer = 2;
+  // bounce1RB.positionFixed = false;
+  // bounce1RB.suckable = false;
+  // bounce1RB.elasticity = 1.1f;
+  // updateQueue.push_back(&bounce1RB);
+
+  // Model bounce2 = Model(center);
+  // bounce2.scale(vec3(0.005f, 0.005f, 0.005f));
+  // bounce2.furthestExtent = bounce2.calcExtent();
+  // bounce2.move(vec3(90, 10.0f, 1));
+  // // renderQueue.push_back(&bounce2);
+  // scene2.push_back(&bounce2);
+  // Rigidbody bounce2RB = Rigidbody(&bounce2, rbList);
+  // unfreeze = &bounce2RB;
+  // bounce2RB.collisionLayer = 2;
+  // bounce2RB.positionFixed = true;
+  // bounce2RB.suckable = false;
+  // bounce2RB.elasticity = 0.9f;
+  // bounce2RB.maxCollisions = 1;
+  // updateQueue.push_back(&bounce2RB);
+
+  // Model tilt = Model("tilted");
+  // tilt.move(vec3(90, 3, 0));
+  // // renderQueue.push_back(&tilt);
+  // scene2.push_back(&tilt);
+  // Rigidbody tiltRB = Rigidbody(&tilt, rbList);
+  // tiltRB.elasticity = 0.1f;
+  // updateQueue.push_back(&tiltRB);
+  // // Model 
+
+  // Camera cam;
+  // cam.setProjection(90.0f, WIDTH / (float)HEIGHT, 0.1f, 100.0f);
+  // // cam.lookAt(vec3(100.0f, 10.0f, 10.0f), vec3(100.0f, 0, 0));
+  // cam.lookAt(iss.getPosition() + vec3(0,0,4), iss.getPosition());
+
+  // Movement diag = Movement(cam.transform, 1);
+  // diag.move(vec3(5/1.3,3/1.3,-4));
+  // diag.stareAt = true;
+  // diag.stareTarget = &iss;
+
+  // Movement slow = Movement(diag.transform, 1);
+  // // slow.move(vec3(-5/1.3,-3/1.3,-1));
+  // slow.setPosition(vec3(25,15,0));
+  // // slow.rotation = vec3(0,-M_PIf/6,0);
+  // slow.isRotation = true;
+
+  // Movement move = Movement(cam.transform, 3);
+  // move.transform[3] = vec4(0,15,0,1);
+  // move.stareAt = true;
+  // move.stareTarget = &center;
+
+  // Movement spin = Movement(vec3(0,0, 2.0f * M_PIf), 2);
+  // // spin.transform[3] = vec4()
+  // spin.isRotation = true;
+
+  // Transformable target = Transformable();
+  // target.move(vec3(100,0,0));
+
+  // Movement teleprot = Movement(target.transform, 0);
+
+  // target.move(vec3(0,10,10));
+  // Movement zoom = Movement(target.transform, 2);
+  // zoom.isRotation = true;
+  // zoom.rotation = vec3(0,M_PIf/4,0);
+
+  // Movement track = Movement(target.transform, 1);
+  // track.stareAt = true;
+  // track.stareTarget = &bounce2;
 
   // cam.moves.push(&track);
   // cam.moves.push(&zoom);
   // cam.moves.push(&teleprot);
   // cam.moves.push(&spin);
   // cam.moves.push(&move);
-  cam.moves.push(&slow);
-  cam.moves.push(&diag);
+  // cam.moves.push(&slow);
+  // cam.moves.push(&diag);
 
   // END ANIMATION LAYOUT
 
@@ -955,11 +963,11 @@ int main(int argc, char *argv[])
     }
     Times::update();
     // Quick and dirty animated water
-    for (auto& tri : ground.tris) {
-      tri.uvs[0].x += 0.1f * (1.0f / 60.0f);
-      tri.uvs[1].x += 0.1f * (1.0f / 60.0f);
-      tri.uvs[2].x += 0.1f * (1.0f / 60.0f);
-    }
+    // for (auto& tri : ground.tris) {
+    //   tri.uvs[0].x += 0.1f * (1.0f / 60.0f);
+    //   tri.uvs[1].x += 0.1f * (1.0f / 60.0f);
+    //   tri.uvs[2].x += 0.1f * (1.0f / 60.0f);
+    // }
     // We MUST poll for events - otherwise the window will freeze !
     if (window.pollForInputEvents(&event))
       handleEvent(event, cam);
