@@ -3,7 +3,7 @@
 #include "Transformable.hpp"
 #include <glm/glm.hpp>
 
-class Animatable; //I hate this damn language
+class Animatable; // I hate this damn language
 
 class Movement : public Transformable {
     public:

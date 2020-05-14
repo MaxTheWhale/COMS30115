@@ -49,39 +49,31 @@ bool Movement::execute(Animatable* parent, Movement& previous) {
     }
     elapsed += parent->timeStep();
     if (elapsed >= time) {
-        // finish(parent);
         return true;
     }
     float scale = -parent->timeStep() / time;
-    // cout << "scale = " << scale << '\n';
 
     if (isRotation) {
         vec3 rotDelta = -scale * rotation;
         if (((length(prevRotation + rotDelta) >= length(rotation)) && (length(prevRotation) < length(rotation))) ||
             ((length(prevRotation + rotDelta) <= length(rotation)) && (length(prevRotation) > length(rotation)))) {
-                // finish(parent);
-                // return true;
             }
         else {
             prevRotation += rotDelta;
             cout << "prevRot: " << prevRotation << '\n';
             cout << "parent transform: " << parent->transform << endl;
             parent->transform = parent->transform * rotationFromEuler(rotDelta);
-            //return false;
         }
     }
     vec4 delta = scale * (previous.transform[3] - transform[3]);
-    // cout << "previous = " << previous.transform << endl << "target = " << moves.top().transform << endl << "delta = " << delta << endl;
     mat4 newTransform = parent->transform;
     newTransform[3] += delta;
     if (stareAt) {
-        // cout << "stare target: " << stareTarget << endl;
         parent->lookAt(parent->getPosition(), stareTarget->getPosition());
     }
     //would the move take us further from our goal
     float currentDist = distance(parent->transform[3], transform[3]);
     float newDist = distance(newTransform[3], transform[3]);
-    // cout << "currentDist = " << currentDist << " newDist = " << newDist << endl;
     if (currentDist < newDist) {
         // if (stareAt) {
         //     parent->transform[3] = transform[3];

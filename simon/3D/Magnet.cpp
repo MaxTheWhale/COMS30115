@@ -19,7 +19,6 @@ void Magnet::update() {
         }
         vec3 dist = center->getPosition() - rb->model->getPosition();
         vec3 force = timeStep() * attractionStrength * dist / (length(dist) * length(dist));
-        // cout << "force = " << force << endl;
         totalForce += force;
         rb->applyForce(force, vec3(0,0,0));
     }

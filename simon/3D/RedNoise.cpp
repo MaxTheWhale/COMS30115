@@ -34,11 +34,14 @@ using namespace glm;
 #define SSAA false
 #define SSAA_SCALE 3
 #define SSAA_SAMPLES (SSAA_SCALE*SSAA_SCALE)
-#define MOUSE_SENSITIVITY 0.0015f
-#define AMBIENCE 0.1f
 #define ASPECT_RATIO WIDTH/(float)HEIGHT
 #define MAX_DEPTH 4
 #define INDIRECT_SAMPLES 2
+
+#define TILE_SIZE 16
+#define NUM_TILES_X (WIDTH / TILE_SIZE)
+#define NUM_TILES_Y (HEIGHT / TILE_SIZE)
+#define NUM_TILES (NUM_TILES_X * NUM_TILES_Y)
 
 #define RENDER false
 #define RENDER_LENGTH 300
@@ -48,6 +51,12 @@ using namespace glm;
 #endif
 
 enum COLOUR_MASK {ALPHA = 0xff000000, RED = 0x00ff0000, GREEN = 0x0000ff00, BLUE = 0x000000ff};
+
+struct TriangleGroup {
+  vector<ModelTriangle> tris;
+  float radius_sq;
+  vec4 centre;
+};
 
 void draw();
 void triangle(Triangle &t, bool filled, uint32_t *buffer, float *depthBuff, vec2 offset, vec4 &eye_pos, vector<Light*>& lights);
@@ -67,7 +76,7 @@ uint32_t imageBuffer[IMG_SIZE];
 bool wireframe = true;
 bool bilinear = true;
 bool perspective = true;
-bool toRaytrace = false;
+bool toRaytrace = true;
 bool softShadows = false;
 DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
 
@@ -156,86 +165,115 @@ void drawTriangles(Camera &cam, std::vector<Model *> models, vector<Light*> ligh
   }
 }
 
-vector<ModelTriangle> getLights(vector<ModelTriangle>& tris) {
-  vector<ModelTriangle> lights = vector<ModelTriangle>();
-  for(ModelTriangle& triangle : tris) {
-    if(triangle.name == "light") lights.push_back(triangle);
-  }
-
-  return lights;
+bool solveQuadratic(const float &a, const float &b, const float &c, float &x0, float &x1) { 
+    float discr = b * b - 4 * a * c; 
+    if (discr < 0) return false; 
+    else if (discr == 0) x0 = x1 = - 0.5 * b / a; 
+    else { 
+        float q = (b > 0) ? 
+            -0.5 * (b + sqrtf(discr)) : 
+            -0.5 * (b - sqrtf(discr)); 
+        x0 = q / a; 
+        x1 = c / q; 
+    } 
+    if (x0 > x1) std::swap(x0, x1); 
+ 
+    return true; 
 }
 
-vector<vec4> getLightPoints(vector<ModelTriangle>& lights) {
-  vector<vec4> vertices = vector<vec4>();
-  vec4 average = vec4(0, 0, 0, 0);
-  for(ModelTriangle& light : lights) {
-    vertices.push_back(light.vertices[0]);
-    vertices.push_back(light.vertices[1]);
-    vertices.push_back(light.vertices[2]);
-
-    average += light.vertices[0];
-    average += light.vertices[1];
-    average += light.vertices[2];
-  }
-
-  average.x /= vertices.size();
-  average.y /= vertices.size();
-  average.z /= vertices.size();
-  average.w = 1;
-
-  vector<vec4> result = vector<vec4>();
-  result.push_back(average);
-
-  return result;
+bool intersectSphere(const vec4 rayDirection, const vec4 start, const float radius_sq, const vec4 centre) { 
+        float t0, t1; // solutions for t if the ray intersects 
+        vec4 L = start - centre;
+        float a = dot(rayDirection, rayDirection);
+        float b = 2 * dot(rayDirection, L);
+        float c = dot(L, L) - radius_sq;
+        if (!solveQuadratic(a, b, c, t0, t1)) return false;
+        if (t0 > t1) std::swap(t0, t1);
+ 
+        if (t0 < 0) { 
+            t0 = t1; // if t0 is negative, let's use t1 instead 
+            if (t0 < 0) return false; // both t0 and t1 are negative 
+        }
+        return true; 
 }
 
-RayTriangleIntersection findClosestIntersection(vec4 start, vector<ModelTriangle>& tris, vec4 rayDirection) {
+RayTriangleIntersection findClosestIntersection(vec4 start, vector<TriangleGroup>& triGroups, vec4 rayDirection) {
   RayTriangleIntersection intersection = RayTriangleIntersection();
   float minDistance = std::numeric_limits<float>::infinity();
 
-  //calculate closest intersection by looping through each of the triangles
-  for(ModelTriangle& triangle : tris) {
-    vec4 e0 = triangle.vertices[1] - triangle.vertices[0];
-    vec4 e1 = triangle.vertices[2] - triangle.vertices[0];
-    vec4 SPVector = start - triangle.vertices[0];
-    mat4 DEMatrix(-rayDirection, e0, e1, vec4(1, 1, 1, 1));
-    vec4 possibleSolution = glm::inverse(DEMatrix) * SPVector;
+  for (auto& group : triGroups) {
+    if (intersectSphere(rayDirection, start, group.radius_sq, group.centre)) {
+      for(ModelTriangle& triangle : group.tris) {
+        vec4 e0 = triangle.vertices[1] - triangle.vertices[0];
+        vec4 e1 = triangle.vertices[2] - triangle.vertices[0];
+        vec4 SPVector = start - triangle.vertices[0];
+        mat4 DEMatrix(-rayDirection, e0, e1, vec4(1, 1, 1, 1));
+        vec4 possibleSolution = glm::inverse(DEMatrix) * SPVector;
 
-    // check if ray intersects triangle and not just triangle plane
-    if (possibleSolution.y >= 0.0f && possibleSolution.y <= 1.0f &&
-      possibleSolution.z >= 0.0f && possibleSolution.z <= 1.0f &&
-      possibleSolution.y + possibleSolution.z <= 1) {
-      if (possibleSolution.x < minDistance && possibleSolution.x > 0.0f) {
-        intersection = RayTriangleIntersection(start + (possibleSolution.x * rayDirection) , possibleSolution.x, triangle);
-        intersection.wasFound = true;
-        intersection.intersectionPoint.w = 1.0f;
-        intersection.u = possibleSolution.y;
-        intersection.v = possibleSolution.z;
-        minDistance = possibleSolution.x;
+        // check if ray intersects triangle and not just triangle plane
+        if (possibleSolution.y >= 0.0f && possibleSolution.y <= 1.0f &&
+          possibleSolution.z >= 0.0f && possibleSolution.z <= 1.0f &&
+          possibleSolution.y + possibleSolution.z <= 1) {
+          if (possibleSolution.x < minDistance && possibleSolution.x > 0.0f) {
+            intersection = RayTriangleIntersection(start + (possibleSolution.x * rayDirection) , possibleSolution.x, triangle);
+            intersection.wasFound = true;
+            intersection.intersectionPoint.w = 1.0f;
+            intersection.u = possibleSolution.y;
+            intersection.v = possibleSolution.z;
+            minDistance = possibleSolution.x;
+          }
+        }
       }
     }
   }
 
+  // //calculate closest intersection by looping through each of the triangles
+  // for(ModelTriangle& triangle : tris) {
+  //   vec4 e0 = triangle.vertices[1] - triangle.vertices[0];
+  //   vec4 e1 = triangle.vertices[2] - triangle.vertices[0];
+  //   vec4 SPVector = start - triangle.vertices[0];
+  //   mat4 DEMatrix(-rayDirection, e0, e1, vec4(1, 1, 1, 1));
+  //   vec4 possibleSolution = glm::inverse(DEMatrix) * SPVector;
+
+  //   // check if ray intersects triangle and not just triangle plane
+  //   if (possibleSolution.y >= 0.0f && possibleSolution.y <= 1.0f &&
+  //     possibleSolution.z >= 0.0f && possibleSolution.z <= 1.0f &&
+  //     possibleSolution.y + possibleSolution.z <= 1) {
+  //     if (possibleSolution.x < minDistance && possibleSolution.x > 0.0f) {
+  //       intersection = RayTriangleIntersection(start + (possibleSolution.x * rayDirection) , possibleSolution.x, triangle);
+  //       intersection.wasFound = true;
+  //       intersection.intersectionPoint.w = 1.0f;
+  //       intersection.u = possibleSolution.y;
+  //       intersection.v = possibleSolution.z;
+  //       minDistance = possibleSolution.x;
+  //     }
+  //   }
+  // }
+
   return intersection;
 }
 
-bool inShadow(vector<ModelTriangle>& tris, vec4 shadowRayDirection, RayTriangleIntersection& intersection) {
+bool inShadow(vector<TriangleGroup>& triGroups, vec4 shadowRayDirection, RayTriangleIntersection& intersection) {
   float shadowBias = 0.0001f;
 
   //check if the ray is in shadow. 
-  for(ModelTriangle& triangle : tris) {
-    vec4 e0 = triangle.vertices[1] - triangle.vertices[0];
-    vec4 e1 = triangle.vertices[2] - triangle.vertices[0];
-    vec4 SPVector = (intersection.intersectionPoint) - triangle.vertices[0];
-    mat4 DEMatrix(-shadowRayDirection, e0, e1, vec4(1.0f, 1.0f, 1.0f, 1.0f));
-    vec4 possibleSolution = glm::inverse(DEMatrix) * SPVector;
+  for (auto& group : triGroups) {
+    if (intersectSphere(shadowRayDirection, intersection.intersectionPoint, group.radius_sq, group.centre)) {
+      for(ModelTriangle& triangle : group.tris) {
+        vec4 e0 = triangle.vertices[1] - triangle.vertices[0];
+        vec4 e1 = triangle.vertices[2] - triangle.vertices[0];
+        vec4 SPVector = (intersection.intersectionPoint) - triangle.vertices[0];
+        mat4 DEMatrix(-shadowRayDirection, e0, e1, vec4(1.0f, 1.0f, 1.0f, 1.0f));
+        vec4 possibleSolution = glm::inverse(DEMatrix) * SPVector;
 
-    if (triangle.material.normal_map.dataVec != nullptr) continue; 
-    //check if ray intersects triangle and not just triangle plane
-    if(possibleSolution.y >= 0.0f && possibleSolution.y <= 1.0f && possibleSolution.z >= 0.0f && possibleSolution.z <= 1.0f && possibleSolution.y + possibleSolution.z <= 1.0f) {
-      //I genuinely have no idea why doing the shadowBias this way works. without it the shadows are just everywhere???
-      if(possibleSolution.x < 1.0f - shadowBias && possibleSolution.x > shadowBias) {
-        return true;
+        if (triangle.material.normal_map.dataVec != nullptr) continue; 
+        //check if ray intersects triangle and not just triangle plane
+        if(possibleSolution.y >= 0.0f && possibleSolution.y <= 1.0f && possibleSolution.z >= 0.0f && possibleSolution.z <= 1.0f && possibleSolution.y + possibleSolution.z <= 1.0f) {
+          //I genuinely have no idea why doing the shadowBias this way works. without it the shadows are just everywhere???
+          if(possibleSolution.x < 1.0f - shadowBias && possibleSolution.x > shadowBias) {
+            return true;
+          }
+        }
       }
     }
   }
@@ -277,7 +315,7 @@ vec3 uniformSampleHemisphere(float r1, float r2) {
   return vec3(x, r1, z);
 }
 
-vec3 getPixelColour(RayTriangleIntersection& intersection, LightOld& mainLight, vec4 rayDirection, vector<ModelTriangle>& tris, int depth, int i, int j) {
+vec3 getPixelColour(RayTriangleIntersection& intersection, LightOld& mainLight, vec4 rayDirection, vector<TriangleGroup>& triGroups, int depth, int i, int j) {
   vec3 colour = vec3(0.0f, 0.0f, 0.0f);
 
   if(depth > MAX_DEPTH) return colour;
@@ -331,17 +369,17 @@ vec3 getPixelColour(RayTriangleIntersection& intersection, LightOld& mainLight, 
     vec3 refractionColour = intersection.intersectedTriangle.material.diffuseVec;
     if (kr < 1.0f) {
       vec4 refractionDirection = refract(rayDirection, normal, 1.5f);
-      RayTriangleIntersection refractIntersection = findClosestIntersection(outside ? intersection.intersectionPoint - (normal * bias) : intersection.intersectionPoint + (normal * bias), tris, refractionDirection);
-      refractionColour = getPixelColour(refractIntersection, mainLight, rayDirection, tris, depth + 1, i, j);
+      RayTriangleIntersection refractIntersection = findClosestIntersection(outside ? intersection.intersectionPoint - (normal * bias) : intersection.intersectionPoint + (normal * bias), triGroups, refractionDirection);
+      refractionColour = getPixelColour(refractIntersection, mainLight, rayDirection, triGroups, depth + 1, i, j);
     }
 
     vec3 reflectedColour = intersection.intersectedTriangle.material.diffuseVec;
     vec4 mirrorRayDirection = glm::normalize(rayDirection - 2.0f * (glm::dot(rayDirection, normal) * normal));
     mirrorRayDirection.w = 0.0f;
 
-    RayTriangleIntersection mirrorIntersection = findClosestIntersection(outside ? intersection.intersectionPoint + (normal * bias) : intersection.intersectionPoint - (normal * bias), tris, mirrorRayDirection);
+    RayTriangleIntersection mirrorIntersection = findClosestIntersection(outside ? intersection.intersectionPoint + (normal * bias) : intersection.intersectionPoint - (normal * bias), triGroups, mirrorRayDirection);
     
-    reflectedColour = glm::min(getPixelColour(mirrorIntersection, mainLight, rayDirection, tris, depth + 1, i, j) + (intersection.intersectedTriangle.material.specularVec * 0.01f), 1.0f);
+    reflectedColour = glm::min(getPixelColour(mirrorIntersection, mainLight, rayDirection, triGroups, depth + 1, i, j) + (intersection.intersectedTriangle.material.specularVec * 0.01f), 1.0f);
 
     vec3 glassColour;
     if(tex.dataVec != nullptr) {
@@ -391,7 +429,7 @@ vec3 getPixelColour(RayTriangleIntersection& intersection, LightOld& mainLight, 
     vec3 directColour = vec3(0,0,0);
 
     vec4 shadowRayDirection = mainLight.centre - intersection.intersectionPoint;
-    bool isInShadow = inShadow(tris, shadowRayDirection, intersection);
+    bool isInShadow = inShadow(triGroups, shadowRayDirection, intersection);
 
     if(isInShadow) directColour += mainLight.shadow;
     else {
@@ -455,9 +493,10 @@ Colour vecToColour(vec3 colour) {
 }
 
 void raytrace(Camera camera, std::vector<Model*> models) {
-  //idk what this does
-  vector<ModelTriangle> tris;
+  vector<TriangleGroup> triGroups;
   for (unsigned int i = 0; i < models.size(); i++) {
+    vector<ModelTriangle> tris;
+    float radius_sq = 0.0f;
     for (auto& tri : (*models[i]).tris) {
       ModelTriangle newTri = ModelTriangle((*models[i]).transform * tri.vertices[0],
                             (*models[i]).transform * tri.vertices[1],
@@ -471,14 +510,24 @@ void raytrace(Camera camera, std::vector<Model*> models) {
         newTri.tangent = (*models[i]).transform * tri.tangent;
         newTri.TBN = mat3(toThree(newTri.tangent), toThree(cross(newTri.normal, newTri.tangent)), toThree(newTri.normal));
       }
+      for (int v = 0; v < 3; v++) {
+        float radius2 = glm::length(newTri.vertices[v]);
+        radius2 *= radius2;
+        if (radius2 > radius_sq) {
+          radius_sq = radius2;
+        }
+      }
       tris.push_back(newTri);
     }
+    triGroups.push_back({tris, radius_sq, (*models[i]).transform[3]});
   }
 
   //setup the lights
   vector<ModelTriangle> lights = vector<ModelTriangle>();
-  for(ModelTriangle& triangle : tris) {
-    if(triangle.name == "light") lights.push_back(triangle);
+  for (auto group : triGroups) {
+    for(ModelTriangle& triangle : group.tris) {
+      if(triangle.name == "light") lights.push_back(triangle);
+    }
   }
 
   LightOld mainLight = LightOld("light", lights);
@@ -490,23 +539,44 @@ void raytrace(Camera camera, std::vector<Model*> models) {
   //loop through each pixel in image plane
   int num_s = (SSAA) ? SSAA_SAMPLES : 1;
   for (int s = 0; s < num_s; s++) {
-    #pragma omp parallel for
-    for(int j = 0; j < HEIGHT; j++) {
-      for(int i = 0; i < WIDTH; i++) {
-        float angle = tanf(0.5f * glm::radians(camera.fov)); // just fov*0.5 converted to radians
-        //convert image plane cordinates into world space
-        vec2 NDC = vec2((i + offsets[s].x) * (1 / (float) WIDTH), (j + offsets[s].y) * (1 / (float) HEIGHT));
-        float x = (2 * (NDC.x) - 1) * angle * ASPECT_RATIO;
-        float y = (1 - 2 * (NDC.y)) * angle;
+    #pragma omp parallel for schedule(dynamic, 1)
+    for(int tile = 0; tile < NUM_TILES; tile++) {
+      int start_x = (tile % NUM_TILES_X) * TILE_SIZE;
+      int start_y = (tile / NUM_TILES_X) * TILE_SIZE;
+      for(int j = start_y; j < start_y + TILE_SIZE; j++) {
+        for(int i = start_x; i < start_x + TILE_SIZE; i++) {
+          float angle = tanf(0.5f * glm::radians(camera.fov)); // just fov*0.5 converted to radians
+          //convert image plane cordinates into world space
+          vec2 NDC = vec2((i + offsets[s].x) * (1 / (float) WIDTH), (j + offsets[s].y) * (1 / (float) HEIGHT));
+          float x = (2 * (NDC.x) - 1) * angle * ASPECT_RATIO;
+          float y = (1 - 2 * (NDC.y)) * angle;
 
-        // the main camera ray
-        vec4 rayDirection = camera.transform * vec4(x, y, -1.0f, 0.0f);
+          // the main camera ray
+          vec4 rayDirection = camera.transform * vec4(x, y, -1.0f, 0.0f);
 
-        RayTriangleIntersection intersection = findClosestIntersection(camera.transform[3], tris, rayDirection);
+          RayTriangleIntersection intersection = findClosestIntersection(camera.transform[3], triGroups, rayDirection);
 
-        buffer[i + j * WIDTH] = vec3ToPackedInt(getPixelColour(intersection, mainLight, rayDirection, tris, 0, i, j));
+          buffer[i + j * WIDTH] = vec3ToPackedInt(getPixelColour(intersection, mainLight, rayDirection, triGroups, 0, i, j));
+        }
       }
     }
+    // #pragma omp parallel for
+    // for(int j = 0; j < HEIGHT; j++) {
+    //   for(int i = 0; i < WIDTH; i++) {
+    //     float angle = tanf(0.5f * glm::radians(camera.fov)); // just fov*0.5 converted to radians
+    //     //convert image plane cordinates into world space
+    //     vec2 NDC = vec2((i + offsets[s].x) * (1 / (float) WIDTH), (j + offsets[s].y) * (1 / (float) HEIGHT));
+    //     float x = (2 * (NDC.x) - 1) * angle * ASPECT_RATIO;
+    //     float y = (1 - 2 * (NDC.y)) * angle;
+
+    //     // the main camera ray
+    //     vec4 rayDirection = camera.transform * vec4(x, y, -1.0f, 0.0f);
+
+    //     RayTriangleIntersection intersection = findClosestIntersection(camera.transform[3], triGroups, rayDirection);
+
+    //     buffer[i + j * WIDTH] = vec3ToPackedInt(getPixelColour(intersection, mainLight, rayDirection, triGroups, 0, i, j));
+    //   }
+    // }
     buffer += IMG_SIZE;
   }
 }
@@ -874,19 +944,11 @@ int main(int argc, char *argv[])
       start = std::chrono::high_resolution_clock::now();
       frameCount = 0;
     }
-    //cout << "camera transform = " << cam.transform << endl;
     Times::update();
-    //cout << "deltaTime: " << Times::deltaTime() << endl;
     // We MUST poll for events - otherwise the window will freeze !
     if (window.pollForInputEvents(&event))
       handleEvent(event, cam);
-    //handleMouse(cam);
-    //cout << "deltaTime = " << Times::deltaTime() << endl;
-    //std::cout << "sphere transform = " << sphere.transform << std::endl;
-    //update(cam, vector<Updatable*>{&cornell, &cornellRB, &sphereRB});
     update(cam, updateQueue);
-    //std::vector<Model*> models{&cornell, &sphere};
-    //std::cout << "about to render" << std::endl;
     draw();
     if(toRaytrace) {
       raytrace(cam, renderQueue);
@@ -928,15 +990,10 @@ void update(Camera &cam, vector<Updatable*> updatables)
 {
   // Function for performing animation (shifting artifacts or moving the camera)
   cam.update();
-  // cout << "cam transform: " << cam.transform << endl;
   for (unsigned int i = 0; i < updatables.size(); i++)
   {
     updatables[i]->update();
   }
-  if (Times::getFrameCount() / 60 == 7) {
-    //logoRB.positionFixed = false;
-  }
-  // cout << "Total force = " << Magnet::totalForce << endl;
 }
 
 void handleEvent(SDL_Event event, Camera &cam)
@@ -998,7 +1055,6 @@ void handleEvent(SDL_Event event, Camera &cam)
       cout << "P" << endl;
       perspective = !perspective;
     }
-    cout << cam.getPosition() << '\n';
   }
 }
 

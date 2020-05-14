@@ -11,7 +11,6 @@ Model::Model(string filename) {
     palette = loadMTL(filename + ".mtl");
     tris = loadOBJ(filename + ".obj", palette);
     this->furthestExtent = calcExtent();
-    cout << "Model " << this << " extent: " << furthestExtent << endl;
 }
 
 Model::Model(const Model& original) {
@@ -225,7 +224,6 @@ unordered_map<string, Material> Model::loadMTL(string fileName) {
         palette[key].texture.data = loadPPM(texture_file, palette[key].texture.width, palette[key].texture.height);
 
         palette[key].texture.dataVec = new glm::vec3[palette[key].texture.width * palette[key].texture.height];
-        cout << "PPM LOADED\n";
         for (int i = 0; i < palette[key].texture.width * palette[key].texture.height; i++) {
           palette[key].texture.dataVec[i].r = ((palette[key].texture.data[i] & 0xff0000) >> 16) / 255.0f;
           palette[key].texture.dataVec[i].g = ((palette[key].texture.data[i] & 0x00ff00) >> 8) / 255.0f;
@@ -233,7 +231,6 @@ unordered_map<string, Material> Model::loadMTL(string fileName) {
         }
       }
       if (s == "map_bump" || s == "bump") {
-        cout << "BUMPY BOI\n";
         string texture_file;
         f >> texture_file;
         size_t pos = fileName.find('/');
@@ -266,7 +263,6 @@ unordered_map<string, Material> Model::loadMTL(string fileName) {
 vec3 Model::centerOfMass() {
   float totalVolume = 0;
   vec3 center;
-  cout << "triangle: " << tris[6] << endl;
   for (unsigned int i = 0; i < tris.size(); i++) {
     //maaaaaaaaaths
     float currentVolume = (tris[i].vertices[0][0]*tris[i].vertices[1][1]*tris[i].vertices[2][2] -

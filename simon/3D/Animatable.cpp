@@ -12,7 +12,6 @@ Animatable::Animatable()
 
 void Animatable::update()
 {
-    //cout << "Animatable update, moves length = " << this->moves.size() << endl;
     if (firstUpdate)
     {
         previous.transform = transform;

@@ -48,5 +48,3 @@ class LightOld
     }
 
 };
-
-std::ostream& operator<<(std::ostream& os, const Colour& colour);
