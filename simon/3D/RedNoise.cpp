@@ -138,7 +138,7 @@ void drawTriangles(Camera &cam, std::vector<Model *> models, vector<Light*> ligh
       tri.vertices[1].pos_3d = model.transform * tri.vertices[1].pos;
       tri.vertices[2].pos_3d = model.transform * tri.vertices[2].pos;
       if (tri.mat.normal_map.dataVec != nullptr) {
-        tri.tangent = model.transform * tri.tangent;
+        tri.tangent = normalize(model.transform * tri.tangent);
         tri.TBN = mat3(toThree(tri.tangent), toThree(cross(tri.normal, tri.tangent)), toThree(tri.normal));
       }
       tri.vertices[0].pos = viewProjection * tri.vertices[0].pos_3d;
@@ -536,7 +536,7 @@ void raytrace(Camera camera, std::vector<Model*> models, vector<Light*> lights, 
       ModelTriangle newTri = ModelTriangle((*models[i]).transform * tri.vertices[0],
                             (*models[i]).transform * tri.vertices[1],
                             (*models[i]).transform * tri.vertices[2],
-                            tri.material, (*models[i]).transform * tri.normal);
+                            tri.material, normalize((*models[i]).transform * tri.normal));
       newTri.uvs[0] = tri.uvs[0];
       newTri.uvs[1] = tri.uvs[1];
       newTri.uvs[2] = tri.uvs[2];
@@ -546,7 +546,7 @@ void raytrace(Camera camera, std::vector<Model*> models, vector<Light*> lights, 
       newTri.name = tri.name;
       newTri.fullBright = models[i]->fullBright;
       if (newTri.material.normal_map.dataVec != nullptr) {
-        newTri.tangent = (*models[i]).transform * tri.tangent;
+        newTri.tangent = normalize((*models[i]).transform * tri.tangent);
         newTri.TBN = mat3(toThree(newTri.tangent), toThree(cross(newTri.normal, newTri.tangent)), toThree(newTri.normal));
       }
       for (int v = 0; v < 3; v++) {
@@ -956,9 +956,9 @@ int main(int argc, char *argv[])
     Times::update();
     // Quick and dirty animated water
     for (auto& tri : ground.tris) {
-      tri.uvs[0].x += 0.1f * Times::deltaTime();
-      tri.uvs[1].x += 0.1f * Times::deltaTime();
-      tri.uvs[2].x += 0.1f * Times::deltaTime();
+      tri.uvs[0].x += 0.1f * (1.0f / 60.0f);
+      tri.uvs[1].x += 0.1f * (1.0f / 60.0f);
+      tri.uvs[2].x += 0.1f * (1.0f / 60.0f);
     }
     // We MUST poll for events - otherwise the window will freeze !
     if (window.pollForInputEvents(&event))
