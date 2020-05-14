@@ -922,11 +922,11 @@ int main(int argc, char *argv[])
   track.stareAt = true;
   track.stareTarget = &bounce2;
 
-  cam.moves.push(&track);
-  cam.moves.push(&zoom);
-  cam.moves.push(&teleprot);
-  cam.moves.push(&spin);
-  cam.moves.push(&move);
+  // cam.moves.push(&track);
+  // cam.moves.push(&zoom);
+  // cam.moves.push(&teleprot);
+  // cam.moves.push(&spin);
+  // cam.moves.push(&move);
   cam.moves.push(&slow);
   cam.moves.push(&diag);
 
@@ -1040,7 +1040,7 @@ void update(Camera &cam, vector<Updatable*> &updatables, vector<Model*> *renderQ
     Movement* move = new Movement(2.5f);
     move->move(vec3(-3,3,-5));
     move->isRotation = true;
-    move->rotation = vec3(M_PIf/4 + 0.1f, M_PIf,0.2f);
+    move->rotation = vec3(M_PIf/4 + 0.1f, M_PIf,-0.5f);
     iss_p->moves.push(move);
   }
 }
