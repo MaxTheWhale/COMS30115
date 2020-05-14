@@ -136,13 +136,113 @@ float intervalMid(float a, float b, float x, float y) {
     }
 }
 
+// bool Rigidbody::intersection(ModelTriangle localTri, ModelTriangle otherTri, mat4 localTransform, mat4 otherTransform) {
+//     vec3 verts1[3];
+//     vec3 verts2[3];
+//     for (int i = 0; i < 3; i++) {
+//         verts1[i] = toVec3(localTransform * localTri.vertices[i]);
+//         verts2[i] = toVec3(otherTransform * otherTri.vertices[i]);
+//     }
+//     vec3 n1 = calcN(verts1);
+//     vec3 n2 = calcN(verts2);
+
+//     float d1 = dot(-n1, verts1[0]);
+//     float d2 = dot(-n2, verts2[0]);
+
+//     //distances from each vertex to the plane of the other triangle
+//     float dist1[3];
+//     float dist2[3];
+//     for(int i = 0; i < 3; i++) {
+//         float value1 = dot(n2, verts1[i]) + d2;
+//         float value2 = dot(n1, verts2[i]) + d1;
+//         dist1[i] = value1;
+//         dist2[i] = value2;
+//     }
+//     //early check to weed out cases where one triangle is distinctly on one side of the other triangle's plane
+//     if (!checkSign(dist1) || !checkSign(dist2)) {
+//         return false;
+//     }
+
+//     //now we have to check which point is on the opposite side of the plane to the other two
+//     int oppositeIndexOne = differentSign(dist1);
+//     int one0 = (oppositeIndexOne + 1) % 3;
+//     int one2 = positiveMod(oppositeIndexOne - 1, 3);
+
+//     int oppositeIndexTwo = differentSign(dist2);
+//     int two0 = (oppositeIndexTwo + 1) % 3;
+//     int two2 = positiveMod(oppositeIndexTwo - 1, 3);
+
+//     vec3 D = cross(n1, n2);
+//     float t1 = calcInterval(D, verts1[one0], verts1[oppositeIndexOne], dist1[one0], dist1[oppositeIndexOne]);
+//     float t2 = calcInterval(D, verts1[oppositeIndexOne], verts1[one2], dist1[oppositeIndexOne], dist1[one2]);
+//     float tPrime1 = calcInterval(D, verts2[two0], verts2[oppositeIndexTwo], dist2[two0], dist2[oppositeIndexTwo]);
+//     float tPrime2 = calcInterval(D, verts2[oppositeIndexTwo], verts2[two2], dist2[oppositeIndexTwo], dist2[two2]);
+//     if (intervalOverlap(t1,t2,tPrime1,tPrime2)) {
+//         this->lastCollision = intervalMid(t1,t2,tPrime1,tPrime2) * normalize(D);
+//         return true;
+//     }
+//     return false;
+// }
+
+// bool isBasis(vec4 vec) {
+//     if (glm::length(vec) == 1) {
+//         for (int i = 0; i < 3; i++) {
+//             if (abs(vec[i]) == 1) {
+//                 return true;
+//             }
+//         }
+//     }
+//     return false;
+// }
+
+// bool Rigidbody::collide(Rigidbody other) {
+//     if (positionFixed || !collisionEnabled || !other.collisionEnabled ||
+//         collisionLayers[collisionLayer][other.collisionLayer] == 0) {
+//         return false;
+//     }
+//     float dist = glm::distance(toVec3(this->model->transform[3]), toVec3(other.model->transform[3]));
+//     float maxDist = this->model->furthestExtent + other.model->furthestExtent;
+//     if (dist > maxDist) { //no possible collisions, too far
+//         return false;
+//     }
+//     for (unsigned int i = 0; i < model->tris.size(); i++) {
+//         for (unsigned int j = 0; j < other.model->tris.size(); j++) {
+//             //this line is disgusting because C++'s iterator interface hurts my soul
+//             if (std::find_if(collidedWith.begin(), collidedWith.end(), [other](Rigidbody* rb) {return &other == rb;}) == collidedWith.end() &&
+//                 intersection(model->tris[i], other.model->tris[j], model->transform, other.model->transform)) {
+//                 vec4 normal = other.model->tris[j].normal * other.model->transform;
+//                 // if (isBasis(normal)) {
+//                 //     continue;
+//                 // }
+//                 if (glm::length(this->lastCollision) > this->model->furthestExtent) { //collision apparently happened outside the bounds of the model
+//                     continue;
+//                 }
+//                 float combinedElasticity = (this->elasticity + other.elasticity); //the average ratio of energy conserved
+//                 vec3 force = toVec3(vec4() - combinedElasticity * dot(normalize(normal), normalize(velocity[3])) * normal);
+//                 applyForce(force, vec3(0,0,0));
+//                 collidedWith.push_back(&other);
+//                 other.collidedWith.push_back(this);
+//                 return true;
+//             }
+//         }
+//     }
+//     return false;
+// }
+
 bool Rigidbody::intersection(ModelTriangle localTri, ModelTriangle otherTri, mat4 localTransform, mat4 otherTransform) {
     vec3 verts1[3];
     vec3 verts2[3];
+    //cout << "verts1 = ";
     for (int i = 0; i < 3; i++) {
         verts1[i] = toVec3(localTransform * localTri.vertices[i]);
+        //cout << verts1[i] << ", ";
         verts2[i] = toVec3(otherTransform * otherTri.vertices[i]);
     }
+    //cout << endl << "verts2 = ";
+    // for (int i = 0; i < 3; i++) {
+    //     cout << verts2[i] << ", ";
+    // }
+    // cout << endl;
     vec3 n1 = calcN(verts1);
     vec3 n2 = calcN(verts2);
 
@@ -160,66 +260,51 @@ bool Rigidbody::intersection(ModelTriangle localTri, ModelTriangle otherTri, mat
     }
     //early check to weed out cases where one triangle is distinctly on one side of the other triangle's plane
     if (!checkSign(dist1) || !checkSign(dist2)) {
+        //std::cout << "early return" << endl;
         return false;
     }
-
-    //now we have to check which point is on the opposite side of the plane to the other two
-    int oppositeIndexOne = differentSign(dist1);
-    int one0 = (oppositeIndexOne + 1) % 3;
-    int one2 = positiveMod(oppositeIndexOne - 1, 3);
-
-    int oppositeIndexTwo = differentSign(dist2);
-    int two0 = (oppositeIndexTwo + 1) % 3;
-    int two2 = positiveMod(oppositeIndexTwo - 1, 3);
-
     vec3 D = cross(n1, n2);
-    float t1 = calcInterval(D, verts1[one0], verts1[oppositeIndexOne], dist1[one0], dist1[oppositeIndexOne]);
-    float t2 = calcInterval(D, verts1[oppositeIndexOne], verts1[one2], dist1[oppositeIndexOne], dist1[one2]);
-    float tPrime1 = calcInterval(D, verts2[two0], verts2[oppositeIndexTwo], dist2[two0], dist2[oppositeIndexTwo]);
-    float tPrime2 = calcInterval(D, verts2[oppositeIndexTwo], verts2[two2], dist2[oppositeIndexTwo], dist2[two2]);
-    if (intervalOverlap(t1,t2,tPrime1,tPrime2)) {
-        this->lastCollision = intervalMid(t1,t2,tPrime1,tPrime2) * normalize(D);
+    //cout << "D = "<< D << endl;
+    float t1 = calcInterval(D, verts1[0], verts1[1], dist1[0], dist1[1]);
+    float t2 = calcInterval(D, verts1[1], verts1[2], dist1[1], dist1[2]);
+    float tPrime1 = calcInterval(D, verts2[0], verts2[1], dist2[0], dist2[1]);
+    float tPrime2 = calcInterval(D, verts2[1], verts2[2], dist2[1], dist2[2]);
+    //std::cout << "interval1: " << t1 << "," << t2 << " interval2: " << tPrime1 << "," << tPrime2 << endl;
+    if (std::max(t1,t2) <= std::min(tPrime1, tPrime2) || std::min(t1,t2) <= std::max(tPrime1, tPrime2)) { //may not be efficient since standard lib functions may not be inlined by compiler
         return true;
     }
-    return false;
-}
-
-bool isBasis(vec4 vec) {
-    if (glm::length(vec) == 1) {
-        for (int i = 0; i < 3; i++) {
-            if (abs(vec[i]) == 1) {
-                return true;
-            }
-        }
-    }
+    //std::cout << "default" << endl;
     return false;
 }
 
 bool Rigidbody::collide(Rigidbody other) {
+    // return false;
     if (positionFixed || !collisionEnabled || !other.collisionEnabled ||
         collisionLayers[collisionLayer][other.collisionLayer] == 0) {
-        return false;
-    }
-    float dist = glm::distance(toVec3(this->model->transform[3]), toVec3(other.model->transform[3]));
-    float maxDist = this->model->furthestExtent + other.model->furthestExtent;
-    if (dist > maxDist) { //no possible collisions, too far
         return false;
     }
     for (unsigned int i = 0; i < model->tris.size(); i++) {
         for (unsigned int j = 0; j < other.model->tris.size(); j++) {
             //this line is disgusting because C++'s iterator interface hurts my soul
             if (std::find_if(collidedWith.begin(), collidedWith.end(), [other](Rigidbody* rb) {return &other == rb;}) == collidedWith.end() &&
-                intersection(model->tris[i], other.model->tris[j], model->transform, other.model->transform)) {
-                vec4 normal = other.model->tris[j].normal * other.model->transform;
-                if (isBasis(normal)) {
-                    continue;
+                    intersection(model->tris[i], other.model->tris[j], model->transform, other.model->transform)) {
+                if (velocity[3] != vec4(0,0,0,1)) { //object is resting in contact with other object, so no reaction force is applied
+                    // std::cout << "collision detected with " << &other << std::endl;
+                    vec4 normal = other.model->tris[j].normal * other.model->transform;
+                    float combinedElasticity = this->elasticity + other.elasticity; //twice the average ratio of energy conserved
+                    vec3 force = toVec3(-combinedElasticity * dot(normal, velocity[3]) * normal);
+                    // cout << "force = " << force << endl;
+                    collisions++;
+                    if (collisions >= maxCollisions && maxCollisions >= 0) {
+                        collisionEnabled = false;
+                    }
+                    applyForce(force, vec3(0, 0, 0));
+                    for (int i = 0; i < 3; i++) {
+                        if (velocity[3][i] < 0.01f) {
+                            velocity[3][i] = 0;
+                        }
+                    }
                 }
-                if (glm::length(this->lastCollision) > this->model->furthestExtent) { //collision apparently happened outside the bounds of the model
-                    continue;
-                }
-                float combinedElasticity = (this->elasticity + other.elasticity); //the average ratio of energy conserved
-                vec3 force = toVec3(vec4() - combinedElasticity * dot(normalize(normal), normalize(velocity[3])) * normal);
-                applyForce(force, vec3(0,0,0));
                 collidedWith.push_back(&other);
                 other.collidedWith.push_back(this);
                 return true;

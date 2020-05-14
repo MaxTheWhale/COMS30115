@@ -23,6 +23,7 @@ Model::Model(const Model& original) {
 vector<ModelTriangle> Model::loadOBJ(string fileName,
                               unordered_map<string, Material> palette)
 {
+  cout << "loading OBJ " << fileName << endl;
   ifstream f;
   string s;
   string name = "";
@@ -126,6 +127,7 @@ void skipHashWS(ifstream &f)
 
 int *loadPPM(string fileName, int &width, int &height)
 {
+  cout << "loading PPM " << fileName << endl;
   ifstream f;
   string s;
   f.open(fileName, ios::in | ios::binary);
@@ -139,7 +141,6 @@ int *loadPPM(string fileName, int &width, int &height)
   skipHashWS(f);
   f >> s;
   f.seekg(1, f.cur);
-
   int *buff = new int[width * height];
   for (int i = 0; i < width * height; i++)
   {

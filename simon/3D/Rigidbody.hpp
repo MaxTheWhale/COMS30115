@@ -25,10 +25,12 @@ class Rigidbody : public Updatable, Temporal {
         bool suckable = true; //can be moved by magnets
         std::vector<Rigidbody*>* allRBs;
         int collisionLayer = 0;
+        int maxCollisions = -1;
     protected:
         static const glm::mat3 collisionLayers;
         //hack for the sake of efficiency
         //set every time there is a collision to the model-relative 3D coordinates of the vertex assumed to have caused it
         glm::vec3 lastCollision;
         bool intersection(ModelTriangle localTri, ModelTriangle otherTri, mat4 localTransform, mat4 otherTransform);
+        int collisions = 0;
 };

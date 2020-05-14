@@ -581,6 +581,8 @@ void raytrace(Camera camera, std::vector<Model*> models) {
   }
 }
 
+Rigidbody* unfreeze = 0;
+
 int main(int argc, char *argv[])
 {
   SDL_Event event;
@@ -791,40 +793,49 @@ int main(int argc, char *argv[])
   orbitor1.moves.push(&orbit);
   updateQueue.push_back(&orbitor1);
  
-  Model orbitor2 = Model(orbitor1);
+  Model orbitor2 = Model("saturn/saturn");
   orbitor2.setPosition(vec3(15,0,10));
-  orbitor1.setScale(vec3(1,3,1));
+  orbitor2.rotate(vec3(M_PIf/2,0,0));
+  orbitor2.setScale(vec3(0.000003f,0.000003f,0.000003f));
   renderQueue.push_back(&orbitor2);
 
   Magnet mag2 = Magnet(&orbitor2, rbList);
   updateQueue.push_back(&mag2);
   
   t.rotate(vec3(0.5f,0,0));
-  Orbit orbit2 = Orbit(t.transform, 0.5f);
+  Orbit orbit2 = Orbit(t.transform, M_PIf);
   orbit2.repeats = -1;
   orbit2.time = 5;
   orbitor2.moves.push(&orbit2);
   updateQueue.push_back(&orbitor2);
 
-  Model orbitor3 = Model(orbitor1);
-  orbitor3.setPosition(vec3(10,0,10));
-  orbitor1.setScale(vec3(3,3,3));
+  Model orbitor3 = Model("mars/mars");
+  orbitor3.setPosition(vec3(0,0,10));
+  orbitor3.rotate(vec3(M_PIf/2,0,0));
+  orbitor3.setScale(vec3(0.000003f,0.000003f,0.000003f));
   renderQueue.push_back(&orbitor3);
 
   Magnet mag3 = Magnet(&orbitor3, rbList);
   updateQueue.push_back(&mag3);
-  
 
+  t.rotate(vec3(-0.5f,0,0));
+  Orbit orbit3 = Orbit(t.transform, 6);
+  orbit3.repeats = -1;
+  orbit3.time = 5;
+  orbitor3.moves.push(&orbit3);
+  updateQueue.push_back(&orbitor3);
+  
   Model moon = Model("Moon2K");
-  //moon.scale(vec3(0.005f,0.005f,0.005));
-  moon.setPosition(vec3(11,0,10));
+  moon.rotate(vec3(M_PIf/2,0,0));
+  moon.scale(vec3(0.5f,0.5f,0.5f));
+  moon.setPosition(vec3(19,29,1.0f));
   renderQueue.push_back(&moon);
-  Rigidbody moonRB = Rigidbody(&moon, rbList);
-  moonRB.collisionEnabled = false;
-  moonRB.hasGravity = false;
-  moonRB.positionFixed = false;
-  moonRB.velocity *= Transformable::rotationFromEuler(vec3(0,0.05f,0.05f));
-  updateQueue.push_back(&moonRB);
+  // Rigidbody moonRB = Rigidbody(&moon, rbList);
+  // moonRB.collisionEnabled = false;
+  // moonRB.hasGravity = false;
+  // moonRB.positionFixed = false;
+  // moonRB.velocity *= Transformable::rotationFromEuler(vec3(0,0.05f,0.05f));
+  // updateQueue.push_back(&moonRB);
 
   Model moon2 = Model(moon);
   //moon2.scale(vec3(0.005f,0.005f,0.005));
@@ -880,10 +891,10 @@ int main(int argc, char *argv[])
   cornellRB.suckable = false;
   updateQueue.push_back(&cornellRB);
 
-  Model hs_logo = Model("HackspaceLogo/logo");
-  hs_logo.scale(vec3(0.005f, 0.005f, 0.005f));
-  hs_logo.furthestExtent = hs_logo.calcExtent();
-  hs_logo.move(vec3(100, 10.0f, -1));
+  // Model hs_logo = Model("HackspaceLogo/logo");
+  // hs_logo.scale(vec3(0.005f, 0.005f, 0.005f));
+  // hs_logo.furthestExtent = hs_logo.calcExtent();
+  // hs_logo.move(vec3(100, 10.0f, -1));
   // renderQueue.push_back(&hs_logo);
   // logoRB = Rigidbody(&hs_logo);
   // logoRB.collisionLayer = 1;
@@ -898,12 +909,14 @@ int main(int argc, char *argv[])
   // Model hs_logo = Model(center);
   // hs_logo.scale(vec3(0.005f, 0.005f, 0.005f));
   // hs_logo.furthestExtent = hs_logo.calcExtent();
-  // hs_logo.move(vec3(100, 10.0f, -1));
+  // hs_logo.move(vec3(100, 10.0f, -10));
   // renderQueue.push_back(&hs_logo);
   // Rigidbody logoRB = Rigidbody(&hs_logo, rbList);
-  // logoRB.positionFixed = true;
+  // logoRB.positionFixed = false;
   // logoRB.suckable = false;
   // logoRB.elasticity = 0.8f;
+  // logoRB.collisionLayer = 1;
+  // logoRB.applyForce(vec3(0,0,1.0f));
   // updateQueue.push_back(&logoRB);
 
   Model bounce1 = Model("HackspaceLogo/logo");
@@ -915,27 +928,39 @@ int main(int argc, char *argv[])
   bounce1RB.collisionLayer = 2;
   bounce1RB.positionFixed = false;
   bounce1RB.suckable = false;
-  bounce1RB.elasticity = 0.8f;
+  bounce1RB.elasticity = 1.1f;
   updateQueue.push_back(&bounce1RB);
 
-  Model bounce2 = Model("HackspaceLogo/logo");
+  Model bounce2 = Model(center);
   bounce2.scale(vec3(0.005f, 0.005f, 0.005f));
   bounce2.furthestExtent = bounce2.calcExtent();
-  bounce2.move(vec3(101, 10.0f, -2));
+  bounce2.move(vec3(90, 10.0f, 1));
   renderQueue.push_back(&bounce2);
   Rigidbody bounce2RB = Rigidbody(&bounce2, rbList);
+  unfreeze = &bounce2RB;
   bounce2RB.collisionLayer = 2;
-  bounce2RB.positionFixed = false;
+  bounce2RB.positionFixed = true;
   bounce2RB.suckable = false;
-  bounce2RB.elasticity = 0.8f;
+  bounce2RB.elasticity = 0.9f;
+  bounce2RB.maxCollisions = 1;
   updateQueue.push_back(&bounce2RB);
+
+  Model tilt = Model("tilted");
+  tilt.move(vec3(90, 3, 0));
+  renderQueue.push_back(&tilt);
+  Rigidbody tiltRB = Rigidbody(&tilt, rbList);
+  tiltRB.elasticity = 0.1f;
+  updateQueue.push_back(&tiltRB);
 
   // Model 
 
   Camera cam;
   cam.setProjection(90.0f, WIDTH / (float)HEIGHT, 0.1f, 100.0f);
-  cam.lookAt(vec3(100.0f, 10.0f, 10.0f), vec3(100.0f, 0, 0));
-  // cam.lookAt(vec3(20.0f, 30.0f, 0.0f), vec3(0.0f, 0, 0));
+  // cam.lookAt(vec3(100.0f, 10.0f, 10.0f), vec3(100.0f, 0, 0));
+  cam.lookAt(vec3(20.0f, 30.0f, 0.0f), vec3(0.0f, 0, 0));
+
+  Movement slow = Movement(cam.transform, 1);
+  slow.move(vec3(-1,-1,0));
 
   Movement move = Movement(cam.transform, 3);
   move.transform[3] = vec4(0,15,0,1);
@@ -951,21 +976,21 @@ int main(int argc, char *argv[])
 
   Movement teleprot = Movement(target.transform, 0);
 
-  target.move(vec3(10,10,10));
+  target.move(vec3(0,10,10));
   Movement zoom = Movement(target.transform, 2);
   zoom.isRotation = true;
   zoom.rotation = vec3(0,M_PIf/4,0);
 
-  Movement track = Movement(target.transform, 4);
+  Movement track = Movement(target.transform, -1);
   track.stareAt = true;
-  track.stareTarget = &hs_logo;
+  track.stareTarget = &bounce2;
 
-  // cam.moves.push(&turn);
   cam.moves.push(&track);
   cam.moves.push(&zoom);
   cam.moves.push(&teleprot);
   cam.moves.push(&spin);
   cam.moves.push(&move);
+  cam.moves.push(&slow);
 
   Times::init();
   auto start = std::chrono::high_resolution_clock::now();
@@ -989,6 +1014,7 @@ int main(int argc, char *argv[])
     // We MUST poll for events - otherwise the window will freeze !
     if (window.pollForInputEvents(&event))
       handleEvent(event, cam);
+    // cout << "hs_logo pos: " << hs_logo.getPosition() << endl;
     update(cam, updateQueue);
     draw();
     if(toRaytrace) {
@@ -1034,6 +1060,9 @@ void update(Camera &cam, vector<Updatable*> updatables)
   for (unsigned int i = 0; i < updatables.size(); i++)
   {
     updatables[i]->update();
+  }
+  if (Times::getFrameCount() / 60 == 8) {
+    unfreeze->positionFixed = false;
   }
 }
 
