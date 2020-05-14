@@ -1048,7 +1048,7 @@ void update(Camera &cam, vector<Updatable*> &updatables, vector<Model*> *renderQ
     Movement* move = new Movement(2.5f);
     move->move(vec3(-3,3,-5));
     move->isRotation = true;
-    move->rotation = vec3(M_PIf/4 + 0.1f, M_PIf,0.2f);
+    move->rotation = vec3(M_PIf/4 + 0.1f, M_PIf,-0.5f);
     iss_p->moves.push(move);
   }
 }
