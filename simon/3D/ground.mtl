@@ -3,3 +3,4 @@ Ns 96.078443
 Kd 1.0 1.0 1.0
 map_bump TexturesCom_Ground_Soil3_3x3_512_normal.ppm
 map_Kd TexturesCom_Ground_Soil3_3x3_512_albedo.ppm
+illum 3
