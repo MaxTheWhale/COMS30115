@@ -42,7 +42,7 @@ using namespace glm;
 #define NUM_TILES_Y (HEIGHT / TILE_SIZE)
 #define NUM_TILES (NUM_TILES_X * NUM_TILES_Y)
 
-#define RENDER false
+#define RENDER true
 #define RENDER_LENGTH 300
 
 #ifndef M_PIf
@@ -430,7 +430,7 @@ vec3 getPixelColour(RayTriangleIntersection& intersection, vector<Light*> lights
 
     RayTriangleIntersection mirrorIntersection = findClosestIntersection(intersection.intersectionPoint + (normal * 0.1f), triGroups, mirrorRayDirection);
     
-    return glm::min(getPixelColour(mirrorIntersection, lights, rayDirection, triGroups, depth + 1, i, j, background) + (intersection.intersectedTriangle.material.specularVec * 0.8f), 1.0f);
+    return glm::min(getPixelColour(mirrorIntersection, lights, mirrorRayDirection, triGroups, depth + 1, i, j, background) + (intersection.intersectedTriangle.material.specularVec * 0.8f), 1.0f);
   }
 
   if(intersection.intersectedTriangle.name == "MainLight") {
@@ -600,333 +600,325 @@ int main(int argc, char *argv[])
   vector<Updatable*> updateQueue = vector<Updatable*>();
   vector<Light*> lights;
 
-  Light mainLight = Light(vec3(2550.0f, 250.0f, 1130.0f), vec3(1.0f, 1.0f, 1.0f));
-  mainLight.setPosition(vec3(19,29,1.0f));
-  lights.push_back(&mainLight);
+  Model cornell = Model("cornell-box");
+  renderQueue.push_back(&cornell);
 
-  Light blueLight = Light(vec3(250.0f, 1170.0f, 2550.0f), vec3(1.0f, 1.0f, 1.0f));
-  blueLight.setPosition(vec3(-19,29,-1.0f));
-  lights.push_back(&blueLight);
+  // STANDARD CORNELL LAYOUT
+  
+  Camera cam;
+  cam.setProjection(90.0f, WIDTH / (float)HEIGHT, 0.1f, 100.0f);
+  cam.lookAt(vec3(0.0f, 2.5f, 3.0f), vec3(0.0f, 2.5f, 0.0));
+  Light cornellLight = Light(vec3(200.0f, 200.0f, 200.0f), vec3(1.0f, 1.0f, 1.0f));
+  cornellLight.setPosition(vec3(-0.234f, 5.2f, -3.043f));
+  lights.push_back(&cornellLight);
 
-  // Light otherLight = Light(vec3(0.0f, 50.0f, 0.0f), vec3(1.0f, 1.0f, 1.0f));
-  // otherLight.setPosition(vec3(0.0f, 3.0f, 0.0f));
-  // Transformable lightT = Transformable();
-  // lightT.setRotation(vec3(M_PIf/2,0,0));
-  // Orbit lightOrbit = Orbit(lightT.transform);
-  // lightOrbit.repeats = -1;
-  // lightOrbit.time = 1;
-  // otherLight.moves.push(&lightOrbit);
-  // updateQueue.push_back(&otherLight);
-  // lights.push_back(&otherLight);
+  // END STANDARD CORNELL LAYOUT
 
-  // Model cornell = Model("cornell-box");
-  // //cornell.rotate(glm::vec3(45,0,0));
-  // renderQueue.push_back(&cornell);
-  // // std::cout << "cornell address = " << &cornell << std::endl;
-  // Rigidbody cornellRB = Rigidbody(&cornell);
-  // cornellRB.hasGravity = false;
-  // cornellRB.suckable = false;
-  // updateQueue.push_back(&cornellRB);
+  // ANIMATION LAYOUT
+
+  // Light mainLight = Light(vec3(2550.0f, 250.0f, 1130.0f), vec3(1.0f, 1.0f, 1.0f));
+  // mainLight.setPosition(vec3(19,29,1.0f));
+  // lights.push_back(&mainLight);
+
+  // Light blueLight = Light(vec3(250.0f, 1170.0f, 2550.0f), vec3(1.0f, 1.0f, 1.0f));
+  // blueLight.setPosition(vec3(-19,29,-1.0f));
+  // lights.push_back(&blueLight);
+
+  // // Light otherLight = Light(vec3(0.0f, 50.0f, 0.0f), vec3(1.0f, 1.0f, 1.0f));
+  // // otherLight.setPosition(vec3(0.0f, 3.0f, 0.0f));
+  // // Transformable lightT = Transformable();
+  // // lightT.setRotation(vec3(M_PIf/2,0,0));
+  // // Orbit lightOrbit = Orbit(lightT.transform);
+  // // lightOrbit.repeats = -1;
+  // // lightOrbit.time = 1;
+  // // otherLight.moves.push(&lightOrbit);
+  // // updateQueue.push_back(&otherLight);
+  // // lights.push_back(&otherLight);
+
+  // // // Model hs_logo = Model("HackspaceLogo/logo");
+  // // // hs_logo.scale(vec3(0.005f, 0.005f, 0.005f));
+  // // // hs_logo.move(vec3(-1.1f, 1.21f, -1.8f));
+  // // // renderQueue.push_back(&hs_logo);
+
+  // // // Model glass = Model("GlassSphere/glassSphere");
+  // // // glass.scale(vec3(0.75f, 0.75f, 0.75f));
+  // // // glass.move(vec3(0.75f, 2.3f, -2.0f));
+  // // // renderQueue.push_back(&glass);
+
+  // // // for (int i = -5; i < 5; i++) {
+  // //   // Model logo = Model("HackspaceLogo/Logo");
+  // //   // logo.scale(vec3(0.005f, 0.005f, 0.005f));
+  // //   // logo.move(vec3(-1, 1, 0));
+  // //   // logo.center = vec3(300, 300, 0);
+  // //   // renderQueue.push_back(&logo);
+  // //   // Rigidbody rb = Rigidbody(&logo);
+  // //   // rb.hasGravity = false;
+  // //   // rb.collisionEnabled = false;
+  // //   // rb.applyForce(vec3(-0.2f, 0, 0), vec3(0,-10,0));
+  // //   // updateQueue.push_back(&rb);
+  // // // }
+
+  // // // Model miku = Model("sc");
+  // // // miku.rotate(vec3(0.0f, 0.3f, 0.0f));
+  // // // miku.move(vec3(1.0f, 0.0f, -4.5f));
+  // // // renderQueue.push_back(&miku);
+
+  // // // Model bumpy = Model("bumpy");
+  // // // bumpy.scale(vec3(0.75f, 0.75f, 0.75f));
+  // // // bumpy.move(vec3(0.75f, 2.3f, -2.0f));
+  // // // renderQueue.push_back(&bumpy);
+
+  // // // Model cornell2 = Model("cornell-box");
+  // // // // cornell2.move(glm::vec3(0,1,0));
+  // // // cornell2.rotate(glm::vec3(0,1,0));
+  // // // renderQueue.push_back(&cornell2);
+  // // // Rigidbody cornellRB2 = Rigidbody(&cornell2);
+  // // // cornellRB2.hasGravity = false;
+  // // // updateQueue.push_back(&cornellRB2);
+
+  // // Model sphere = Model("HackspaceLogo/logo");
+  // // sphere.scale(vec3(0.01f, 0.01f, 0.01f));
+  // // sphere.setPosition(vec3(3,0,6));
+  // // renderQueue.push_back(&sphere);
+  // // Rigidbody sphereRB = Rigidbody(&sphere);
+
+  // // sphereRB.positionFixed = false;
+  // // sphereRB.hasGravity = false;
+  // // sphereRB.collisionEnabled = false;
+  // // sphereRB.applyForce(vec3(-0.04f,0,0));
+  // // // sphereRB.velocity *= Transformable::rotationFromEuler(vec3(0,0.05f,0));
+  // // // Magnet mag = Magnet(&sphere);
+  // // // updateQueue.push_back(&mag);
+
+  // // // Model sphere2 = Model("blob");
+  // // // sphere2.setPosition(vec3(0,0,6));
+  // // // renderQueue.push_back(&sphere2);
+  // // // Rigidbody sphereRB2 = Rigidbody(&sphere2);
+
+  // // // sphereRB2.positionFixed = false;
+  // // // sphereRB2.hasGravity = false;
+  // // // sphereRB2.collisionEnabled = false;
+  // // // Magnet mag2 = Magnet(&sphere2);
+  // // // updateQueue.push_back(&mag2);
+
+  // // // Model sphere3 = Model("blob");
+  // // // sphere3.setPosition(vec3(5.19615,0,3));
+  // // // renderQueue.push_back(&sphere3);
+  // // // Rigidbody sphereRB3 = Rigidbody(&sphere3);
+
+  // // // sphereRB3.positionFixed = false;
+  // // // sphereRB3.hasGravity = false;
+  // // // sphereRB3.collisionEnabled = false;
+  // // // Magnet mag3 = Magnet(&sphere3);
+  // // // updateQueue.push_back(&mag3);
+
+  // // // updateQueue.push_back(&sphereRB3);
+  // // // updateQueue.push_back(&sphereRB2);
+  // // updateQueue.push_back(&sphereRB);
+
+  // // Model fan = Model("Fan-blades");
+  // // // fan.scale(vec3(0.005f, 0.005f, 0.005f));
+  // // renderQueue.push_back(&fan);
 
   // // Model hs_logo = Model("HackspaceLogo/logo");
   // // hs_logo.scale(vec3(0.005f, 0.005f, 0.005f));
-  // // hs_logo.move(vec3(-1.1f, 1.21f, -1.8f));
+  // // hs_logo.furthestExtent = hs_logo.calcExtent();
+  // // hs_logo.move(vec3(-1, 10.0f, -1));
   // // renderQueue.push_back(&hs_logo);
+  // // Rigidbody logoRB = Rigidbody(&hs_logo);
+  // // logoRB.positionFixed = false;
+  // // logoRB.suckable = false;
+  // // logoRB.elasticity = 1.1f;
+  // // updateQueue.push_back(&logoRB);
+  // // // logoRB.applyForce(vec3(0,0,1));
 
-  // // Model glass = Model("GlassSphere/glassSphere");
-  // // glass.scale(vec3(0.75f, 0.75f, 0.75f));
-  // // glass.move(vec3(0.75f, 2.3f, -2.0f));
-  // // renderQueue.push_back(&glass);
-
-  // // for (int i = -5; i < 5; i++) {
-  //   // Model logo = Model("HackspaceLogo/Logo");
-  //   // logo.scale(vec3(0.005f, 0.005f, 0.005f));
-  //   // logo.move(vec3(-1, 1, 0));
-  //   // logo.center = vec3(300, 300, 0);
-  //   // renderQueue.push_back(&logo);
-  //   // Rigidbody rb = Rigidbody(&logo);
-  //   // rb.hasGravity = false;
-  //   // rb.collisionEnabled = false;
-  //   // rb.applyForce(vec3(-0.2f, 0, 0), vec3(0,-10,0));
-  //   // updateQueue.push_back(&rb);
-  // // }
-
-  // // Model miku = Model("sc");
-  // // miku.rotate(vec3(0.0f, 0.3f, 0.0f));
-  // // miku.move(vec3(1.0f, 0.0f, -4.5f));
-  // // renderQueue.push_back(&miku);
-
-  // // Model bumpy = Model("bumpy");
-  // // bumpy.scale(vec3(0.75f, 0.75f, 0.75f));
-  // // bumpy.move(vec3(0.75f, 2.3f, -2.0f));
-  // // renderQueue.push_back(&bumpy);
-
-  // // Model cornell2 = Model("cornell-box");
-  // // // cornell2.move(glm::vec3(0,1,0));
-  // // cornell2.rotate(glm::vec3(0,1,0));
-  // // renderQueue.push_back(&cornell2);
-  // // Rigidbody cornellRB2 = Rigidbody(&cornell2);
-  // // cornellRB2.hasGravity = false;
-  // // updateQueue.push_back(&cornellRB2);
-
-  // Model sphere = Model("HackspaceLogo/logo");
-  // sphere.scale(vec3(0.01f, 0.01f, 0.01f));
-  // sphere.setPosition(vec3(3,0,6));
-  // renderQueue.push_back(&sphere);
-  // Rigidbody sphereRB = Rigidbody(&sphere);
-
-  // sphereRB.positionFixed = false;
-  // sphereRB.hasGravity = false;
-  // sphereRB.collisionEnabled = false;
-  // sphereRB.applyForce(vec3(-0.04f,0,0));
-  // // sphereRB.velocity *= Transformable::rotationFromEuler(vec3(0,0.05f,0));
-  // // Magnet mag = Magnet(&sphere);
+  // // Model angle = Model("tilted");
+  // // // angle.scale(vec3(3,3,3));
+  // // angle.setPosition(vec3(0,0,10));
+  // // angle.furthestExtent = angle.calcExtent();
+  // // renderQueue.push_back(&angle);
+  // // Magnet mag = Magnet(&angle);
   // // updateQueue.push_back(&mag);
+  // // Rigidbody angleRB = Rigidbody(&angle);
+  // // updateQueue.push_back(&angleRB);
+  // // angleRB.positionFixed = true;
+  // // angleRB.hasGravity = false;
+  // // angleRB.collisionEnabled = false;
 
-  // // Model sphere2 = Model("blob");
-  // // sphere2.setPosition(vec3(0,0,6));
-  // // renderQueue.push_back(&sphere2);
-  // // Rigidbody sphereRB2 = Rigidbody(&sphere2);
+  // // // Movement up = Movement(angle.transform, 4.0f);
+  // // // up.move(vec3(0,10,0));
+  // // // Movement down = Movement(angle.transform, 4.0f);
+  // // // angle.moves.push(down);
+  // // // angle.moves.push(up);
+  // // // angle.moves.push(down);
+  // // // angle.moves.push(up);
+  // // // angle.moves.push(down);
+  // // // angle.moves.push(up);
+  // // Transformable t = Transformable();
+  // // t.setRotation(vec3(M_PIf/2,0,0));
+  // // Orbit orbit = Orbit(t.transform);
+  // // orbit.repeats = -1;
+  // // orbit.time = 20;
+  // // angle.moves.push(&orbit);
+  // // updateQueue.push_back(&angle);
+  // // // cout << "angleRB address = " << &angleRB << endl;
 
-  // // sphereRB2.positionFixed = false;
-  // // sphereRB2.hasGravity = false;
-  // // sphereRB2.collisionEnabled = false;
-  // // Magnet mag2 = Magnet(&sphere2);
-  // // updateQueue.push_back(&mag2);
+  // // // cout << "normals: " << endl;
+  // // // for (int i = 0; i < angle.tris.size(); i++) {
+  // // //   cout << angle.tris[i].normal << endl;;
+  // // // }
 
-  // // Model sphere3 = Model("blob");
-  // // sphere3.setPosition(vec3(5.19615,0,3));
-  // // renderQueue.push_back(&sphere3);
-  // // Rigidbody sphereRB3 = Rigidbody(&sphere3);
+  // // // Model tri1 = Model("triangle");
+  // // // renderQueue.push_back(&tri1);
+  // // // Rigidbody tri1RB = Rigidbody(&tri1);
+  // // // tri1RB.hasGravity = false;
+  // // // updateQueue.push_back(&tri1RB);
 
-  // // sphereRB3.positionFixed = false;
-  // // sphereRB3.hasGravity = false;
-  // // sphereRB3.collisionEnabled = false;
-  // // Magnet mag3 = Magnet(&sphere3);
-  // // updateQueue.push_back(&mag3);
+  // // // Model tri2 = Model("triangle2");
+  // // // tri2.move(glm::vec3(0,0.5f,0));
+  // // // tri2.rotate(glm::vec3(1, 1, 0));
+  // // // renderQueue.push_back(&tri2);
+  // // // Rigidbody tri2RB = Rigidbody(&tri2);
+  // // // tri2RB.hasGravity = false;
+  // // // updateQueue.push_back(&tri2RB);
 
-  // // updateQueue.push_back(&sphereRB3);
-  // // updateQueue.push_back(&sphereRB2);
-  // updateQueue.push_back(&sphereRB);
+  // // //std::cout << "address stored as " << cornellRB.model << std::endl;
+  // // // for (unsigned int i = 0; i < renderQueue.size(); i++) {
+  // // //   for (auto tri : (*renderQueue[i]).tris) {
+  // // //     cout << "UVs for " << tri.name << ": " << tri.uvs[0].x << "," << tri.uvs[0].y << "  " << tri.uvs[1].x << "," << tri.uvs[1].y << "  " << tri.uvs[2].x << "," << tri.uvs[2].y << endl;
+  // // //   }
+  // // // }
 
-  // Model fan = Model("Fan-blades");
-  // // fan.scale(vec3(0.005f, 0.005f, 0.005f));
-  // renderQueue.push_back(&fan);
+  // vector<Rigidbody*> rbList;
 
-  // Model hs_logo = Model("HackspaceLogo/logo");
-  // hs_logo.scale(vec3(0.005f, 0.005f, 0.005f));
-  // hs_logo.furthestExtent = hs_logo.calcExtent();
-  // hs_logo.move(vec3(-1, 10.0f, -1));
-  // renderQueue.push_back(&hs_logo);
-  // Rigidbody logoRB = Rigidbody(&hs_logo);
-  // logoRB.positionFixed = false;
-  // logoRB.suckable = false;
-  // logoRB.elasticity = 1.1f;
-  // updateQueue.push_back(&logoRB);
-  // // logoRB.applyForce(vec3(0,0,1));
+  // Model ground = Model("ground");
+  // renderQueue.push_back(&ground);
+  // ground.scale(vec3(10.0f, 10.0f, 10.0f));
+  // ground.setPosition(vec3(0,-10,0));
+  
+  // Model center = Model("HackspaceLogo/logo");
+  // renderQueue.push_back(&center);
+  // center.scale(vec3(0.02f,0.02f,0.02f));
+  // center.rotate(vec3(M_PIf/2,0,0));
 
-  // Model angle = Model("tilted");
-  // // angle.scale(vec3(3,3,3));
-  // angle.setPosition(vec3(0,0,10));
-  // angle.furthestExtent = angle.calcExtent();
-  // renderQueue.push_back(&angle);
-  // Magnet mag = Magnet(&angle);
+  // Model iss = Model("iss");
+  // renderQueue.push_back(&iss);
+  // iss.scale(vec3(0.2f,0.2f,0.2f));
+  // iss.setPosition(vec3(0,10,0));
+
+  // Model orbitor1 = Model("tilted");
+  // orbitor1.setPosition(vec3(10,0,0));
+  // orbitor1.setScale(vec3(1.5f,1.5f,1.5f));
+  // renderQueue.push_back(&orbitor1);
+  
+  // Magnet mag = Magnet(&orbitor1, rbList);
   // updateQueue.push_back(&mag);
-  // Rigidbody angleRB = Rigidbody(&angle);
-  // updateQueue.push_back(&angleRB);
-  // angleRB.positionFixed = true;
-  // angleRB.hasGravity = false;
-  // angleRB.collisionEnabled = false;
 
-  // // Movement up = Movement(angle.transform, 4.0f);
-  // // up.move(vec3(0,10,0));
-  // // Movement down = Movement(angle.transform, 4.0f);
-  // // angle.moves.push(down);
-  // // angle.moves.push(up);
-  // // angle.moves.push(down);
-  // // angle.moves.push(up);
-  // // angle.moves.push(down);
-  // // angle.moves.push(up);
   // Transformable t = Transformable();
   // t.setRotation(vec3(M_PIf/2,0,0));
   // Orbit orbit = Orbit(t.transform);
   // orbit.repeats = -1;
-  // orbit.time = 20;
-  // angle.moves.push(&orbit);
-  // updateQueue.push_back(&angle);
-  // // cout << "angleRB address = " << &angleRB << endl;
-
-  // // cout << "normals: " << endl;
-  // // for (int i = 0; i < angle.tris.size(); i++) {
-  // //   cout << angle.tris[i].normal << endl;;
-  // // }
-
-  // // Model tri1 = Model("triangle");
-  // // renderQueue.push_back(&tri1);
-  // // Rigidbody tri1RB = Rigidbody(&tri1);
-  // // tri1RB.hasGravity = false;
-  // // updateQueue.push_back(&tri1RB);
-
-  // // Model tri2 = Model("triangle2");
-  // // tri2.move(glm::vec3(0,0.5f,0));
-  // // tri2.rotate(glm::vec3(1, 1, 0));
-  // // renderQueue.push_back(&tri2);
-  // // Rigidbody tri2RB = Rigidbody(&tri2);
-  // // tri2RB.hasGravity = false;
-  // // updateQueue.push_back(&tri2RB);
-
-  // //std::cout << "address stored as " << cornellRB.model << std::endl;
-  // // for (unsigned int i = 0; i < renderQueue.size(); i++) {
-  // //   for (auto tri : (*renderQueue[i]).tris) {
-  // //     cout << "UVs for " << tri.name << ": " << tri.uvs[0].x << "," << tri.uvs[0].y << "  " << tri.uvs[1].x << "," << tri.uvs[1].y << "  " << tri.uvs[2].x << "," << tri.uvs[2].y << endl;
-  // //   }
-  // // }
-
-  vector<Rigidbody*> rbList;
-
-  Model ground = Model("ground");
-  renderQueue.push_back(&ground);
-  ground.scale(vec3(10.0f, 10.0f, 10.0f));
-  ground.setPosition(vec3(0,-10,0));
-  
-  Model center = Model("HackspaceLogo/logo");
-  renderQueue.push_back(&center);
-  center.scale(vec3(0.02f,0.02f,0.02f));
-  center.rotate(vec3(M_PIf/2,0,0));
-
-  Model iss = Model("iss");
-  renderQueue.push_back(&iss);
-  iss.scale(vec3(0.2f,0.2f,0.2f));
-  iss.setPosition(vec3(0,10,0));
-
-  Model orbitor1 = Model("tilted");
-  orbitor1.setPosition(vec3(10,0,0));
-  orbitor1.setScale(vec3(1.5f,1.5f,1.5f));
-  renderQueue.push_back(&orbitor1);
-  
-  Magnet mag = Magnet(&orbitor1, rbList);
-  updateQueue.push_back(&mag);
-
-  Transformable t = Transformable();
-  t.setRotation(vec3(M_PIf/2,0,0));
-  Orbit orbit = Orbit(t.transform);
-  orbit.repeats = -1;
-  orbit.time = 3;
-  orbitor1.moves.push(&orbit);
-  updateQueue.push_back(&orbitor1);
+  // orbit.time = 3;
+  // orbitor1.moves.push(&orbit);
+  // updateQueue.push_back(&orbitor1);
  
-  Model orbitor2 = Model("saturn/saturn");
-  orbitor2.setPosition(vec3(15,0,10));
-  orbitor2.rotate(vec3(M_PIf/2,0,0));
-  orbitor2.setScale(vec3(0.000003f,0.000003f,0.000003f));
-  renderQueue.push_back(&orbitor2);
+  // Model orbitor2 = Model("saturn/saturn");
+  // orbitor2.setPosition(vec3(15,0,10));
+  // orbitor2.rotate(vec3(M_PIf/2,0,0));
+  // orbitor2.setScale(vec3(0.000003f,0.000003f,0.000003f));
+  // renderQueue.push_back(&orbitor2);
 
-  Magnet mag2 = Magnet(&orbitor2, rbList);
-  updateQueue.push_back(&mag2);
+  // Magnet mag2 = Magnet(&orbitor2, rbList);
+  // updateQueue.push_back(&mag2);
   
-  t.rotate(vec3(0.5f,0,0));
-  Orbit orbit2 = Orbit(t.transform, M_PIf);
-  orbit2.repeats = -1;
-  orbit2.time = 5;
-  orbitor2.moves.push(&orbit2);
-  updateQueue.push_back(&orbitor2);
+  // t.rotate(vec3(0.5f,0,0));
+  // Orbit orbit2 = Orbit(t.transform, M_PIf);
+  // orbit2.repeats = -1;
+  // orbit2.time = 5;
+  // orbitor2.moves.push(&orbit2);
+  // updateQueue.push_back(&orbitor2);
 
-  Model orbitor3 = Model("mars/mars");
-  orbitor3.setPosition(vec3(0,0,10));
-  orbitor3.rotate(vec3(M_PIf/2,0,0));
-  orbitor3.setScale(vec3(0.000003f,0.000003f,0.000003f));
-  renderQueue.push_back(&orbitor3);
+  // Model orbitor3 = Model("mars/mars");
+  // orbitor3.setPosition(vec3(0,0,10));
+  // orbitor3.rotate(vec3(M_PIf/2,0,0));
+  // orbitor3.setScale(vec3(0.000003f,0.000003f,0.000003f));
+  // renderQueue.push_back(&orbitor3);
 
-  Magnet mag3 = Magnet(&orbitor3, rbList);
-  updateQueue.push_back(&mag3);
+  // Magnet mag3 = Magnet(&orbitor3, rbList);
+  // updateQueue.push_back(&mag3);
 
-  t.rotate(vec3(-0.5f,0,0));
-  Orbit orbit3 = Orbit(t.transform, 6);
-  orbit3.repeats = -1;
-  orbit3.time = 5;
-  orbitor3.moves.push(&orbit3);
-  updateQueue.push_back(&orbitor3);
+  // t.rotate(vec3(-0.5f,0,0));
+  // Orbit orbit3 = Orbit(t.transform, 6);
+  // orbit3.repeats = -1;
+  // orbit3.time = 5;
+  // orbitor3.moves.push(&orbit3);
+  // updateQueue.push_back(&orbitor3);
   
-  Model moon = Model("Moon2K");
-  moon.rotate(vec3(M_PIf/2,0,0));
-  moon.scale(vec3(0.5f,0.5f,0.5f));
-  moon.setPosition(vec3(19,29,1.0f));
-  moon.castShadow = false;
-  moon.fullBright = true;
-  renderQueue.push_back(&moon);
+  // Model moon = Model("Moon2K");
+  // moon.rotate(vec3(M_PIf/2,0,0));
+  // moon.scale(vec3(0.5f,0.5f,0.5f));
+  // moon.setPosition(vec3(19,29,1.0f));
+  // moon.castShadow = false;
+  // moon.fullBright = true;
+  // renderQueue.push_back(&moon);
 
-  Light sunlight = Light(vec3(2550.f, 1840.f, 310.f), vec3(1.0f, 1.0f, 1.0f));
-  sunlight.setPosition(vec3(0,3,0));
-  lights.push_back(&sunlight);
+  // Light sunlight = Light(vec3(2550.f, 1840.f, 310.f), vec3(1.0f, 1.0f, 1.0f));
+  // sunlight.setPosition(vec3(0,3,0));
+  // lights.push_back(&sunlight);
 
-  // Rigidbody moonRB = Rigidbody(&moon, rbList);
-  // moonRB.collisionEnabled = false;
-  // moonRB.hasGravity = false;
-  // moonRB.positionFixed = false;
-  // moonRB.velocity *= Transformable::rotationFromEuler(vec3(0,0.05f,0.05f));
-  // updateQueue.push_back(&moonRB);
+  // // Rigidbody moonRB = Rigidbody(&moon, rbList);
+  // // moonRB.collisionEnabled = false;
+  // // moonRB.hasGravity = false;
+  // // moonRB.positionFixed = false;
+  // // moonRB.velocity *= Transformable::rotationFromEuler(vec3(0,0.05f,0.05f));
+  // // updateQueue.push_back(&moonRB);
 
-  Model moon2 = Model(moon);
-  //moon2.scale(vec3(0.005f,0.005f,0.005));
-  moon2.setPosition(vec3(10,0,10.5));
-  renderQueue.push_back(&moon2);
-  Rigidbody moon2RB = Rigidbody(&moon2, rbList);
-  moon2RB.collisionEnabled = false;
-  moon2RB.hasGravity = false;
-  moon2RB.positionFixed = false;
-  moon2RB.velocity *= Transformable::rotationFromEuler(vec3(0.05f,0.05f,0));
-  updateQueue.push_back(&moon2RB);
+  // Model moon2 = Model(moon);
+  // //moon2.scale(vec3(0.005f,0.005f,0.005));
+  // moon2.setPosition(vec3(10,0,10.5));
+  // renderQueue.push_back(&moon2);
+  // Rigidbody moon2RB = Rigidbody(&moon2, rbList);
+  // moon2RB.collisionEnabled = false;
+  // moon2RB.hasGravity = false;
+  // moon2RB.positionFixed = false;
+  // moon2RB.velocity *= Transformable::rotationFromEuler(vec3(0.05f,0.05f,0));
+  // updateQueue.push_back(&moon2RB);
 
-  Model moon3 = Model(moon);
-  //moon3.scale(vec3(0.005f,0.005f,0.005));
-  moon3.setPosition(vec3(10,1,10.5));
-  renderQueue.push_back(&moon3);
-  Rigidbody moon3RB = Rigidbody(&moon3, rbList);
-  moon3RB.collisionEnabled = false;
-  moon3RB.hasGravity = false;
-  moon3RB.positionFixed = false;
-  moon3RB.velocity *= Transformable::rotationFromEuler(vec3(0.05f,0,0.05f));
-  updateQueue.push_back(&moon3RB);
+  // Model moon3 = Model(moon);
+  // //moon3.scale(vec3(0.005f,0.005f,0.005));
+  // moon3.setPosition(vec3(10,1,10.5));
+  // renderQueue.push_back(&moon3);
+  // Rigidbody moon3RB = Rigidbody(&moon3, rbList);
+  // moon3RB.collisionEnabled = false;
+  // moon3RB.hasGravity = false;
+  // moon3RB.positionFixed = false;
+  // moon3RB.velocity *= Transformable::rotationFromEuler(vec3(0.05f,0,0.05f));
+  // updateQueue.push_back(&moon3RB);
 
-  Model moon4 = Model(moon);
-  //moon4.scale(vec3(0.005f,0.005f,0.005));
-  moon4.setPosition(vec3(10,1,0));
-  renderQueue.push_back(&moon4);
-  Rigidbody moon4RB = Rigidbody(&moon4, rbList);
-  moon4RB.collisionEnabled = false;
-  moon4RB.hasGravity = false;
-  moon4RB.positionFixed = false;
-  moon4RB.velocity *= Transformable::rotationFromEuler(vec3(0.05f,0.05f,0));
-  updateQueue.push_back(&moon4RB);
+  // Model moon4 = Model(moon);
+  // //moon4.scale(vec3(0.005f,0.005f,0.005));
+  // moon4.setPosition(vec3(10,1,0));
+  // renderQueue.push_back(&moon4);
+  // Rigidbody moon4RB = Rigidbody(&moon4, rbList);
+  // moon4RB.collisionEnabled = false;
+  // moon4RB.hasGravity = false;
+  // moon4RB.positionFixed = false;
+  // moon4RB.velocity *= Transformable::rotationFromEuler(vec3(0.05f,0.05f,0));
+  // updateQueue.push_back(&moon4RB);
 
-  Model moon5 = Model(moon);
-  //moon5.scale(vec3(0.005f,0.005f,0.005));
-  moon5.setPosition(vec3(11,0,0));
-  renderQueue.push_back(&moon5);
-  Rigidbody moon5RB = Rigidbody(&moon5, rbList);
-  moon5RB.collisionEnabled = false;
-  moon5RB.hasGravity = false;
-  moon5RB.positionFixed = false;
-  moon5RB.velocity *= Transformable::rotationFromEuler(vec3(0,0.05f,0.05f));
-  updateQueue.push_back(&moon5RB);
+  // Model moon5 = Model(moon);
+  // //moon5.scale(vec3(0.005f,0.005f,0.005));
+  // moon5.setPosition(vec3(11,0,0));
+  // renderQueue.push_back(&moon5);
+  // Rigidbody moon5RB = Rigidbody(&moon5, rbList);
+  // moon5RB.collisionEnabled = false;
+  // moon5RB.hasGravity = false;
+  // moon5RB.positionFixed = false;
+  // moon5RB.velocity *= Transformable::rotationFromEuler(vec3(0,0.05f,0.05f));
+  // updateQueue.push_back(&moon5RB);
 
-  //second scene
+  // //second scene
 
-  Model cornell = Model("cornell-box");
-  cornell.move(vec3(100,0,0));
-  renderQueue.push_back(&cornell);
-  Rigidbody cornellRB = Rigidbody(&cornell, rbList);
-  cornellRB.hasGravity = false;
-  cornellRB.suckable = false;
-  updateQueue.push_back(&cornellRB);
-
-  // Model hs_logo = Model("HackspaceLogo/logo");
-  // hs_logo.scale(vec3(0.005f, 0.005f, 0.005f));
-  // hs_logo.furthestExtent = hs_logo.calcExtent();
-  // hs_logo.move(vec3(100, 10.0f, -1));
-  // renderQueue.push_back(&hs_logo);
-  // logoRB = Rigidbody(&hs_logo);
-  // logoRB.collisionLayer = 1;
   // Model cornell = Model("cornell-box");
   // cornell.move(vec3(100,0,0));
   // renderQueue.push_back(&cornell);
@@ -935,91 +927,108 @@ int main(int argc, char *argv[])
   // cornellRB.suckable = false;
   // updateQueue.push_back(&cornellRB);
 
-  // Model hs_logo = Model(center);
-  // hs_logo.scale(vec3(0.005f, 0.005f, 0.005f));
-  // hs_logo.furthestExtent = hs_logo.calcExtent();
-  // hs_logo.move(vec3(100, 10.0f, -10));
-  // renderQueue.push_back(&hs_logo);
-  // Rigidbody logoRB = Rigidbody(&hs_logo, rbList);
-  // logoRB.positionFixed = false;
-  // logoRB.suckable = false;
-  // logoRB.elasticity = 0.8f;
-  // logoRB.collisionLayer = 1;
-  // logoRB.applyForce(vec3(0,0,1.0f));
-  // updateQueue.push_back(&logoRB);
+  // // Model hs_logo = Model("HackspaceLogo/logo");
+  // // hs_logo.scale(vec3(0.005f, 0.005f, 0.005f));
+  // // hs_logo.furthestExtent = hs_logo.calcExtent();
+  // // hs_logo.move(vec3(100, 10.0f, -1));
+  // // renderQueue.push_back(&hs_logo);
+  // // logoRB = Rigidbody(&hs_logo);
+  // // logoRB.collisionLayer = 1;
+  // // Model cornell = Model("cornell-box");
+  // // cornell.move(vec3(100,0,0));
+  // // renderQueue.push_back(&cornell);
+  // // Rigidbody cornellRB = Rigidbody(&cornell, rbList);
+  // // cornellRB.hasGravity = false;
+  // // cornellRB.suckable = false;
+  // // updateQueue.push_back(&cornellRB);
 
-  Model bounce1 = Model("HackspaceLogo/logo");
-  bounce1.scale(vec3(0.005f, 0.005f, 0.005f));
-  bounce1.furthestExtent = bounce1.calcExtent();
-  bounce1.move(vec3(99, 10.0f, -1));
-  renderQueue.push_back(&bounce1);
-  Rigidbody bounce1RB = Rigidbody(&bounce1, rbList);
-  bounce1RB.collisionLayer = 2;
-  bounce1RB.positionFixed = false;
-  bounce1RB.suckable = false;
-  bounce1RB.elasticity = 1.1f;
-  updateQueue.push_back(&bounce1RB);
+  // // Model hs_logo = Model(center);
+  // // hs_logo.scale(vec3(0.005f, 0.005f, 0.005f));
+  // // hs_logo.furthestExtent = hs_logo.calcExtent();
+  // // hs_logo.move(vec3(100, 10.0f, -10));
+  // // renderQueue.push_back(&hs_logo);
+  // // Rigidbody logoRB = Rigidbody(&hs_logo, rbList);
+  // // logoRB.positionFixed = false;
+  // // logoRB.suckable = false;
+  // // logoRB.elasticity = 0.8f;
+  // // logoRB.collisionLayer = 1;
+  // // logoRB.applyForce(vec3(0,0,1.0f));
+  // // updateQueue.push_back(&logoRB);
 
-  Model bounce2 = Model(center);
-  bounce2.scale(vec3(0.005f, 0.005f, 0.005f));
-  bounce2.furthestExtent = bounce2.calcExtent();
-  bounce2.move(vec3(90, 10.0f, 1));
-  renderQueue.push_back(&bounce2);
-  Rigidbody bounce2RB = Rigidbody(&bounce2, rbList);
-  unfreeze = &bounce2RB;
-  bounce2RB.collisionLayer = 2;
-  bounce2RB.positionFixed = true;
-  bounce2RB.suckable = false;
-  bounce2RB.elasticity = 0.9f;
-  bounce2RB.maxCollisions = 1;
-  updateQueue.push_back(&bounce2RB);
+  // Model bounce1 = Model("HackspaceLogo/logo");
+  // bounce1.scale(vec3(0.005f, 0.005f, 0.005f));
+  // bounce1.furthestExtent = bounce1.calcExtent();
+  // bounce1.move(vec3(99, 10.0f, -1));
+  // renderQueue.push_back(&bounce1);
+  // Rigidbody bounce1RB = Rigidbody(&bounce1, rbList);
+  // bounce1RB.collisionLayer = 2;
+  // bounce1RB.positionFixed = false;
+  // bounce1RB.suckable = false;
+  // bounce1RB.elasticity = 1.1f;
+  // updateQueue.push_back(&bounce1RB);
 
-  Model tilt = Model("tilted");
-  tilt.move(vec3(90, 3, 0));
-  renderQueue.push_back(&tilt);
-  Rigidbody tiltRB = Rigidbody(&tilt, rbList);
-  tiltRB.elasticity = 0.1f;
-  updateQueue.push_back(&tiltRB);
+  // Model bounce2 = Model(center);
+  // bounce2.scale(vec3(0.005f, 0.005f, 0.005f));
+  // bounce2.furthestExtent = bounce2.calcExtent();
+  // bounce2.move(vec3(90, 10.0f, 1));
+  // renderQueue.push_back(&bounce2);
+  // Rigidbody bounce2RB = Rigidbody(&bounce2, rbList);
+  // unfreeze = &bounce2RB;
+  // bounce2RB.collisionLayer = 2;
+  // bounce2RB.positionFixed = true;
+  // bounce2RB.suckable = false;
+  // bounce2RB.elasticity = 0.9f;
+  // bounce2RB.maxCollisions = 1;
+  // updateQueue.push_back(&bounce2RB);
 
-  // Model 
+  // Model tilt = Model("tilted");
+  // tilt.move(vec3(90, 3, 0));
+  // renderQueue.push_back(&tilt);
+  // Rigidbody tiltRB = Rigidbody(&tilt, rbList);
+  // tiltRB.elasticity = 0.1f;
+  // updateQueue.push_back(&tiltRB);
 
-  Camera cam;
-  cam.setProjection(90.0f, WIDTH / (float)HEIGHT, 0.1f, 100.0f);
-  // cam.lookAt(vec3(100.0f, 10.0f, 10.0f), vec3(100.0f, 0, 0));
-  cam.lookAt(vec3(20.0f, 30.0f, 0.0f), vec3(0.0f, 0, 0));
+  // // Model 
 
-  Movement slow = Movement(cam.transform, 1);
-  slow.move(vec3(-1,-1,0));
+  // Camera cam;
+  // cam.setProjection(90.0f, WIDTH / (float)HEIGHT, 0.1f, 100.0f);
+  // // cam.lookAt(vec3(100.0f, 10.0f, 10.0f), vec3(100.0f, 0, 0));
+  // cam.lookAt(vec3(20.0f, 30.0f, 0.0f), vec3(0.0f, 0, 0));
 
-  Movement move = Movement(cam.transform, 3);
-  move.transform[3] = vec4(0,15,0,1);
-  move.stareAt = true;
-  move.stareTarget = &center;
+  // Movement slow = Movement(cam.transform, 1);
+  // slow.move(vec3(-1,-1,0));
 
-  Movement spin = Movement(vec3(0,0, 2.0f * M_PIf), 2);
-  // spin.transform[3] = vec4()
-  spin.isRotation = true;
+  // Movement move = Movement(cam.transform, 3);
+  // move.transform[3] = vec4(0,15,0,1);
+  // move.stareAt = true;
+  // move.stareTarget = &center;
 
-  Transformable target = Transformable();
-  target.move(vec3(100,0,0));
+  // Movement spin = Movement(vec3(0,0, 2.0f * M_PIf), 2);
+  // // spin.transform[3] = vec4()
+  // spin.isRotation = true;
 
-  Movement teleprot = Movement(target.transform, 0);
+  // Transformable target = Transformable();
+  // target.move(vec3(100,0,0));
 
-  target.move(vec3(0,10,10));
-  Movement zoom = Movement(target.transform, 2);
-  zoom.isRotation = true;
-  zoom.rotation = vec3(0,M_PIf/4,0);
+  // Movement teleprot = Movement(target.transform, 0);
 
-  Movement track = Movement(target.transform, -1);
-  track.stareAt = true;
-  track.stareTarget = &bounce2;
+  // target.move(vec3(0,10,10));
+  // Movement zoom = Movement(target.transform, 2);
+  // zoom.isRotation = true;
+  // zoom.rotation = vec3(0,M_PIf/4,0);
 
-  cam.moves.push(&track);
-  cam.moves.push(&zoom);
-  cam.moves.push(&teleprot);
-  cam.moves.push(&spin);
-  cam.moves.push(&move);
-  cam.moves.push(&slow);
+  // Movement track = Movement(target.transform, -1);
+  // track.stareAt = true;
+  // track.stareTarget = &bounce2;
+
+  // cam.moves.push(&track);
+  // cam.moves.push(&zoom);
+  // cam.moves.push(&teleprot);
+  // cam.moves.push(&spin);
+  // cam.moves.push(&move);
+  // cam.moves.push(&slow);
+
+  // END ANIMATION LAYOUT
 
   Texture background;
   background.dataVec = loadPPM("stars.ppm", background.width, background.height);
