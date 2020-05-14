@@ -473,14 +473,15 @@ void raytrace(Camera camera, std::vector<Model*> models) {
     }
   }
 
-  //setup the lights
-  vector<ModelTriangle> lights = vector<ModelTriangle>();
-  for(ModelTriangle& triangle : tris) {
-    if(triangle.name == "light") lights.push_back(triangle);
-  }
+  // //setup the lights
+  // vector<ModelTriangle> lights = vector<ModelTriangle>();
+  // for(ModelTriangle& triangle : tris) {
+  //   if(triangle.name == "light") lights.push_back(triangle);
+  // }
 
-  Light mainLight = Light("light", lights);
-  mainLight.calculateCentre();
+  Light mainLight = Light();
+  mainLight.centre = vec4(0,2,0,1);
+  mainLight.colour = vec3(1,1,1);
 
   uint32_t *buffer = (SSAA) ? imageBuffer : window.pixelBuffer;
   vector<vec2> offsets = generateRotatedGrid(SSAA_SCALE);
@@ -679,6 +680,11 @@ int main(int argc, char *argv[])
   // //     cout << "UVs for " << tri.name << ": " << tri.uvs[0].x << "," << tri.uvs[0].y << "  " << tri.uvs[1].x << "," << tri.uvs[1].y << "  " << tri.uvs[2].x << "," << tri.uvs[2].y << endl;
   // //   }
   // // }
+
+  Model ground = Model("ground");
+  renderQueue.push_back(&ground);
+  ground.setPosition(vec3(0,-2,0));
+
   
   Model center = Model("HackspaceLogo/logo");
   renderQueue.push_back(&center);
@@ -829,7 +835,7 @@ int main(int argc, char *argv[])
     //cout << "deltaTime = " << Times::deltaTime() << endl;
     //std::cout << "sphere transform = " << sphere.transform << std::endl;
     //update(cam, vector<Updatable*>{&cornell, &cornellRB, &sphereRB});
-    update(cam, updateQueue);
+    // update(cam, updateQueue);
     //std::vector<Model*> models{&cornell, &sphere};
     //std::cout << "about to render" << std::endl;
     draw();

@@ -5,12 +5,14 @@
 #include <vector>
 #include <ModelTriangle.h>
 #include <glm/glm.hpp>
+#include "Transformable.hpp"
+#include "Animatable.hpp"
 
-class Light
+class Light : public Animatable
 {
   public:
     std::string name;
-    Colour colour = Colour();
+    vec3 colour;
     std::vector<ModelTriangle> triangles = std::vector<ModelTriangle>();
     vec4 centre = vec4();
     float intensity = 10.0f;
