@@ -48,6 +48,7 @@ bool Movement::execute(Animatable* parent, Movement& previous) {
     }
     elapsed += parent->timeStep();
     if (elapsed >= time && time > 0) {
+        cout << "movement completed" << endl;
         return true;
     }
     float scale = -parent->timeStep() / time;
