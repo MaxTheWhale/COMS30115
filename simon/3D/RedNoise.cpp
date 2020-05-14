@@ -910,6 +910,12 @@ int main(int argc, char *argv[])
       frameCount = 0;
     }
     Times::update();
+    // Quick and dirty animated water
+    for (auto& tri : ground.tris) {
+      tri.uvs[0].x += 0.1f * Times::deltaTime();
+      tri.uvs[1].x += 0.1f * Times::deltaTime();
+      tri.uvs[2].x += 0.1f * Times::deltaTime();
+    }
     // We MUST poll for events - otherwise the window will freeze !
     if (window.pollForInputEvents(&event))
       handleEvent(event, cam);
