@@ -63,7 +63,7 @@ void draw();
 void triangle(Triangle &t, bool filled, uint32_t *buffer, float *depthBuff, vec2 offset, vec4 &eye_pos, vector<Light*>& lights, bool doLighting);
 void savePPM(string fileName, DrawingWindow *window);
 void skipHashWS(ifstream &f);
-void update(Camera &cam, vector<Updatable*> updatables);
+void update(Camera &cam, vector<Updatable*>& updatables, vector<Model*>& renderQueue);
 void handleEvent(SDL_Event event, Camera &cam);
 
 #if SSAA
@@ -593,6 +593,7 @@ void raytrace(Camera camera, std::vector<Model*> models, vector<Light*> lights, 
 }
 
 Rigidbody* unfreeze = 0;
+vector<Transformable*> scene1 = vector<Transformable*>();
 
 int main(int argc, char *argv[])
 {
@@ -624,14 +625,17 @@ int main(int argc, char *argv[])
   center.rotate(vec3(M_PIf/2,0,0));
   center.castShadow = false;
   // center.fullBright = true;
+  scene1.push_back(&center);
 
   Light mainLight = Light(vec3(2550.0f, 250.0f, 1130.0f), vec3(1.0f, 1.0f, 1.0f));
   mainLight.setPosition(vec3(19,29,1.0f));
   lights.push_back(&mainLight);
+  scene1.push_back(&mainLight);
 
   Light blueLight = Light(vec3(250.0f, 1170.0f, 2550.0f), vec3(1.0f, 1.0f, 1.0f));
   blueLight.setPosition(vec3(-19,29,-1.0f));
   lights.push_back(&blueLight);
+  scene1.push_back(&blueLight);
 
   // Light otherLight = Light(vec3(0.0f, 50.0f, 0.0f), vec3(1.0f, 1.0f, 1.0f));
   // otherLight.setPosition(vec3(0.0f, 3.0f, 0.0f));
@@ -657,13 +661,15 @@ int main(int argc, char *argv[])
   iss.scale(vec3(0.1f,0.1f,0.1f));
   iss.setPosition(vec3(25,15,1.0f));
   iss.rotate(vec3(0,M_PIf - 0.4f,1.2f));
+  scene1.push_back(&iss);
 
   Model orbitor1 = Model("earth/earth2");
   orbitor1.setPosition(vec3(9,0,0));
   // orbitor1.setScale(vec3(0.000003f,0.000003f,0.000003f));
   // orbitor1.rotate(vec3(M_PIf/2,0,0));
   renderQueue.push_back(&orbitor1);
-  
+  scene1.push_back(&orbitor1);
+
   Magnet mag = Magnet(&orbitor1, rbList);
   updateQueue.push_back(&mag);
 
@@ -680,6 +686,7 @@ int main(int argc, char *argv[])
   moon.setPosition(orbitor1.getPosition() + vec3(4,0,0));
   moon.scale(vec3(0.7f,0.7f,0.7f));
   renderQueue.push_back(&moon);
+  scene1.push_back(&moon);
 
   Orbit lunarOrbit = Orbit(&orbitor1);
   lunarOrbit.time = 1;
@@ -693,6 +700,7 @@ int main(int argc, char *argv[])
   orbitor2.rotate(vec3(0,M_PIf/2,0));
   orbitor2.setScale(vec3(0.006f,0.006f,0.006f));
   renderQueue.push_back(&orbitor2);
+  scene1.push_back(&orbitor2);
 
   Magnet mag2 = Magnet(&orbitor2, rbList);
   updateQueue.push_back(&mag2);
@@ -710,6 +718,7 @@ int main(int argc, char *argv[])
   orbitor3.rotate(vec3(M_PIf/2,0,0));
   orbitor3.setScale(vec3(0.0035f,0.0035f,0.0035f));
   renderQueue.push_back(&orbitor3);
+  scene1.push_back(&orbitor3);
 
   Magnet mag3 = Magnet(&orbitor3, rbList);
   updateQueue.push_back(&mag3);
@@ -727,6 +736,8 @@ int main(int argc, char *argv[])
   asteroid.scale(vec3(0.001f,0.001f,0.001f));
   asteroid.setPosition(vec3(5,2,1.0f));
   renderQueue.push_back(&asteroid);
+  scene1.push_back(&asteroid);
+
   Rigidbody asteroidRB = Rigidbody(&asteroid, rbList);
   asteroidRB.collisionEnabled = false;
   asteroidRB.hasGravity = false;
@@ -745,6 +756,7 @@ int main(int argc, char *argv[])
   asteroid2RB.positionFixed = false;
   asteroid2RB.velocity *= Transformable::rotationFromEuler(vec3(0.05f,0.05f,0));
   updateQueue.push_back(&asteroid2RB);
+  scene1.push_back(&asteroid2);
 
   Model asteroid3 = Model(asteroid);
   //asteroid3.scale(vec3(0.005f,0.005f,0.005));
@@ -757,6 +769,7 @@ int main(int argc, char *argv[])
   asteroid3RB.positionFixed = false;
   asteroid3RB.velocity *= Transformable::rotationFromEuler(vec3(0.05f,0,0.05f));
   updateQueue.push_back(&asteroid3RB);
+  scene1.push_back(&asteroid3);
 
   Model asteroid4 = Model(asteroid);
   //asteroid4.scale(vec3(0.005f,0.005f,0.005));
@@ -769,6 +782,7 @@ int main(int argc, char *argv[])
   asteroid4RB.positionFixed = false;
   asteroid4RB.velocity *= Transformable::rotationFromEuler(vec3(0.05f,0.05f,0));
   updateQueue.push_back(&asteroid4RB);
+  scene1.push_back(&asteroid4);
 
   Model asteroid5 = Model(asteroid);
   //asteroid5.scale(vec3(0.005f,0.005f,0.005));
@@ -781,6 +795,7 @@ int main(int argc, char *argv[])
   asteroid5RB.positionFixed = false;
   asteroid5RB.velocity *= Transformable::rotationFromEuler(vec3(0,0.05f,0.05f));
   updateQueue.push_back(&asteroid5RB);
+  scene1.push_back(&asteroid5);
 
   // Model moon = Model("Moon2K");
   // moon.rotate(vec3(M_PIf/2,0,0));
@@ -914,7 +929,7 @@ int main(int argc, char *argv[])
     if (window.pollForInputEvents(&event))
       handleEvent(event, cam);
     // cout << "hs_logo pos: " << hs_logo.getPosition() << endl;
-    update(cam, updateQueue);
+    update(cam, updateQueue, renderQueue);
     draw();
     if(toRaytrace) {
       raytrace(cam, renderQueue, lights, background);
@@ -952,7 +967,7 @@ void draw()
 
 int moveStage = 0;
 
-void update(Camera &cam, vector<Updatable*> updatables)
+void update(Camera &cam, vector<Updatable*> &updatables, vector<Model*> &renderQueue)
 {
   // Function for performing animation (shifting artifacts or moving the camera)
   cam.update();
@@ -961,8 +976,20 @@ void update(Camera &cam, vector<Updatable*> updatables)
   {
     updatables[i]->update();
   }
-  if (Times::getFrameCount() / 60 == 9) {
+  int seconds = Times::getFrameCount() / 60;
+  switch (seconds)
+  {
+  case 9:
     unfreeze->positionFixed = false;
+    break;
+  case 7:
+    std::remove_if(renderQueue.begin(),renderQueue.end(),[](Model* pointer){
+      return std::find(scene1.begin(), scene1.end(), pointer) != scene1.end();
+    });
+  default:
+    break;
+  } {
+    
   }
 }
 
