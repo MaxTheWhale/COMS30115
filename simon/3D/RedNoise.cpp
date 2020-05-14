@@ -43,7 +43,7 @@ using namespace glm;
 #define NUM_TILES_Y (HEIGHT / TILE_SIZE)
 #define NUM_TILES (NUM_TILES_X * NUM_TILES_Y)
 
-#define RENDER true
+#define RENDER false
 #define RENDER_LENGTH 300
 
 #ifndef M_PIf
@@ -827,9 +827,9 @@ int main(int argc, char *argv[])
   orbitor3.moves.push(&orbit3);
   updateQueue.push_back(&orbitor3);
   
-  Model moon = Model("Moon2K");
+  Model moon = Model("asteroid/asteroid");
   moon.rotate(vec3(M_PIf/2,0,0));
-  moon.scale(vec3(0.5f,0.5f,0.5f));
+  moon.scale(vec3(0.001f,0.001f,0.001f));
   moon.setPosition(vec3(19,29,1.0f));
   renderQueue.push_back(&moon);
   // Rigidbody moonRB = Rigidbody(&moon, rbList);
@@ -842,6 +842,7 @@ int main(int argc, char *argv[])
   Model moon2 = Model(moon);
   //moon2.scale(vec3(0.005f,0.005f,0.005));
   moon2.setPosition(vec3(10,0,10.5));
+  moon2.setScale(vec3(0.001f,0.001f,0.001f));
   renderQueue.push_back(&moon2);
   Rigidbody moon2RB = Rigidbody(&moon2, rbList);
   moon2RB.collisionEnabled = false;
@@ -852,6 +853,7 @@ int main(int argc, char *argv[])
 
   Model moon3 = Model(moon);
   //moon3.scale(vec3(0.005f,0.005f,0.005));
+  moon3.setScale(vec3(0.001f,0.001f,0.001f));
   moon3.setPosition(vec3(10,1,10.5));
   renderQueue.push_back(&moon3);
   Rigidbody moon3RB = Rigidbody(&moon3, rbList);
@@ -863,6 +865,7 @@ int main(int argc, char *argv[])
 
   Model moon4 = Model(moon);
   //moon4.scale(vec3(0.005f,0.005f,0.005));
+  moon4.setScale(vec3(0.001f,0.001f,0.001f));
   moon4.setPosition(vec3(10,1,0));
   renderQueue.push_back(&moon4);
   Rigidbody moon4RB = Rigidbody(&moon4, rbList);
@@ -874,6 +877,7 @@ int main(int argc, char *argv[])
 
   Model moon5 = Model(moon);
   //moon5.scale(vec3(0.005f,0.005f,0.005));
+  moon5.setScale(vec3(0.001f,0.001f,0.001f));
   moon5.setPosition(vec3(11,0,0));
   renderQueue.push_back(&moon5);
   Rigidbody moon5RB = Rigidbody(&moon5, rbList);
