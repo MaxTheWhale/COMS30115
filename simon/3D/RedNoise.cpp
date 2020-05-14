@@ -623,6 +623,7 @@ vector<Transformable*> scene1 = vector<Transformable*>();
 vector<Model*> scene2 = vector<Model*>();
 Light* sunlight;
 Model* iss_p;
+int sceneID = 1;
 
 int main(int argc, char *argv[])
 {
@@ -683,7 +684,7 @@ int main(int argc, char *argv[])
   // renderQueue.push_back(&ground);
   scene2.push_back(&ground);
   ground.scale(vec3(30.0f, 30.0f, 30.0f));
-  ground.setPosition(vec3(100,0,0));
+  ground.setPosition(vec3(90,-1,0));
 
 
   Model iss = Model("iss");
@@ -698,7 +699,7 @@ int main(int argc, char *argv[])
   Model orbitor1 = Model("earth/earth2");
   orbitor1.setPosition(vec3(9,0,0));
   // orbitor1.setScale(vec3(0.000003f,0.000003f,0.000003f));
-  // orbitor1.rotate(vec3(M_PIf/2,0,0));
+  orbitor1.rotate(vec3(M_PIf,0,0));
   renderQueue.push_back(&orbitor1);
   scene1.push_back(&orbitor1);
 
@@ -709,7 +710,7 @@ int main(int argc, char *argv[])
   vec3 rot = vec3(M_PIf/2,0,0);
   Orbit orbit = Orbit(&center);
   orbit.repeats = -1;
-  orbit.time = 3;
+  orbit.time = 6;
   // orbit.rotation = rot;
   orbitor1.moves.push(&orbit);
   updateQueue.push_back(&orbitor1);
@@ -721,7 +722,7 @@ int main(int argc, char *argv[])
   scene1.push_back(&moon);
 
   Orbit lunarOrbit = Orbit(&orbitor1);
-  lunarOrbit.time = 1;
+  lunarOrbit.time = 2;
   lunarOrbit.repeats = -1;
   lunarOrbit.rotation = rot;
   moon.moves.push(&lunarOrbit);
@@ -740,7 +741,7 @@ int main(int argc, char *argv[])
   // t.rotate(vec3(0.5f,0,0));
   Orbit orbit2 = Orbit(&center);
   orbit2.repeats = -1;
-  orbit2.time = 5;
+  orbit2.time = 10;
   orbit2.rotation = rot;
   orbitor2.moves.push(&orbit2);
   updateQueue.push_back(&orbitor2);
@@ -758,7 +759,7 @@ int main(int argc, char *argv[])
   // t.rotate(vec3(-0.5f,0,0));
   Orbit orbit3 = Orbit(&center, 6);
   orbit3.repeats = -1;
-  orbit3.time = 5;
+  orbit3.time = 10;
   // orbit3.rotation = rot;
   orbitor3.moves.push(&orbit3);
   updateQueue.push_back(&orbitor3);
@@ -1026,25 +1027,28 @@ void update(Camera &cam, vector<Updatable*> &updatables, vector<Model*> *renderQ
     unfreeze->positionFixed = false;
   }
   else if (seconds == 7.0f) {
-    cout << "switching scenes" << endl;
-    // cout << "size before: " << renderQueue->size() << endl;
-    // renderQueue->erase(std::remove_if(renderQueue->begin(),renderQueue->end(),[](Model* pointer){
-    //   bool result = std::find(scene1.begin(), scene1.end(), pointer) != scene1.end();
-    //   if (result) {
-    //     cout << "removing pointer" << endl;
-    //   }
-    //   return result;
-    // }));
-    // cout << "size after: " << renderQueue->size() << endl;
-    renderQueue->clear();
-    renderQueue->insert(renderQueue->end(), scene2.begin(), scene2.end());
-    sunlight->setPosition(vec3(95, 20, 20));
-    sunlight->diffuseIntensity *= 5;
-    Transformable t = Transformable();
-    t.transform = sunlight->transform;
-    t.move(vec3(10,0,0));
-    Movement* move = new Movement(t.transform,2.0f);
-    sunlight->moves.push(move);
+    if (sceneID == 1) {
+      sceneID++;
+      cout << "switching scenes" << endl;
+      // cout << "size before: " << renderQueue->size() << endl;
+      // renderQueue->erase(std::remove_if(renderQueue->begin(),renderQueue->end(),[](Model* pointer){
+      //   bool result = std::find(scene1.begin(), scene1.end(), pointer) != scene1.end();
+      //   if (result) {
+      //     cout << "removing pointer" << endl;
+      //   }
+      //   return result;
+      // }));
+      // cout << "size after: " << renderQueue->size() << endl;
+      renderQueue->clear();
+      renderQueue->insert(renderQueue->end(), scene2.begin(), scene2.end());
+      sunlight->setPosition(vec3(95, 20, 20));
+      sunlight->diffuseIntensity *= 3.5;
+      Transformable t = Transformable();
+      t.transform = sunlight->transform;
+      t.move(vec3(10,0,0));
+      Movement* move = new Movement(t.transform,2.0f);
+      sunlight->moves.push(move);
+    }
   }
   else if (seconds == 2.1f) {
     Movement* move = new Movement(2.5f);
