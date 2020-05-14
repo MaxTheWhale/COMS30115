@@ -11,8 +11,8 @@ std::vector<Rigidbody*>& Rigidbody::getAllRBs() {
 }
 
 const mat3 Rigidbody::collisionLayers = glm::mat3(1,1,1,
-                                            1,0,0,
-                                            1,0,0);
+                                                  1,0,0,
+                                                  1,0,0);
 
 Rigidbody::Rigidbody(Model* model) {
     getAllRBs().push_back(this);

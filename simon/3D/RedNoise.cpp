@@ -742,18 +742,18 @@ int main(int argc, char *argv[])
   moonRB.collisionEnabled = false;
   moonRB.hasGravity = false;
   moonRB.positionFixed = false;
-  moonRB.velocity *= Transformable::rotationFromEuler(vec3(0,0.05f,0));
+  moonRB.velocity *= Transformable::rotationFromEuler(vec3(0,0.05f,0.05f));
   updateQueue.push_back(&moonRB);
 
-  Model moon2 = Model("HackspaceLogo/logo");
-  moon2.scale(vec3(0.005f,0.005f,0.005));
+  Model moon2 = Model(moon);
+  // moon2.scale(vec3(0.005f,0.005f,0.005));
   moon2.setPosition(vec3(10,0,10.5));
   renderQueue.push_back(&moon2);
   Rigidbody moon2RB = Rigidbody(&moon2);
   moon2RB.collisionEnabled = false;
   moon2RB.hasGravity = false;
   moon2RB.positionFixed = false;
-  moon2RB.velocity *= Transformable::rotationFromEuler(vec3(0,0.05f,0));
+  moon2RB.velocity *= Transformable::rotationFromEuler(vec3(0.05f,0.05f,0));
   updateQueue.push_back(&moon2RB);
 
   Model moon3 = Model("HackspaceLogo/logo");
@@ -764,7 +764,7 @@ int main(int argc, char *argv[])
   moon3RB.collisionEnabled = false;
   moon3RB.hasGravity = false;
   moon3RB.positionFixed = false;
-  moon3RB.velocity *= Transformable::rotationFromEuler(vec3(0,0.05f,0));
+  moon3RB.velocity *= Transformable::rotationFromEuler(vec3(0.05f,0,0.05f));
   updateQueue.push_back(&moon3RB);
 
   Model moon4 = Model("HackspaceLogo/logo");
@@ -775,7 +775,7 @@ int main(int argc, char *argv[])
   moon4RB.collisionEnabled = false;
   moon4RB.hasGravity = false;
   moon4RB.positionFixed = false;
-  moon4RB.velocity *= Transformable::rotationFromEuler(vec3(0,0.05f,0));
+  moon4RB.velocity *= Transformable::rotationFromEuler(vec3(0.05f,0.05f,0));
   updateQueue.push_back(&moon4RB);
 
   Model moon5 = Model("HackspaceLogo/logo");
@@ -786,7 +786,7 @@ int main(int argc, char *argv[])
   moon5RB.collisionEnabled = false;
   moon5RB.hasGravity = false;
   moon5RB.positionFixed = false;
-  moon5RB.velocity *= Transformable::rotationFromEuler(vec3(0,0.05f,0));
+  moon5RB.velocity *= Transformable::rotationFromEuler(vec3(0,0.05f,0.05f));
   updateQueue.push_back(&moon5RB);
 
   //second scene
@@ -803,13 +803,39 @@ int main(int argc, char *argv[])
   hs_logo.scale(vec3(0.005f, 0.005f, 0.005f));
   hs_logo.furthestExtent = hs_logo.calcExtent();
   hs_logo.move(vec3(100, 10.0f, -1));
-  renderQueue.push_back(&hs_logo);
-  logoRB = Rigidbody(&hs_logo);
-  logoRB.positionFixed = true;
-  logoRB.suckable = false;
-  logoRB.elasticity = 0.8f;
-  updateQueue.push_back(&logoRB);
-  // logoRB.applyForce(vec3(0,0,1));
+  // renderQueue.push_back(&hs_logo);
+  // logoRB = Rigidbody(&hs_logo);
+  // logoRB.collisionLayer = 1;
+  // logoRB.positionFixed = true;
+  // logoRB.suckable = false;
+  // logoRB.elasticity = 0.8f;
+  // updateQueue.push_back(&logoRB);
+
+  Model bounce1 = Model("HackspaceLogo/logo");
+  bounce1.scale(vec3(0.005f, 0.005f, 0.005f));
+  bounce1.furthestExtent = bounce1.calcExtent();
+  bounce1.move(vec3(99, 10.0f, -1));
+  renderQueue.push_back(&bounce1);
+  Rigidbody bounce1RB = Rigidbody(&bounce1);
+  bounce1RB.collisionLayer = 2;
+  bounce1RB.positionFixed = false;
+  bounce1RB.suckable = false;
+  bounce1RB.elasticity = 0.8f;
+  updateQueue.push_back(&bounce1RB);
+
+  Model bounce2 = Model("HackspaceLogo/logo");
+  bounce2.scale(vec3(0.005f, 0.005f, 0.005f));
+  bounce2.furthestExtent = bounce2.calcExtent();
+  bounce2.move(vec3(101, 10.0f, -2));
+  renderQueue.push_back(&bounce2);
+  Rigidbody bounce2RB = Rigidbody(&bounce2);
+  bounce2RB.collisionLayer = 2;
+  bounce2RB.positionFixed = false;
+  bounce2RB.suckable = false;
+  bounce2RB.elasticity = 0.8f;
+  updateQueue.push_back(&bounce2RB);
+
+  // Model 
 
   Camera cam;
   cam.setProjection(90.0f, WIDTH / (float)HEIGHT, 0.1f, 100.0f);
