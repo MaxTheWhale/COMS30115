@@ -42,12 +42,12 @@ void Movement::finish(Animatable* parent) {
 }
 
 bool Movement::execute(Animatable* parent, Movement& previous) {
-    if (time <= 0) {
+    if (time == 0) {
         finish(parent);
         return true;
     }
     elapsed += parent->timeStep();
-    if (elapsed >= time) {
+    if (elapsed >= time && time > 0) {
         return true;
     }
     float scale = -parent->timeStep() / time;
