@@ -1,5 +1,5 @@
 newmtl earth2:Earth_MATERIAL
-illum 4
+illum 1
 Kd 0.00 0.00 0.00
 Ka 1.00 1.00 1.00
 Tf 1.00 1.00 1.00

@@ -462,8 +462,7 @@ vec3 getPixelColour(RayTriangleIntersection& intersection, vec4 start, vector<Li
     bool isInShadow = inShadow(triGroups, shadowRayDirection, intersection);
 
     if(isInShadow) {
-      reflectedLight += (*light).shadow;
-      break;
+      continue;
     }
 
     float radius = distance((*light).transform[3], pos_3d);
@@ -963,11 +962,11 @@ int main(int argc, char *argv[])
     }
     Times::update();
     // Quick and dirty animated water
-    // for (auto& tri : ground.tris) {
-    //   tri.uvs[0].x += 0.1f * (1.0f / 60.0f);
-    //   tri.uvs[1].x += 0.1f * (1.0f / 60.0f);
-    //   tri.uvs[2].x += 0.1f * (1.0f / 60.0f);
-    // }
+    for (auto& tri : ground.tris) {
+      tri.uvs[0].x += 0.1f * (1.0f / 30.0f);
+      tri.uvs[1].x += 0.1f * (1.0f / 30.0f);
+      tri.uvs[2].x += 0.1f * (1.0f / 30.0f);
+    }
     // We MUST poll for events - otherwise the window will freeze !
     if (window.pollForInputEvents(&event))
       handleEvent(event, cam);
