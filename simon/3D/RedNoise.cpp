@@ -336,6 +336,7 @@ vec3 getPixelColour(RayTriangleIntersection& intersection, vec4 start, vector<Li
   Texture& bumps = intersection.intersectedTriangle.material.normal_map;
   vec4 normal;
   vec3 colour;
+  vec3 Ka = intersection.intersectedTriangle.material.ambientVec;
   if(tex.dataVec != nullptr) {
     ModelTriangle& t = intersection.intersectedTriangle;
     float q0 = intersection.u;
@@ -346,6 +347,7 @@ vec3 getPixelColour(RayTriangleIntersection& intersection, vec4 start, vector<Li
     u = mod(u, 1.0f);
     v = mod(v, 1.0f);
     colour = getTexPoint(u, v, tex, bilinear);
+    Ka = colour;
   } else {
     colour = intersection.intersectedTriangle.material.diffuseVec;
   }
@@ -366,7 +368,11 @@ vec3 getPixelColour(RayTriangleIntersection& intersection, vec4 start, vector<Li
     vec3 bumpVec = getTexPoint(u, v, bumps, bilinear);
     normal = vec4(normalize(t.TBN * bumpVec), 0.0f);
   } else {
-    normal = intersection.intersectedTriangle.normal;
+    ModelTriangle& t = intersection.intersectedTriangle;
+    float q0 = intersection.u;
+    float q1 = intersection.v;
+    float q2 = 1 - q0 - q1;
+    normal = normalize(q2 * t.normals[0] + q0 * t.normals[1] + q1 * t.normals[2]);
   }
 
   if(intersection.intersectedTriangle.material.dissolve < 1.0f) {
@@ -442,7 +448,6 @@ vec3 getPixelColour(RayTriangleIntersection& intersection, vec4 start, vector<Li
   }
 
   vec3 N = toThree(normal);
-  vec3 Ka = intersection.intersectedTriangle.material.ambientVec;
   vec3 Ks = intersection.intersectedTriangle.material.specularVec;
   vec3 Ia = vec3(0.2f);
   vec4 pos_3d = intersection.intersectionPoint;
@@ -535,6 +540,9 @@ void raytrace(Camera camera, std::vector<Model*> models, vector<Light*> lights, 
       newTri.uvs[0] = tri.uvs[0];
       newTri.uvs[1] = tri.uvs[1];
       newTri.uvs[2] = tri.uvs[2];
+      newTri.normals[0] = normalize((*models[i]).transform * tri.normals[0]);
+      newTri.normals[1] = normalize((*models[i]).transform * tri.normals[1]);
+      newTri.normals[2] = normalize((*models[i]).transform * tri.normals[2]);
       newTri.name = tri.name;
       newTri.fullBright = models[i]->fullBright;
       if (newTri.material.normal_map.dataVec != nullptr) {
@@ -555,6 +563,7 @@ void raytrace(Camera camera, std::vector<Model*> models, vector<Light*> lights, 
 
   uint32_t *buffer = (SSAA) ? imageBuffer : window.pixelBuffer;
   vector<vec2> offsets = generateRotatedGrid(SSAA_SCALE);
+  if (!SSAA) offsets[0] = vec2(0.5f, 0.5f);
 
   //loop through each pixel in image plane
   int num_s = (SSAA) ? SSAA_SAMPLES : 1;
@@ -724,7 +733,7 @@ int main(int argc, char *argv[])
 
   Model orbitor3 = Model("mars/mars2");
   orbitor3.setPosition(vec3(12,0,0));
-  orbitor3.rotate(vec3(M_PIf/2,0,0));
+  //orbitor3.rotate(vec3(M_PIf/2,0,0));
   orbitor3.setScale(vec3(0.0035f,0.0035f,0.0035f));
   renderQueue.push_back(&orbitor3);
   scene1.push_back(&orbitor3);
