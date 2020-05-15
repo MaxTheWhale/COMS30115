@@ -1,3 +1,5 @@
+// in memory of the original RedNoise.cpp, gone but not forgotten. #RIP
+
 #include <ModelTriangle.h>
 #include <RayTriangleIntersection.h>
 #include <DrawingWindow.h>
@@ -34,8 +36,8 @@ using namespace glm;
 #define SSAA_SCALE 2
 #define SSAA_SAMPLES (SSAA_SCALE*SSAA_SCALE)
 #define ASPECT_RATIO WIDTH/(float)HEIGHT
-#define MAX_DEPTH 4
-#define INDIRECT_SAMPLES 2
+#define MAX_DEPTH 4 // maximum depth for raytracing
+#define INDIRECT_SAMPLES 2 //number of samples for indirect lighting
 
 #define TILE_SIZE 16
 #define NUM_TILES_X (WIDTH / TILE_SIZE)
@@ -237,32 +239,10 @@ RayTriangleIntersection findClosestIntersection(vec4 start, vector<TriangleGroup
     }
   }
 
-  // //calculate closest intersection by looping through each of the triangles
-  // for(ModelTriangle& triangle : tris) {
-  //   vec4 e0 = triangle.vertices[1] - triangle.vertices[0];
-  //   vec4 e1 = triangle.vertices[2] - triangle.vertices[0];
-  //   vec4 SPVector = start - triangle.vertices[0];
-  //   mat4 DEMatrix(-rayDirection, e0, e1, vec4(1, 1, 1, 1));
-  //   vec4 possibleSolution = glm::inverse(DEMatrix) * SPVector;
-
-  //   // check if ray intersects triangle and not just triangle plane
-  //   if (possibleSolution.y >= 0.0f && possibleSolution.y <= 1.0f &&
-  //     possibleSolution.z >= 0.0f && possibleSolution.z <= 1.0f &&
-  //     possibleSolution.y + possibleSolution.z <= 1) {
-  //     if (possibleSolution.x < minDistance && possibleSolution.x > 0.0f) {
-  //       intersection = RayTriangleIntersection(start + (possibleSolution.x * rayDirection) , possibleSolution.x, triangle);
-  //       intersection.wasFound = true;
-  //       intersection.intersectionPoint.w = 1.0f;
-  //       intersection.u = possibleSolution.y;
-  //       intersection.v = possibleSolution.z;
-  //       minDistance = possibleSolution.x;
-  //     }
-  //   }
-  // }
-
   return intersection;
 }
 
+//calculates whether a point is in shadow or not
 bool inShadow(vector<TriangleGroup>& triGroups, vec4 shadowRayDirection, RayTriangleIntersection& intersection) {
   float shadowBias = 0.0001f;
 
@@ -291,6 +271,7 @@ bool inShadow(vector<TriangleGroup>& triGroups, vec4 shadowRayDirection, RayTria
   return false;
 }
 
+//refracts a ray
 vec4 refract(vec4 I, vec4 N, float ior) {
   vec4 refractedRay;
 
@@ -308,6 +289,7 @@ vec4 refract(vec4 I, vec4 N, float ior) {
   return k < 0.0f ? vec4(0.0f, 0.0f, 0.0f, 0.0f) : eta * I + (eta * cosi - sqrtf(k)) * n;
 }
 
+//creates coordinate system for indirect lighting
 void createCoordinateSystem(const vec3 &axis1, vec3 &axis2, vec3 &axis3) {
   if(std::fabs(axis1.x) > std::fabs(axis1.y)) {
     axis2 = vec3(axis1.z, 0, -axis1.y) / sqrtf(axis1.x * axis1.x + axis1.z * axis1.z);
@@ -317,6 +299,7 @@ void createCoordinateSystem(const vec3 &axis1, vec3 &axis2, vec3 &axis3) {
   axis3 = glm::cross(axis1, axis2);  
 }
 
+//samples from a hemisphere for indirect lighting
 vec3 uniformSampleHemisphere(float r1, float r2) {
   float sinTheta = sqrtf(1 - r1 * r1);
   float phi = 2 * M_PIf * r2;
@@ -326,12 +309,14 @@ vec3 uniformSampleHemisphere(float r1, float r2) {
 }
 
 vec3 getPixelColour(RayTriangleIntersection& intersection, vec4 start, vector<Light*> lights, vec4 rayDirection, vector<TriangleGroup>& triGroups, int depth, int i, int j, Texture &background) {
-
+  //deals with base cases
   if(depth > MAX_DEPTH) return vec3(0);
   if(!intersection.wasFound) {
+    // background is just an image pasted into the empty space
     return background.dataVec[i + j * background.width];
   }
 
+  //calculates the texture colour if applicable
   Texture& tex = intersection.intersectedTriangle.material.texture;
   Texture& bumps = intersection.intersectedTriangle.material.normal_map;
   vec4 normal;
@@ -352,10 +337,12 @@ vec3 getPixelColour(RayTriangleIntersection& intersection, vec4 start, vector<Li
     colour = intersection.intersectedTriangle.material.diffuseVec;
   }
 
+  // skips lighting if fullBright is on
   if (intersection.intersectedTriangle.fullBright) {
     return colour;
   }
 
+  // calculates the normal map
   if(bumps.dataVec != nullptr) {
     ModelTriangle& t = intersection.intersectedTriangle;
     float q0 = intersection.u;
@@ -375,6 +362,7 @@ vec3 getPixelColour(RayTriangleIntersection& intersection, vec4 start, vector<Li
     normal = normalize(q2 * t.normals[0] + q0 * t.normals[1] + q1 * t.normals[2]);
   }
 
+  // illum 4 means glass, so do all the glassy stuff with fresnel
   if(intersection.intersectedTriangle.material.illum == 4) {
     vec4 refractedRay;
     float kr;
@@ -401,6 +389,7 @@ vec3 getPixelColour(RayTriangleIntersection& intersection, vec4 start, vector<Li
     bool outside = glm::dot(rayDirection, normal) < 0.0f;
     float bias = 0.0001f;
 
+    //gets refracted light
     vec3 refractionColour = intersection.intersectedTriangle.material.diffuseVec;
     if (kr < 1.0f) {
       vec4 refractionDirection = refract(rayDirection, normal, 1.5f);
@@ -408,6 +397,7 @@ vec3 getPixelColour(RayTriangleIntersection& intersection, vec4 start, vector<Li
       refractionColour = getPixelColour(refractIntersection, start, lights, rayDirection, triGroups, depth + 1, i, j, background);
     }
 
+    //gets reflected light
     vec3 reflectedColour = intersection.intersectedTriangle.material.diffuseVec;
     vec4 mirrorRayDirection = glm::normalize(rayDirection - 2.0f * (glm::dot(rayDirection, normal) * normal));
     mirrorRayDirection.w = 0.0f;
@@ -416,6 +406,7 @@ vec3 getPixelColour(RayTriangleIntersection& intersection, vec4 start, vector<Li
     
     reflectedColour = glm::min(getPixelColour(mirrorIntersection, start, lights, rayDirection, triGroups, depth + 1, i, j, background) + (intersection.intersectedTriangle.material.specularVec * 0.01f), 1.0f);
 
+    //gets colour of glass maybe with texture
     vec3 glassColour;
     if(tex.dataVec != nullptr) {
       ModelTriangle& t = intersection.intersectedTriangle;
@@ -434,7 +425,7 @@ vec3 getPixelColour(RayTriangleIntersection& intersection, vec4 start, vector<Li
     return glm::min(glassColour + glm::min(reflectedColour * kr, 1.0f) + glm::min(refractionColour * (1.0f - kr), 1.0f), 1.0f);
   }
 
-  // Why is this mirror stuff happening based on a specular check? am very confuse
+  // illum 3 means mirror so reflect ray
   if(intersection.intersectedTriangle.material.illum == 3) {
     vec4 mirrorRayDirection = glm::normalize(rayDirection - 2.0f * (glm::dot(rayDirection, normal) * normal));
     mirrorRayDirection.w = 0;
@@ -447,6 +438,7 @@ vec3 getPixelColour(RayTriangleIntersection& intersection, vec4 start, vector<Li
     return glm::min(getPixelColour(mirrorIntersection, intersection.intersectionPoint, lights, mirrorRayDirection, triGroups, depth + 1, i, j, background) + (intersection.intersectedTriangle.material.specularVec * 0.8f), 1.0f);
   }
 
+  // now perform all the regular lighting stuff
   vec3 N = toThree(normal);
   vec3 Ks = intersection.intersectedTriangle.material.specularVec;
   vec3 Ia = vec3(0.2f);
@@ -474,67 +466,42 @@ vec3 getPixelColour(RayTriangleIntersection& intersection, vec4 start, vector<Li
   reflectedLight += Ka * Ia;
   reflectedLight = glm::min(reflectedLight, 1.0f);
 
+  // INDIRECT LIGHTING STARTS HERE
+  // turned off because it takes tooo longgggg
 
-    // vec3 directColour = vec3(0,0,0);
+  // vec3 axis2, axis3;
+  // vec3 normalVec3 = vec3(normal.x, normal.y, normal.z);
+  // createCoordinateSystem(normalVec3, axis2, axis3);
 
-    // for(auto& light : lights) {
-    //   vec4 shadowRayDirection = (*light).transform[3] - intersection.intersectionPoint;
-    //   bool isInShadow = inShadow(triGroups, shadowRayDirection, intersection);
+  // static std::default_random_engine generator; 
+  // std::uniform_real_distribution<float> distribution(0, 1); 
 
-    //   if(isInShadow) directColour += (*light).shadow;
-    //   else {
-    //     //calculate the angleOfIncidence between 0 and 1
-    //     float angleOfIncidence = glm::dot(glm::normalize(shadowRayDirection), normal);
-    //     directColour += glm::clamp<float>(angleOfIncidence, (*light).shadow, 1.0f);
+  // vec3 indirectColour = vec3(0,0,0);
 
-    //     //adjust brightness for proximity lighting
-    //     vec3 brightness = ((*light).diffuseIntensity / 10.0f) / powf(length(shadowRayDirection), 2);
-    //     directColour += glm::clamp(brightness, (*light).shadow, 1.0f);
+  // for(int n = 0; n < INDIRECT_SAMPLES; n++) {
+  //   float r1 = distribution(generator);
+  //   float r2 = distribution(generator);
 
-    //     if(intersection.intersectedTriangle.material.highlights > 0.0f) {
-    //       //TODO: make the colour of the highlights match the specular material colour
-    //       vec4 reflection = glm::normalize((-shadowRayDirection) - 2.0f * (glm::dot((-shadowRayDirection), normal) * normal));
-    //       float specular = pow(glm::dot(glm::normalize((-rayDirection)), reflection), intersection.intersectedTriangle.material.highlights);
-    //       // colour = glm::min(colour + glm::clamp<float>(specular, 0, 1.0f), 1.0f);
-    //       directColour += glm::clamp<float>(specular, 0.0f, 1.0f);
-    //     }
-    //   }
-    // }
+  //   vec3 sample = uniformSampleHemisphere(r1, r2);
+  //   vec4 adjustedSample = vec4(
+  //     sample.x * axis3.x + sample.y * normal.x + sample.z * axis2.x,
+  //     sample.x * axis3.y + sample.y * normal.y + sample.z * axis2.y,
+  //     sample.x * axis3.z + sample.y * normal.z + sample.z * axis2.z,
+  //     0);
+  //   RayTriangleIntersection indirectIntersection = findClosestIntersection(intersection.intersectionPoint + (normal * 0.01f), triGroups, adjustedSample);
+  //   indirectColour += r1 * getPixelColour(indirectIntersection, start, lights, adjustedSample, triGroups, depth + 1, i, j, background);
+  // }
 
-    //INDIRECT LIGHTING STARTS HERE
+  // indirectColour /= INDIRECT_SAMPLES * (1 / (2 * M_PIf));
 
-    // vec3 axis2, axis3;
-    // vec3 normalVec3 = vec3(normal.x, normal.y, normal.z);
-    // createCoordinateSystem(normalVec3, axis2, axis3);
+  
+  // colour = ((glm::min(reflectedLight / M_PIf, 1.0f)) + (2.0f * glm::min(indirectColour * 0.03f, 1.0f))) * colour;
 
-    // static std::default_random_engine generator; 
-    // std::uniform_real_distribution<float> distribution(0, 1); 
-
-    vec3 indirectColour = vec3(0,0,0);
-
-    // for(int n = 0; n < INDIRECT_SAMPLES; n++) {
-    //   float r1 = distribution(generator);
-    //   float r2 = distribution(generator);
-
-    //   vec3 sample = uniformSampleHemisphere(r1, r2);
-    //   vec4 adjustedSample = vec4(
-    //     sample.x * axis3.x + sample.y * normal.x + sample.z * axis2.x,
-    //     sample.x * axis3.y + sample.y * normal.y + sample.z * axis2.y,
-    //     sample.x * axis3.z + sample.y * normal.z + sample.z * axis2.z,
-    //     0);
-    //   RayTriangleIntersection indirectIntersection = findClosestIntersection(intersection.intersectionPoint + (normal * 0.01f), tris, adjustedSample);
-    //   indirectColour += r1 * getPixelColour(indirectIntersection, mainLight, adjustedSample, tris, depth + 1, i, j);
-    // }
-
-    // indirectColour /= INDIRECT_SAMPLES * (1 / (2 * M_PIf));
-
-    
-    //colour = ((glm::min(directColour / M_PIf, 1.0f)) + (2.0f * glm::min(indirectColour * 0.03f, 1.0f))) * colour;
-
-    return glm::min(reflectedLight, 1.0f);
+  return glm::min(reflectedLight, 1.0f);
 }
 
 void raytrace(Camera camera, std::vector<Model*> models, vector<Light*> lights, Texture &background) {
+  // need to merge all the different models into one thingy to loop over
   vector<TriangleGroup> triGroups;
   for (unsigned int i = 0; i < models.size(); i++) {
     vector<ModelTriangle> tris;
@@ -568,6 +535,7 @@ void raytrace(Camera camera, std::vector<Model*> models, vector<Light*> lights, 
     triGroups.push_back({tris, radius_sq, models[i]->transform[3], models[i]->castShadow, models[i]->fullBright});
   }
 
+  // doing SSAA
   uint32_t *buffer = (SSAA) ? imageBuffer : window.pixelBuffer;
   vector<vec2> offsets = generateRotatedGrid(SSAA_SCALE);
   if (!SSAA) offsets[0] = vec2(0.5f, 0.5f);
@@ -596,27 +564,11 @@ void raytrace(Camera camera, std::vector<Model*> models, vector<Light*> lights, 
         }
       }
     }
-    // #pragma omp parallel for
-    // for(int j = 0; j < HEIGHT; j++) {
-    //   for(int i = 0; i < WIDTH; i++) {
-    //     float angle = tanf(0.5f * glm::radians(camera.fov)); // just fov*0.5 converted to radians
-    //     //convert image plane cordinates into world space
-    //     vec2 NDC = vec2((i + offsets[s].x) * (1 / (float) WIDTH), (j + offsets[s].y) * (1 / (float) HEIGHT));
-    //     float x = (2 * (NDC.x) - 1) * angle * ASPECT_RATIO;
-    //     float y = (1 - 2 * (NDC.y)) * angle;
-
-    //     // the main camera ray
-    //     vec4 rayDirection = camera.transform * vec4(x, y, -1.0f, 0.0f);
-
-    //     RayTriangleIntersection intersection = findClosestIntersection(camera.transform[3], triGroups, rayDirection);
-
-    //     buffer[i + j * WIDTH] = vec3ToPackedInt(getPixelColour(intersection, mainLight, rayDirection, triGroups, 0, i, j));
-    //   }
-    // }
     buffer += IMG_SIZE;
   }
 }
 
+//some globals for use in main/update
 Rigidbody* unfreeze = 0;
 vector<Transformable*> scene1 = vector<Transformable*>();
 vector<Model*> scene2 = vector<Model*>();
@@ -627,13 +579,12 @@ int sceneID = 1;
 int main(int argc, char *argv[])
 {
   SDL_Event event;
-  //SDL_SetRelativeMouseMode(SDL_TRUE);
 
-  vector<Model*> renderQueue = vector<Model*>();
-  vector<Updatable*> updateQueue = vector<Updatable*>();
+  vector<Model*> renderQueue = vector<Model*>(); //list of models to be rendered
+  vector<Updatable*> updateQueue = vector<Updatable*>(); //list of objects to be updated
   vector<Light*> lights;
 
-  // STANDARD CORNELL LAYOUT
+  // STANDARD CORNELL LAYOUT (for testing)
   
   // Model cornell = Model("cornell-box");
   // renderQueue.push_back(&cornell);
@@ -656,26 +607,10 @@ int main(int argc, char *argv[])
   center.fullBright = true;
   scene1.push_back(&center);
 
-  // Light mainLight = Light(vec3(2550.0f, 250.0f, 1130.0f), vec3(1.0f, 1.0f, 1.0f));
-  // mainLight.setPosition(vec3(19,29,1.0f));
-  // lights.push_back(&mainLight);
-  // scene1.push_back(&mainLight);
-
   Light blueLight = Light(vec3(250.0f, 1170.0f, 2550.0f)/2.0f, vec3(1.0f, 1.0f, 1.0f));
   blueLight.setPosition(vec3(25,20,-5.0f));
   lights.push_back(&blueLight);
   scene1.push_back(&blueLight);
-
-  // Light otherLight = Light(vec3(0.0f, 50.0f, 0.0f), vec3(1.0f, 1.0f, 1.0f));
-  // otherLight.setPosition(vec3(0.0f, 3.0f, 0.0f));
-  // Transformable lightT = Transformable();
-  // lightT.setRotation(vec3(M_PIf/2,0,0));
-  // Orbit lightOrbit = Orbit(lightT.transform);
-  // lightOrbit.repeats = -1;
-  // lightOrbit.time = 1;
-  // otherLight.moves.push(&lightOrbit);
-  // updateQueue.push_back(&otherLight);
-  // lights.push_back(&otherLight);
 
   vector<Rigidbody*> rbList;
 
@@ -696,7 +631,6 @@ int main(int argc, char *argv[])
 
   Model orbitor1 = Model("earth/earth2");
   orbitor1.setPosition(vec3(9,0,0));
-  // orbitor1.setScale(vec3(0.000003f,0.000003f,0.000003f));
   orbitor1.rotate(vec3(M_PIf,0,0));
   renderQueue.push_back(&orbitor1);
   scene1.push_back(&orbitor1);
@@ -704,16 +638,13 @@ int main(int argc, char *argv[])
   Magnet mag = Magnet(&orbitor1, rbList);
   updateQueue.push_back(&mag);
 
-  // Transformable t = Transformable();
-  vec3 rot = vec3(M_PIf/2,0,0);
   Orbit orbit = Orbit(&center);
   orbit.repeats = -1;
   orbit.time = 6;
-  // orbit.rotation = rot;
   orbitor1.moves.push(&orbit);
   updateQueue.push_back(&orbitor1);
 
-  Model moon = Model("Moon2k");
+  Model moon = Model("moon/Moon2k");
   moon.setPosition(orbitor1.getPosition() + vec3(4,0,0));
   moon.scale(vec3(0.7f,0.7f,0.7f));
   renderQueue.push_back(&moon);
@@ -722,7 +653,7 @@ int main(int argc, char *argv[])
   Orbit lunarOrbit = Orbit(&orbitor1);
   lunarOrbit.time = 2;
   lunarOrbit.repeats = -1;
-  lunarOrbit.rotation = rot;
+  lunarOrbit.rotation = vec3(M_PIf/2,0,0);
   moon.moves.push(&lunarOrbit);
   updateQueue.push_back(&moon);
  
@@ -740,7 +671,7 @@ int main(int argc, char *argv[])
   Orbit orbit2 = Orbit(&center);
   orbit2.repeats = -1;
   orbit2.time = 10;
-  orbit2.rotation = rot;
+  orbit2.rotation = vec3(M_PIf/2,0,0);;
   orbitor2.moves.push(&orbit2);
   updateQueue.push_back(&orbitor2);
 
@@ -888,11 +819,11 @@ int main(int argc, char *argv[])
   Rigidbody tiltRB = Rigidbody(&tilt, rbList);
   tiltRB.elasticity = 0.1f;
   updateQueue.push_back(&tiltRB);
-  // Model 
+
+  // CAMERA SETUP AND ANIMATION
 
   Camera cam;
   cam.setProjection(90.0f, WIDTH / (float)HEIGHT, 0.1f, 100.0f);
-  // cam.lookAt(vec3(100.0f, 10.0f, 10.0f), vec3(100.0f, 0, 0));
   cam.lookAt(iss.getPosition() + vec3(0,0,4), iss.getPosition());
 
   Movement diag = Movement(cam.transform, 1);
@@ -901,9 +832,7 @@ int main(int argc, char *argv[])
   diag.stareTarget = &iss;
 
   Movement slow = Movement(diag.transform, 1);
-  // slow.move(vec3(-5/1.3,-3/1.3,-1));
   slow.setPosition(vec3(25,15,0));
-  // slow.rotation = vec3(0,-M_PIf/6,0);
   slow.isRotation = true;
 
   Movement move = Movement(cam.transform, 3);
@@ -912,7 +841,6 @@ int main(int argc, char *argv[])
   move.stareTarget = &center;
 
   Movement spin = Movement(vec3(0,0, 2.0f * M_PIf), 2);
-  // spin.transform[3] = vec4()
   spin.isRotation = true;
 
   Transformable target = Transformable();
@@ -946,6 +874,7 @@ int main(int argc, char *argv[])
   auto start = std::chrono::high_resolution_clock::now();
   int frameCount = 0;
   int renderFrame = 0;
+  //main render loop
   while (true)
   {
     auto elapsed = std::chrono::high_resolution_clock::now() - start;
@@ -970,8 +899,8 @@ int main(int argc, char *argv[])
     // We MUST poll for events - otherwise the window will freeze !
     if (window.pollForInputEvents(&event))
       handleEvent(event, cam);
-    // cout << "hs_logo pos: " << hs_logo.getPosition() << endl;
     //call update twice to account for 30-60 fps difference
+    //not exactly an elegent solution, but it works
     update(cam, updateQueue, &renderQueue);
     update(cam, updateQueue, &renderQueue);
     draw();
@@ -1013,31 +942,27 @@ int moveStage = 0;
 
 void update(Camera &cam, vector<Updatable*> &updatables, vector<Model*> *renderQueue)
 {
-  // Function for performing animation (shifting artifacts or moving the camera)
   cam.update();
   // cout << "camera pos: " << cam.getPosition() << endl;
   for (unsigned int i = 0; i < updatables.size(); i++)
   {
     updatables[i]->update();
   }
+
+  //TIME TRIGGERED EVENTS
+
   float seconds = Times::getFrameCount() / 30.0f;
   if (seconds == 9.0f) {
+    //drop the yeeting logo
     unfreeze->positionFixed = false;
   }
   else if (seconds == 7.0f) {
     if (sceneID == 1) {
       sceneID++;
       cout << "switching scenes" << endl;
-      // cout << "size before: " << renderQueue->size() << endl;
-      // renderQueue->erase(std::remove_if(renderQueue->begin(),renderQueue->end(),[](Model* pointer){
-      //   bool result = std::find(scene1.begin(), scene1.end(), pointer) != scene1.end();
-      //   if (result) {
-      //     cout << "removing pointer" << endl;
-      //   }
-      //   return result;
-      // }));
-      // cout << "size after: " << renderQueue->size() << endl;
+      //hide scene 1 to reduce load while rendering scene 2
       renderQueue->clear();
+      //add scene 2 to the render queue
       renderQueue->insert(renderQueue->end(), scene2.begin(), scene2.end());
       sunlight->setPosition(vec3(95, 20, 20));
       sunlight->diffuseIntensity *= 3.5;
@@ -1048,7 +973,7 @@ void update(Camera &cam, vector<Updatable*> &updatables, vector<Model*> *renderQ
       sunlight->moves.push(move);
     }
   }
-  else if (seconds == 2.1f) {
+  else if (seconds == 2.1f) { //ISS animation
     Movement* move = new Movement(2.5f);
     move->move(vec3(-3,3,-5));
     move->isRotation = true;

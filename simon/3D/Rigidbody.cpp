@@ -1,6 +1,7 @@
 #include "Rigidbody.hpp"
 #include <iostream>
 #include <algorithm>
+#include "VectorUtil.hpp"
 
 using namespace glm;
 
@@ -29,7 +30,6 @@ void Rigidbody::update() {
     if (positionFixed) {
         return;
     }
-    //if we're not moving and we're in contact with something then it can be assumed that we are resting on it
     if (hasGravity){
         vec3 grav = gravity * timeStep();
         mat4 gravTransform = mat4(1,0,0,0,
@@ -51,15 +51,11 @@ void Rigidbody::update() {
     for(unsigned int i = 0; i < (*allRBs).size(); i++) {
         if ((*allRBs)[i]->model != this->model) {
             if(collide(*(*allRBs)[i])) {
+                //if we've detected intersection, move back one frame to avoid clipping through
                 model->transform = oldTransform;
             }
         }
     }
-}
-
-vec3 toVec3(vec4 in) {
-    vec3 vec = vec3(in.x, in.y, in.z);
-    return vec;
 }
 
 //calculates n
@@ -136,12 +132,15 @@ float intervalMid(float a, float b, float x, float y) {
     }
 }
 
+// A more complex, but ultimately less stable implementation of the intersection algorithms
+// left here because I'm sad it didn't work
+
 // bool Rigidbody::intersection(ModelTriangle localTri, ModelTriangle otherTri, mat4 localTransform, mat4 otherTransform) {
 //     vec3 verts1[3];
 //     vec3 verts2[3];
 //     for (int i = 0; i < 3; i++) {
-//         verts1[i] = toVec3(localTransform * localTri.vertices[i]);
-//         verts2[i] = toVec3(otherTransform * otherTri.vertices[i]);
+//         verts1[i] = toThree(localTransform * localTri.vertices[i]);
+//         verts2[i] = toThree(otherTransform * otherTri.vertices[i]);
 //     }
 //     vec3 n1 = calcN(verts1);
 //     vec3 n2 = calcN(verts2);
@@ -200,7 +199,7 @@ float intervalMid(float a, float b, float x, float y) {
 //         collisionLayers[collisionLayer][other.collisionLayer] == 0) {
 //         return false;
 //     }
-//     float dist = glm::distance(toVec3(this->model->transform[3]), toVec3(other.model->transform[3]));
+//     float dist = glm::distance(toThree(this->model->transform[3]), toThree(other.model->transform[3]));
 //     float maxDist = this->model->furthestExtent + other.model->furthestExtent;
 //     if (dist > maxDist) { //no possible collisions, too far
 //         return false;
@@ -218,7 +217,7 @@ float intervalMid(float a, float b, float x, float y) {
 //                     continue;
 //                 }
 //                 float combinedElasticity = (this->elasticity + other.elasticity); //the average ratio of energy conserved
-//                 vec3 force = toVec3(vec4() - combinedElasticity * dot(normalize(normal), normalize(velocity[3])) * normal);
+//                 vec3 force = toThree(vec4() - combinedElasticity * dot(normalize(normal), normalize(velocity[3])) * normal);
 //                 applyForce(force, vec3(0,0,0));
 //                 collidedWith.push_back(&other);
 //                 other.collidedWith.push_back(this);
@@ -234,9 +233,9 @@ bool Rigidbody::intersection(ModelTriangle localTri, ModelTriangle otherTri, mat
     vec3 verts2[3];
     //cout << "verts1 = ";
     for (int i = 0; i < 3; i++) {
-        verts1[i] = toVec3(localTransform * localTri.vertices[i]);
+        verts1[i] = toThree(localTransform * localTri.vertices[i]);
         //cout << verts1[i] << ", ";
-        verts2[i] = toVec3(otherTransform * otherTri.vertices[i]);
+        verts2[i] = toThree(otherTransform * otherTri.vertices[i]);
     }
     //cout << endl << "verts2 = ";
     // for (int i = 0; i < 3; i++) {
@@ -292,7 +291,7 @@ bool Rigidbody::collide(Rigidbody other) {
                     // std::cout << "collision detected with " << &other << std::endl;
                     vec4 normal = other.model->tris[j].normal * other.model->transform;
                     float combinedElasticity = this->elasticity + other.elasticity; //twice the average ratio of energy conserved
-                    vec3 force = toVec3(-combinedElasticity * dot(normal, velocity[3]) * normal);
+                    vec3 force = toThree(-combinedElasticity * dot(normal, velocity[3]) * normal);
                     // cout << "force = " << force << endl;
                     collisions++;
                     if (collisions >= maxCollisions && maxCollisions >= 0) {
@@ -345,7 +344,7 @@ void Rigidbody::applyForce(vec3 force, vec3 position) {
     mat4 conversionMat = model->transform;
     conversionMat[3] = vec4(0,0,0,1);
 
-    vec3 angAcc = inverse(tensor) * toVec3(conversionMat * vec4(torque, 1));
+    vec3 angAcc = inverse(tensor) * toThree(conversionMat * vec4(torque, 1));
     mat4 rot = rotationFromEuler(angAcc);
     velocity *= transpose(rot);
     velocity[3][3] = 1;

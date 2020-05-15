@@ -6,6 +6,7 @@
 #include "Rigidbody.hpp"
 #include <glm/glm.hpp>
 
+//class for simulating magnetism/gravity
 class Magnet : public Updatable, Temporal {
     public:
         Magnet(Transformable* center, vector<Rigidbody*>& rbList);

@@ -1,0 +1,10 @@
+newmtl mars2:Mars1
+illum 1
+Kd 0.60 0.32 0.19
+Ka 0.00 0.00 0.00
+Tf 1.00 1.00 1.00
+map_Kd Mars_diff.ppm
+map_Ka Mars_diff.ppm
+Ni 1.50
+Ks 0.00 0.00 0.00
+Ns 10.00

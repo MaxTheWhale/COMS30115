@@ -8,7 +8,7 @@ using namespace glm;
 class Orbit : public Movement {
     public:
         Orbit(Transformable* center);
-        Orbit(Transformable* center, float startPosition);
+        Orbit(Transformable* center, float startPosition); //start position is between 0 and 2π
         bool execute(Animatable* parent, Movement& previous) override;
     private:
         float startPosition = 0;

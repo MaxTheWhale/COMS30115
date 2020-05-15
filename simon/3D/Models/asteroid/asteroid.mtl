@@ -1,0 +1,10 @@
+newmtl asteroid:_10464_Asteroid_v1_max201010464_Asteroid_v1
+illum 1
+Kd 0.39 0.32 0.26
+Ka 0.00 0.00 0.00
+Tf 1.00 1.00 1.00
+map_Kd 10464_Asteroid_v1_diffuse.ppm
+map_Ka 10464_Asteroid_v1_diffuse.ppm
+Ni 1.50
+Ks 0.00 0.00 0.00
+Ns 10.00

@@ -8,6 +8,7 @@
 using namespace std;
 
 Model::Model(string filename) {
+    filename = "Models/" + filename;
     palette = loadMTL(filename + ".mtl");
     tris = loadOBJ(filename + ".obj", palette);
     this->furthestExtent = calcExtent();
@@ -216,7 +217,7 @@ unordered_map<string, Material> Model::loadMTL(string fileName) {
       if (s == "map_Kd") {
         string texture_file;
         f >> texture_file;
-        size_t pos = fileName.find('/');
+        size_t pos = fileName.rfind('/');
         if (pos != fileName.npos) {
           fileName.erase(pos + 1);
           texture_file = fileName + texture_file;
@@ -226,7 +227,7 @@ unordered_map<string, Material> Model::loadMTL(string fileName) {
       if (s == "map_bump" || s == "bump") {
         string texture_file;
         f >> texture_file;
-        size_t pos = fileName.find('/');
+        size_t pos = fileName.rfind('/');
         if (pos != fileName.npos) {
           fileName.erase(pos + 1);
           texture_file = fileName + texture_file;

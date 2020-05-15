@@ -1,9 +1,0 @@
-# Exported from 3D Builder
-
-newmtl None_0
-Kd 0.820000 0.730000 0.550000
-map_Kd texture_0_17832851910588591680.ppm
-
-newmtl Mat_0
-Kd 0.800000 0.800000 0.800000
-map_Kd texture_1.ppm
