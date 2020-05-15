@@ -32,19 +32,19 @@ using namespace glm;
 #define WIDTH 640
 #define HEIGHT 480
 #define IMG_SIZE (WIDTH*HEIGHT)
-#define SSAA true
-#define SSAA_SCALE 2
+#define SSAA false    // Use SSAA or not
+#define SSAA_SCALE 2  // Size of the rotated grid for SSAA (number of samples will be this squared)
 #define SSAA_SAMPLES (SSAA_SCALE*SSAA_SCALE)
 #define ASPECT_RATIO WIDTH/(float)HEIGHT
 #define MAX_DEPTH 4 // maximum depth for raytracing
 #define INDIRECT_SAMPLES 2 //number of samples for indirect lighting
 
-#define TILE_SIZE 16
+#define TILE_SIZE 16 // Tile size of the multithreaded raytracing
 #define NUM_TILES_X (WIDTH / TILE_SIZE)
 #define NUM_TILES_Y (HEIGHT / TILE_SIZE)
 #define NUM_TILES (NUM_TILES_X * NUM_TILES_Y)
 
-#define RENDER true
+#define RENDER false       // Whether to render out the animation to PPMs
 #define RENDER_LENGTH 300
 
 #ifndef M_PIf
@@ -78,7 +78,7 @@ uint32_t imageBuffer[IMG_SIZE];
 bool wireframe = true;
 bool bilinear = true;
 bool perspective = true;
-bool toRaytrace = true;
+bool toRaytrace = false;
 bool softShadows = false;
 DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
 
@@ -136,7 +136,7 @@ void drawTriangles(Camera &cam, std::vector<Model *> models, vector<Light*> ligh
       tri.vertices[1].normal = normalize(model.transform * tri.vertices[1].normal);
       tri.vertices[2].normal = normalize(model.transform * tri.vertices[2].normal);
       tri.vertices[0].pos_3d = model.transform * tri.vertices[0].pos;
-      if (dot(tri.vertices[0].pos_3d - eye, tri.normal) >= 0.0f) continue;
+      if (dot(tri.vertices[0].pos_3d - eye, tri.normal) >= 0.0f) continue;  // Cull back-facing triangles
       tri.vertices[1].pos_3d = model.transform * tri.vertices[1].pos;
       tri.vertices[2].pos_3d = model.transform * tri.vertices[2].pos;
       if (tri.mat.normal_map.dataVec != nullptr) {
@@ -148,7 +148,7 @@ void drawTriangles(Camera &cam, std::vector<Model *> models, vector<Light*> ligh
       tri.vertices[2].pos = viewProjection * tri.vertices[2].pos_3d;
       list<Triangle> clippedTris;
       clippedTris.push_back(tri);
-      clipToView(clippedTris);
+      clipToView(clippedTris);    // Perform frustum clipping on the triangle
       for (auto t : clippedTris) {
         for (int v = 0; v < 3; v++) {
           t.vertices[v].pos.w = 1.0f / t.vertices[v].pos.w;
@@ -193,6 +193,7 @@ bool solveQuadratic(const float &a, const float &b, const float &c, float &x0, f
     return true; 
 }
 
+// Sphere intersection code shamelessly stolen from scratchapixel
 bool intersectSphere(const vec4 rayDirection, const vec4 start, const float radius_sq, const vec4 centre) { 
         float t0, t1; // solutions for t if the ray intersects 
         vec4 L = start - centre;
@@ -615,7 +616,6 @@ int main(int argc, char *argv[])
   vector<Rigidbody*> rbList;
 
   Model ground = Model("ground");
-  // renderQueue.push_back(&ground);
   scene2.push_back(&ground);
   ground.scale(vec3(300.0f, 300.0f, 300.0f));
   ground.setPosition(vec3(90,-1,0));
@@ -667,7 +667,6 @@ int main(int argc, char *argv[])
   Magnet mag2 = Magnet(&orbitor2, rbList);
   updateQueue.push_back(&mag2);
   
-  // t.rotate(vec3(0.5f,0,0));
   Orbit orbit2 = Orbit(&center);
   orbit2.repeats = -1;
   orbit2.time = 10;
@@ -677,7 +676,6 @@ int main(int argc, char *argv[])
 
   Model orbitor3 = Model("mars/mars2");
   orbitor3.setPosition(vec3(12,0,0));
-  //orbitor3.rotate(vec3(M_PIf/2,0,0));
   orbitor3.setScale(vec3(0.0035f,0.0035f,0.0035f));
   renderQueue.push_back(&orbitor3);
   scene1.push_back(&orbitor3);
@@ -685,11 +683,9 @@ int main(int argc, char *argv[])
   Magnet mag3 = Magnet(&orbitor3, rbList);
   updateQueue.push_back(&mag3);
 
-  // t.rotate(vec3(-0.5f,0,0));
   Orbit orbit3 = Orbit(&center, 6);
   orbit3.repeats = -1;
   orbit3.time = 10;
-  // orbit3.rotation = rot;
   orbitor3.moves.push(&orbit3);
   updateQueue.push_back(&orbitor3);
   
@@ -708,7 +704,6 @@ int main(int argc, char *argv[])
   updateQueue.push_back(&asteroidRB);
 
   Model asteroid2 = Model(asteroid);
-  //asteroid2.scale(vec3(0.005f,0.005f,0.005));
   asteroid2.setPosition(vec3(10,0,10.5));
   asteroid2.setScale(vec3(0.001f,0.001f,0.001f));
   renderQueue.push_back(&asteroid2);
@@ -721,7 +716,6 @@ int main(int argc, char *argv[])
   scene1.push_back(&asteroid2);
 
   Model asteroid3 = Model(asteroid);
-  //asteroid3.scale(vec3(0.005f,0.005f,0.005));
   asteroid3.setScale(vec3(0.001f,0.001f,0.001f));
   asteroid3.setPosition(vec3(10,1,10.5));
   renderQueue.push_back(&asteroid3);
@@ -734,7 +728,6 @@ int main(int argc, char *argv[])
   scene1.push_back(&asteroid3);
 
   Model asteroid4 = Model(asteroid);
-  //asteroid4.scale(vec3(0.005f,0.005f,0.005));
   asteroid4.setScale(vec3(0.001f,0.001f,0.001f));
   asteroid4.setPosition(vec3(10,1,0));
   renderQueue.push_back(&asteroid4);
@@ -747,7 +740,6 @@ int main(int argc, char *argv[])
   scene1.push_back(&asteroid4);
 
   Model asteroid5 = Model(asteroid);
-  //asteroid5.scale(vec3(0.005f,0.005f,0.005));
   asteroid5.setScale(vec3(0.001f,0.001f,0.001f));
   asteroid5.setPosition(vec3(11,0,0));
   renderQueue.push_back(&asteroid5);
@@ -759,14 +751,6 @@ int main(int argc, char *argv[])
   updateQueue.push_back(&asteroid5RB);
   scene1.push_back(&asteroid5);
 
-  // Model moon = Model("Moon2K");
-  // moon.rotate(vec3(M_PIf/2,0,0));
-  // moon.scale(vec3(0.5f,0.5f,0.5f));
-  // moon.setPosition(vec3(19,29,1.0f));
-  // moon.castShadow = false;
-  // moon.fullBright = true;
-  // renderQueue.push_back(&moon);
-
   Light sun = Light(vec3(2550.f, 1840.f, 1010.f), vec3(1.0f, 1.0f, 1.0f));
   sun.setPosition(vec3(0,2,0));
   lights.push_back(&sun);
@@ -777,7 +761,6 @@ int main(int argc, char *argv[])
 
   Model cornell = Model("cornell-box");
   cornell.move(vec3(100,0,0));
-  // renderQueue.push_back(&cornell);
   scene2.push_back(&cornell);
   Rigidbody cornellRB = Rigidbody(&cornell, rbList);
   cornellRB.hasGravity = false;
@@ -788,7 +771,6 @@ int main(int argc, char *argv[])
   bounce1.scale(vec3(0.005f, 0.005f, 0.005f));
   bounce1.furthestExtent = bounce1.calcExtent();
   bounce1.move(vec3(99, 10.0f, -1));
-  // renderQueue.push_back(&bounce1);
   scene2.push_back(&bounce1);
   Rigidbody bounce1RB = Rigidbody(&bounce1, rbList);
   bounce1RB.collisionLayer = 2;
@@ -801,7 +783,6 @@ int main(int argc, char *argv[])
   bounce2.scale(vec3(0.005f, 0.005f, 0.005f));
   bounce2.furthestExtent = bounce2.calcExtent();
   bounce2.move(vec3(90, 10.0f, 1));
-  // renderQueue.push_back(&bounce2);
   scene2.push_back(&bounce2);
   Rigidbody bounce2RB = Rigidbody(&bounce2, rbList);
   unfreeze = &bounce2RB;
@@ -814,7 +795,6 @@ int main(int argc, char *argv[])
 
   Model tilt = Model("tilted");
   tilt.move(vec3(90, 3, 0));
-  // renderQueue.push_back(&tilt);
   scene2.push_back(&tilt);
   Rigidbody tiltRB = Rigidbody(&tilt, rbList);
   tiltRB.elasticity = 0.1f;
@@ -1048,6 +1028,7 @@ inline float edgeFunction(const float v0_x, const float v0_y, const float v1_x, 
   return (p_x - v0_x) * (v1_y - v0_y) - (p_y - v0_y) * (v1_x - v0_x);
 }
 
+// Edge function based rasteriser based on scratchapixel but heavily modified
 void triangle(Triangle &t, bool filled, uint32_t *buffer, float *depthBuff, vec2 offset, vec4 &eye_pos, vector<Light*>& lights, bool doLighting)
 {
   vec3 Kd = t.mat.diffuseVec;
@@ -1083,6 +1064,7 @@ void triangle(Triangle &t, bool filled, uint32_t *buffer, float *depthBuff, vec2
     float w1_line = edgeFunction(t.vertices[2].pos.x, t.vertices[2].pos.y, t.vertices[0].pos.x, t.vertices[0].pos.y, p.x, p.y) * area_inv;
     float w2_line = edgeFunction(t.vertices[0].pos.x, t.vertices[0].pos.y, t.vertices[1].pos.x, t.vertices[1].pos.y, p.x, p.y) * area_inv;
     float w0, w1, w2;
+    // w coords are the barycentric coordinates
     for (int y = y_min; y <= y_max; y++) {
       w0 = w0_line;
       w1 = w1_line;
@@ -1093,6 +1075,7 @@ void triangle(Triangle &t, bool filled, uint32_t *buffer, float *depthBuff, vec2
           if (depth < depthBuff[y * WIDTH + x]) {
             depthBuff[y * WIDTH + x] = depth;
             float q0, q1, q2;
+            // q coords are the perspective correct barycentric coordinates
             if (perspective) {
               q0 = w0 * t.vertices[0].pos.w;
               q1 = w1 * t.vertices[1].pos.w;
@@ -1123,6 +1106,7 @@ void triangle(Triangle &t, bool filled, uint32_t *buffer, float *depthBuff, vec2
                 N = t.TBN * N;
               }
               else {
+                // Phong normal interpolation
                 N = toThree(q0 * t.vertices[0].normal + q1 * t.vertices[1].normal + q2 * t.vertices[2].normal);
               }
               N = normalize(N);
