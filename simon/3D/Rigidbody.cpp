@@ -29,7 +29,6 @@ void Rigidbody::update() {
     if (positionFixed) {
         return;
     }
-    //if we're not moving and we're in contact with something then it can be assumed that we are resting on it
     if (hasGravity){
         vec3 grav = gravity * timeStep();
         mat4 gravTransform = mat4(1,0,0,0,
@@ -51,6 +50,7 @@ void Rigidbody::update() {
     for(unsigned int i = 0; i < (*allRBs).size(); i++) {
         if ((*allRBs)[i]->model != this->model) {
             if(collide(*(*allRBs)[i])) {
+                //if we've detected intersection, move back one frame to avoid clipping through
                 model->transform = oldTransform;
             }
         }
@@ -135,6 +135,9 @@ float intervalMid(float a, float b, float x, float y) {
         return (std::max(x,y) + std::min(a,b)) / 2.0f;
     }
 }
+
+// A more complex, but ultimately less stable implementation of the intersection algorithms
+// left here because I'm sad it didn't work
 
 // bool Rigidbody::intersection(ModelTriangle localTri, ModelTriangle otherTri, mat4 localTransform, mat4 otherTransform) {
 //     vec3 verts1[3];

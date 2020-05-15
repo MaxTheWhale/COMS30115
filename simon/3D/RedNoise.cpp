@@ -617,6 +617,7 @@ void raytrace(Camera camera, std::vector<Model*> models, vector<Light*> lights, 
   }
 }
 
+//some globals for use in main/update
 Rigidbody* unfreeze = 0;
 vector<Transformable*> scene1 = vector<Transformable*>();
 vector<Model*> scene2 = vector<Model*>();
@@ -627,10 +628,9 @@ int sceneID = 1;
 int main(int argc, char *argv[])
 {
   SDL_Event event;
-  //SDL_SetRelativeMouseMode(SDL_TRUE);
 
-  vector<Model*> renderQueue = vector<Model*>();
-  vector<Updatable*> updateQueue = vector<Updatable*>();
+  vector<Model*> renderQueue = vector<Model*>(); //list of models to be rendered
+  vector<Updatable*> updateQueue = vector<Updatable*>(); //list of objects to be updated
   vector<Light*> lights;
 
   // STANDARD CORNELL LAYOUT
@@ -680,7 +680,6 @@ int main(int argc, char *argv[])
 
   Model orbitor1 = Model("earth/earth2");
   orbitor1.setPosition(vec3(9,0,0));
-  // orbitor1.setScale(vec3(0.000003f,0.000003f,0.000003f));
   orbitor1.rotate(vec3(M_PIf,0,0));
   renderQueue.push_back(&orbitor1);
   scene1.push_back(&orbitor1);
@@ -688,12 +687,9 @@ int main(int argc, char *argv[])
   Magnet mag = Magnet(&orbitor1, rbList);
   updateQueue.push_back(&mag);
 
-  // Transformable t = Transformable();
-  vec3 rot = vec3(M_PIf/2,0,0);
   Orbit orbit = Orbit(&center);
   orbit.repeats = -1;
   orbit.time = 6;
-  // orbit.rotation = rot;
   orbitor1.moves.push(&orbit);
   updateQueue.push_back(&orbitor1);
 
@@ -706,7 +702,7 @@ int main(int argc, char *argv[])
   Orbit lunarOrbit = Orbit(&orbitor1);
   lunarOrbit.time = 2;
   lunarOrbit.repeats = -1;
-  lunarOrbit.rotation = rot;
+  lunarOrbit.rotation = vec3(M_PIf/2,0,0);
   moon.moves.push(&lunarOrbit);
   updateQueue.push_back(&moon);
  
@@ -724,7 +720,7 @@ int main(int argc, char *argv[])
   Orbit orbit2 = Orbit(&center);
   orbit2.repeats = -1;
   orbit2.time = 10;
-  orbit2.rotation = rot;
+  orbit2.rotation = vec3(M_PIf/2,0,0);;
   orbitor2.moves.push(&orbit2);
   updateQueue.push_back(&orbitor2);
 
@@ -1001,6 +997,8 @@ void update(Camera &cam, vector<Updatable*> &updatables, vector<Model*> *renderQ
   {
     updatables[i]->update();
   }
+
+  //TIME TRIGGERED EVENTS
 
   float seconds = Times::getFrameCount() / 30.0f;
   if (seconds == 9.0f) {

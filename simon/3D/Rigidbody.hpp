@@ -5,9 +5,10 @@
 #include "Updatable.hpp"
 #include "Temporal.hpp"
 
+//main physics class
 class Rigidbody : public Updatable, Temporal {
     public:
-        glm::mat4 velocity;
+        glm::mat4 velocity; //combined linear and angular velocity
         void update() override;
         bool collide(Rigidbody other);
         bool hasGravity = true;
