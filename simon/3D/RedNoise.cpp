@@ -30,8 +30,8 @@ using namespace glm;
 #define WIDTH 640
 #define HEIGHT 480
 #define IMG_SIZE (WIDTH*HEIGHT)
-#define SSAA false
-#define SSAA_SCALE 3
+#define SSAA true
+#define SSAA_SCALE 2
 #define SSAA_SAMPLES (SSAA_SCALE*SSAA_SCALE)
 #define ASPECT_RATIO WIDTH/(float)HEIGHT
 #define MAX_DEPTH 4
@@ -42,7 +42,7 @@ using namespace glm;
 #define NUM_TILES_Y (HEIGHT / TILE_SIZE)
 #define NUM_TILES (NUM_TILES_X * NUM_TILES_Y)
 
-#define RENDER false
+#define RENDER true
 #define RENDER_LENGTH 300
 
 #ifndef M_PIf
@@ -76,7 +76,7 @@ uint32_t imageBuffer[IMG_SIZE];
 bool wireframe = true;
 bool bilinear = true;
 bool perspective = true;
-bool toRaytrace = false;
+bool toRaytrace = true;
 bool softShadows = false;
 DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
 

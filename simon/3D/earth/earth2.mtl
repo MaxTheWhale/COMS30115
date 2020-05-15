@@ -1,6 +1,6 @@
 newmtl earth2:Earth_MATERIAL
 illum 1
-Kd 0.00 0.00 0.00
+Kd 0.02 0.10 0.23
 Ka 1.00 1.00 1.00
 Tf 1.00 1.00 1.00
 map_Kd Earth_TEXTURE_CM.ppm
