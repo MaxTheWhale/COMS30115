@@ -693,7 +693,7 @@ int main(int argc, char *argv[])
   orbitor1.moves.push(&orbit);
   updateQueue.push_back(&orbitor1);
 
-  Model moon = Model("Moon2k");
+  Model moon = Model("moon/Moon2k");
   moon.setPosition(orbitor1.getPosition() + vec3(4,0,0));
   moon.scale(vec3(0.7f,0.7f,0.7f));
   renderQueue.push_back(&moon);
