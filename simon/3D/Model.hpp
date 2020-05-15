@@ -8,6 +8,7 @@
 #include <string>
 #include "Material.h"
 
+//class for loading and storing OBJ files as distinct models in the scene
 class Model : public Animatable {
   public:
     std::vector<ModelTriangle> tris;
@@ -16,8 +17,8 @@ class Model : public Animatable {
     Model(const Model& original);
     vec3 center;
     float furthestExtent = -1.0f;
-    bool castShadow = true;
-    bool fullBright = false;
+    bool castShadow = true; //does this model interrupt lighting
+    bool fullBright = false; //if true the model is rendered at maximum brightness at all times
     float calcExtent();
     vec4 calcTangent(ModelTriangle& tri);
   protected:

@@ -7,6 +7,8 @@
 using namespace std;
 using namespace glm;
 
+//chained vector output operators to allow all used glm vector and matrix types to
+//be output directly using std::cout
 std::ostream &operator<<(std::ostream &os, const std::vector<float> vector);
 
 std::ostream &operator<<(std::ostream &os, const vec3 vec3);

@@ -656,26 +656,10 @@ int main(int argc, char *argv[])
   center.fullBright = true;
   scene1.push_back(&center);
 
-  // Light mainLight = Light(vec3(2550.0f, 250.0f, 1130.0f), vec3(1.0f, 1.0f, 1.0f));
-  // mainLight.setPosition(vec3(19,29,1.0f));
-  // lights.push_back(&mainLight);
-  // scene1.push_back(&mainLight);
-
   Light blueLight = Light(vec3(250.0f, 1170.0f, 2550.0f)/2.0f, vec3(1.0f, 1.0f, 1.0f));
   blueLight.setPosition(vec3(25,20,-5.0f));
   lights.push_back(&blueLight);
   scene1.push_back(&blueLight);
-
-  // Light otherLight = Light(vec3(0.0f, 50.0f, 0.0f), vec3(1.0f, 1.0f, 1.0f));
-  // otherLight.setPosition(vec3(0.0f, 3.0f, 0.0f));
-  // Transformable lightT = Transformable();
-  // lightT.setRotation(vec3(M_PIf/2,0,0));
-  // Orbit lightOrbit = Orbit(lightT.transform);
-  // lightOrbit.repeats = -1;
-  // lightOrbit.time = 1;
-  // otherLight.moves.push(&lightOrbit);
-  // updateQueue.push_back(&otherLight);
-  // lights.push_back(&otherLight);
 
   vector<Rigidbody*> rbList;
 
@@ -889,11 +873,11 @@ int main(int argc, char *argv[])
   Rigidbody tiltRB = Rigidbody(&tilt, rbList);
   tiltRB.elasticity = 0.1f;
   updateQueue.push_back(&tiltRB);
-  // Model 
+
+  // CAMERA SETUP AND ANIMATION
 
   Camera cam;
   cam.setProjection(90.0f, WIDTH / (float)HEIGHT, 0.1f, 100.0f);
-  // cam.lookAt(vec3(100.0f, 10.0f, 10.0f), vec3(100.0f, 0, 0));
   cam.lookAt(iss.getPosition() + vec3(0,0,4), iss.getPosition());
 
   Movement diag = Movement(cam.transform, 1);
@@ -902,9 +886,7 @@ int main(int argc, char *argv[])
   diag.stareTarget = &iss;
 
   Movement slow = Movement(diag.transform, 1);
-  // slow.move(vec3(-5/1.3,-3/1.3,-1));
   slow.setPosition(vec3(25,15,0));
-  // slow.rotation = vec3(0,-M_PIf/6,0);
   slow.isRotation = true;
 
   Movement move = Movement(cam.transform, 3);
@@ -913,7 +895,6 @@ int main(int argc, char *argv[])
   move.stareTarget = &center;
 
   Movement spin = Movement(vec3(0,0, 2.0f * M_PIf), 2);
-  // spin.transform[3] = vec4()
   spin.isRotation = true;
 
   Transformable target = Transformable();
@@ -947,6 +928,7 @@ int main(int argc, char *argv[])
   auto start = std::chrono::high_resolution_clock::now();
   int frameCount = 0;
   int renderFrame = 0;
+  //main render loop
   while (true)
   {
     auto elapsed = std::chrono::high_resolution_clock::now() - start;
@@ -971,8 +953,8 @@ int main(int argc, char *argv[])
     // We MUST poll for events - otherwise the window will freeze !
     if (window.pollForInputEvents(&event))
       handleEvent(event, cam);
-    // cout << "hs_logo pos: " << hs_logo.getPosition() << endl;
     //call update twice to account for 30-60 fps difference
+    //not exactly an elegent solution, but it works
     update(cam, updateQueue, &renderQueue);
     update(cam, updateQueue, &renderQueue);
     draw();
@@ -1014,31 +996,25 @@ int moveStage = 0;
 
 void update(Camera &cam, vector<Updatable*> &updatables, vector<Model*> *renderQueue)
 {
-  // Function for performing animation (shifting artifacts or moving the camera)
   cam.update();
   // cout << "camera pos: " << cam.getPosition() << endl;
   for (unsigned int i = 0; i < updatables.size(); i++)
   {
     updatables[i]->update();
   }
+
   float seconds = Times::getFrameCount() / 30.0f;
   if (seconds == 9.0f) {
+    //drop the yeeting logo
     unfreeze->positionFixed = false;
   }
   else if (seconds == 7.0f) {
     if (sceneID == 1) {
       sceneID++;
       cout << "switching scenes" << endl;
-      // cout << "size before: " << renderQueue->size() << endl;
-      // renderQueue->erase(std::remove_if(renderQueue->begin(),renderQueue->end(),[](Model* pointer){
-      //   bool result = std::find(scene1.begin(), scene1.end(), pointer) != scene1.end();
-      //   if (result) {
-      //     cout << "removing pointer" << endl;
-      //   }
-      //   return result;
-      // }));
-      // cout << "size after: " << renderQueue->size() << endl;
+      //hide scene 1 to reduce load while rendering scene 2
       renderQueue->clear();
+      //add scene 2 to the render queue
       renderQueue->insert(renderQueue->end(), scene2.begin(), scene2.end());
       sunlight->setPosition(vec3(95, 20, 20));
       sunlight->diffuseIntensity *= 3.5;
@@ -1049,7 +1025,7 @@ void update(Camera &cam, vector<Updatable*> &updatables, vector<Model*> *renderQ
       sunlight->moves.push(move);
     }
   }
-  else if (seconds == 2.1f) {
+  else if (seconds == 2.1f) { //ISS animation
     Movement* move = new Movement(2.5f);
     move->move(vec3(-3,3,-5));
     move->isRotation = true;

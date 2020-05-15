@@ -2,6 +2,7 @@
 
 #include <glm/glm.hpp>
 
+//class to wrap a homogeneous 4x4 matrix transform
 class Transformable {
   public:
     glm::mat4 transform;
